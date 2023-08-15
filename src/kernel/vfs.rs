@@ -1,7 +1,9 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::{Arc, Mutex};
+use rayon::iter::IntoParallelRefIterator;
 use rayon::ThreadPoolBuilder;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
@@ -53,7 +55,8 @@ impl NodeType {
 pub struct VfsNode {
     name: String,
     last_modified: u64,
-    node_type: NodeType,
+    children: ArcMutexHashMap,
+    contents: Vec<u8>,
     permissions: Permissions,
 }
 
@@ -67,13 +70,20 @@ impl VfsNode {
         self.last_modified
     }
 
-    pub fn new(name: String, node_type: NodeType) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             name,
             last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-            node_type,
+            children: ArcMutexHashMap::new(),
+            contents: vec![],
             permissions: Permissions::all_users(),
         }
+    }
+
+    pub fn get_child(&self, name: &str) -> Option<Arc<Mutex<VfsNode>>> {
+        let lock = self.children.0.lock().unwrap();
+        let result = lock.get(name).map(|node| node.0.clone());
+        result
     }
 }
 
@@ -212,6 +222,16 @@ impl Permissions {
         self.owner_perms | self.group_perms | self.other_perms
     }
 
+    pub fn default_for(user: Box<User>) -> Self {
+        Self {
+            owner: user.clone(),
+            group: Box::from(user.groups.0.lock().unwrap().first().unwrap().clone()),
+            owner_perms: 0b111,
+            group_perms: 0b111,
+            other_perms: 0b111,
+        }
+    }
+
     /// Checks if the given user has read permission.
     ///
     /// # Parameters
@@ -307,7 +327,6 @@ impl Permissions {
 // ==========================================
 // ============== Main VFS API ==============
 // ==========================================
-
 #[derive(Debug)]
 pub struct VFS {
     root: ArcMutexVfsNode,
@@ -327,9 +346,10 @@ impl VFS {
         let thread_pool = ThreadPoolBuilder::new().build().unwrap();
         Self {
             root: ArcMutexVfsNode::new(VfsNode {
-                name: "root".to_string(),
+                name: "/".to_string(),
                 last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                node_type: NodeType::Directory(ArcMutexHashMap::new()),
+                children: ArcMutexHashMap::new(),
+                contents: vec![],
                 permissions: Permissions::all_users(),
             }),
             thread_pool,
@@ -356,7 +376,7 @@ impl VFS {
             return Ok(self.root.0.clone());
         }
         let node = self.find_node(path);
-        if node.is_none() {
+        if node.is_err() {
             return Err(VfsError::InvalidPath);
         }
 
@@ -376,81 +396,51 @@ impl VFS {
     /// # Returns
     ///
     /// The VFS node corresponding to the path.
-    fn find_node(&mut self, path: &str) -> Option<Arc<Mutex<VfsNode>>> {
-        let segments: Vec<&str> = path.split('/').collect();
+    // Updated find_node method
+    fn find_node(&self, path: &str) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+        //if path is empty or root, return root
+        if path == "" || path == "/" {
+            return Ok(self.root.0.clone());
+        }
+        let components: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        let mut current_node: Option<Arc<Mutex<VfsNode>>> = Some(self.root.0.clone());
 
-        let mut current_node = self.root.0.clone();
-
-        for segment in segments.iter().skip(1) {
-            let next_node = {
-                let current_node_guard = current_node.lock().unwrap();
-                match &current_node_guard.node_type {
-                    NodeType::Directory(children) => {
-                        let children_guard = children.0.lock().unwrap();
-                        if let Some(child) = children_guard.get(*segment) {
-                            Some(Arc::clone(&child.0))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                }
-            };
-
-            match next_node {
-                Some(node) => current_node = node,
-                None => return None,
-            }
+        for component in components {
+            let children = current_node.as_ref().unwrap().lock().unwrap().children.clone();
+            current_node = Some(children.0.lock().unwrap().get(component).unwrap().0.clone());
         }
 
-        Some(current_node)
+        Ok(current_node.unwrap())
     }
-    pub fn open(&self, path: &str, user: u8) -> Result<Arc<Mutex<VfsNode>>, &'static str> {
-        let segments: Vec<&str> = path.split('/').collect();
 
-        if segments.is_empty() {
-            return Err("Invalid path");
+    pub fn create_file(&self, path: &str, permissions: Permissions) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+        println!("Creating file: {}", path);
+        if path == "" || path == "/" || path.contains("//") || !path.starts_with("/") {
+            return Err(VfsError::InvalidPath);
         }
+        let path = Path::new(path);
+        // let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
+        let parent_path = path.parent().unwrap().to_str().unwrap();
+        let parent_node = self.find_node(&parent_path);
 
-        let mut current_node = Arc::clone(&self.root.0);
-
-        for segment in segments.iter() {
-            // Use a temporary variable to store the next node to avoid borrow checker issues
-            let next_node: Option<Arc<Mutex<VfsNode>>>;
-
-            {
-                let node_guard = current_node.lock().unwrap();
-
-                // Check if current node is a directory
-                if node_guard.node_type.type_id() != NodeType::Directory.type_id() {
-                    return Err("Invalid path");
-                }
-
-                match &node_guard.node_type {
-                    NodeType::Directory(children) => {
-                        let children_guard = children.0.lock().unwrap();
-                        if let Some(child) = children_guard.get(*segment) {
-                            next_node = Some(Arc::clone(&child.0));
-                        } else {
-                            return Err("Invalid path");
-                        }
-                    }
-                    _ => return Err("Invalid path"),
-                }
-            }
-
-            // Outside of the lock scope, update the current_node
-            current_node = next_node.unwrap();
-        }
-
-        let node_guard = current_node.lock().unwrap();
-
-        if !permission_check(&node_guard.permissions.to_full_permissions(), user) {
-            return Err("Permission denied");
-        }
-
-        Ok(Arc::clone(&current_node))
+        let binding = parent_node.unwrap();
+        let mut node_guard = binding.lock().unwrap();
+        let name = path.file_name().unwrap().to_str().unwrap();
+        //create our file node
+        let new_node = ArcMutexVfsNode::new(VfsNode {
+            name: name.to_string(),
+            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            children: ArcMutexHashMap::new(),
+            contents: vec![],
+            permissions,
+        });
+        let new_node_binding = new_node.0.clone();
+        let binding = node_guard.children.clone();
+        let mut child_lock = binding.0.lock().unwrap();
+        child_lock.insert(path.file_name().unwrap().to_str().unwrap().to_string(), new_node);
+        return Ok(new_node_binding);
     }
+
 
     /// Creats a directory. If the directory already exists, returns an error.
     ///
@@ -462,55 +452,34 @@ impl VFS {
     /// # Returns
     ///
     /// Result indicating the operation's success.
-    pub fn create_directory(&self, path: &str, user: u8) -> Result<(), &'static str> {
-        let segments: Vec<&str> = path.split('/').collect();
+    pub fn create_directory(&self, path: &str, permissions: Permissions) -> Result<(), &'static str> {
+        let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
+        let parent_node = self.find_node(&parent_path);
+        let binding = parent_node.unwrap();
+        let mut node_guard = binding.lock().unwrap();
 
-        if segments.len() < 2 {
-            return Err("Path too short");
+
+        // if !permission_check(&node_guard.permissions.to_full_permissions(), ) {
+        //     return Err("Permission denied");
+        // }
+
+        //Create our new node in the parent_node
+        let new_node = ArcMutexVfsNode::new(VfsNode {
+            name: path.split('/').last().unwrap().to_string(),
+            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            children: ArcMutexHashMap::new(),
+            contents: vec![],
+            permissions,
+        });
+        let binding = node_guard.children.clone();
+        let mut child_lock = binding.0.lock().unwrap();
+        child_lock.insert(path.split('/').last().unwrap().to_string(), new_node);
+        //validate by calling find_node
+        let node = self.find_node(path);
+
+        if node.is_err() {
+            return Err("Invalid path");
         }
-
-        let mut current_node = Arc::clone(&self.root.0);
-
-        for segment in segments.iter().take(segments.len() - 1) {
-            let next_node = {
-                let node_guard = current_node.lock().unwrap();
-                match &node_guard.node_type {
-                    NodeType::Directory(children) => {
-                        children.0.lock().unwrap().get(*segment).map(|child| Arc::clone(&child.0))
-                    }
-                    _ => None,
-                }
-            };
-
-            if let Some(node) = next_node {
-                current_node = node;
-            } else {
-                return Err("Invalid path");
-            }
-        }
-
-
-        let mut node_guard = current_node.lock().unwrap();
-
-        if node_guard.node_type.type_id() != NodeType::Directory.type_id() {
-            return Err("Not a directory");
-        }
-
-        if !permission_check(&node_guard.permissions.to_full_permissions(), user) {
-            return Err("Permission denied");
-        }
-
-        match &mut node_guard.node_type {
-            NodeType::Directory(children) => {
-                if children.0.lock().unwrap().contains_key(segments.last().cloned().unwrap()) {
-                    return Err("Directory already exists");
-                }
-
-                let new_dir = VfsNode::new(segments.last().unwrap().to_string(), NodeType::Directory(ArcMutexHashMap::new()));
-                children.0.lock().unwrap().insert(segments.last().unwrap().to_string(), ArcMutexVfsNode::new(new_dir));
-            }
-            _ => return Err("Not a directory"),
-        };
 
         Ok(())
     }
@@ -527,21 +496,17 @@ impl VFS {
     ///
     ///The size of the directory.
     pub fn get_directory_size(&mut self, path: &str, user: Box<User>) -> Result<usize, VfsError> {
-        let node = self.validate_path(path, user, Permissions::can_read)?;
+        let node = self.validate_path(path, user.clone(), Permissions::can_read)?;
         let node_guard = node.lock().unwrap();
-        match &node_guard.node_type {
-            NodeType::Directory(children) => {
-                let children_guard = children.0.lock().unwrap();
-                let mut size = 0;
-                for child in children_guard.values() {
-                    let guard = child.0.lock().unwrap();
-                    let user = guard.permissions.owner.clone();
-                    size += self.get_directory_size(&guard.name, user.clone())?;
-                }
-                Ok(size)
-            }
-            _ => Err(VfsError::InvalidOperation),
+        //recursivley get the size of the directory
+
+        let mut size = 0;
+        for child in node_guard.children.0.lock().unwrap().values() {
+            let child_guard = child.0.lock().unwrap();
+            size += self.get_directory_size(&format!("{}/{}", path, child_guard.name), user.clone())?;
         }
+
+        Ok(size)
     }
 
     /// Rename a file.
@@ -573,11 +538,7 @@ impl VFS {
     /// The contents of the file.
     pub fn read_file(&mut self, path: &str, user: Box<User>) -> Result<Vec<u8>, VfsError> {
         let node = self.validate_path(path, user, Permissions::can_read)?;
-        let node_guard = node.lock().unwrap();
-        match &node_guard.node_type {
-            NodeType::File(content) => Ok(content.clone()),
-            _ => Err(VfsError::InvalidOperation),
-        }
+        Ok(node.clone().lock().unwrap().contents.clone())
     }
 
 
@@ -599,14 +560,8 @@ impl VFS {
 
         let node = self.validate_path(path, user, Permissions::can_write)?;
         let mut node_guard = node.lock().unwrap();
-
-        match &mut node_guard.node_type {
-            NodeType::File(file_content) => {
-                *file_content = content;
-                Ok(())
-            }
-            _ => Err(VfsError::InvalidOperation),
-        }
+        //TODO: write the file contents and create it if it doesn't exist
+        Ok(node_guard.contents = content)
     }
 
 
@@ -620,7 +575,7 @@ impl VFS {
     /// # Returns
     ///
     /// Result indicating the operation's success.
-    pub fn delete(&mut self, path: &str, user: Box<User>) -> Result<(), VfsError> {
+    pub fn delete(&mut self, path: &str, user: Box<User>) -> Result<ArcMutexVfsNode, VfsError> {
         let segments: Vec<&str> = path.split('/').collect();
         if segments.len() < 2 {
             return Err(VfsError::InvalidOperation);  // Cannot delete root
@@ -630,13 +585,8 @@ impl VFS {
         let parent_path = &segments[..segments.len() - 1].join("/");
         let parent_node = self.validate_path(parent_path, user, Permissions::can_write)?;
         let mut node_guard = parent_node.lock().unwrap();
-        match &mut node_guard.node_type {
-            NodeType::Directory(children) => {
-                children.0.lock().unwrap().remove(*node_name);
-                Ok(())
-            }
-            _ => Err(VfsError::InvalidOperation),
-        }
+        let result = Ok(node_guard.children.0.lock().unwrap().remove(node_name.clone()).ok_or(VfsError::InvalidOperation)?);
+        result
     }
 
     /// Lists the contents of a directory.
@@ -652,10 +602,12 @@ impl VFS {
     pub fn list_directory(&mut self, path: &str, user: Box<User>) -> Result<Vec<String>, VfsError> {
         let node = self.validate_path(path, user, Permissions::can_read)?;
         let node_guard = node.lock().unwrap();
-        match &node_guard.node_type {
-            NodeType::Directory(children) => Ok(children.0.lock().unwrap().keys().cloned().collect()),
-            _ => Err(VfsError::InvalidOperation),
+        let mut children = vec![];
+        for child in node_guard.children.0.lock().unwrap().values() {
+            let child_guard = child.0.lock().unwrap();
+            children.push(child_guard.name.clone());
         }
+        Ok(children)
     }
 
     /// Locks a file for editing.
@@ -826,7 +778,6 @@ impl ArcMutexVfsNode {
     }
 }
 
-
 impl Serialize for ArcMutexVfsNode {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
@@ -858,7 +809,6 @@ impl ArcMutexHashMap {
 
 #[derive(Debug, Clone)]
 pub struct ArcMutexVecGroup(Arc<Mutex<Vec<Group>>>);
-
 
 impl Serialize for ArcMutexHashMap {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -926,22 +876,48 @@ mod tests {
         let file_node = VfsNode {
             name: "file.txt".to_string(),
             last_modified: 1629139200, // Arbitrary timestamp
-            node_type: NodeType::File(b"Hello World".to_vec()),
+            children: ArcMutexHashMap::new(),
+            contents: vec![],
             permissions: Permissions::default(), // Assuming a Permissions struct with a default implementation
         };
         assert_eq!(file_node.name, "file.txt");
-        if let NodeType::File(data) = &file_node.node_type {
-            assert_eq!(data, &b"Hello World".to_vec());
-        } else {
-            panic!("Node type is not File");
-        }
+        assert_eq!(file_node.last_modified, 1629139200);
     }
 
     // 1. Initialization Tests
     #[test]
     fn test_new_vfs() {
         let vfs = VFS::new();
-        assert_eq!(vfs.root.0.lock().unwrap().name, "root", "Root node name does not match");
+        assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
+
+        let child_lock = vfs.root.0.lock().unwrap();
+        let root_children = child_lock.children.0.lock().unwrap();
+        assert_eq!(root_children.len(), 0, "Root node should not have any children");
+    }
+
+    #[test]
+    fn test_new_file_node() {
+        let mut vfs = VFS::new();
+        // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
+        let perms = Permissions::default();
+        let result = vfs.create_file("/blah", perms);
+        assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
+        //
+        let child_lock = vfs.root.0.lock().unwrap();
+        let root_children = child_lock.children.0.lock().unwrap();
+        assert_eq!(root_children.len(), 1, "Root node should have one child");
+    }
+
+    #[test]
+    fn test_nested_file_node() {
+        let mut vfs = VFS::new();
+        // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
+        let result = vfs.create_file("/blah",  Permissions::default());
+        assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
+
+        let result = vfs.create_file("/blah/blah2",  Permissions::default());
+
+        assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
     }
 
     #[test]
@@ -949,7 +925,8 @@ mod tests {
         let node = VfsNode {
             name: "test".to_string(),
             last_modified: 0,
-            node_type: NodeType::File(vec![]),
+            children: ArcMutexHashMap::new(),
+            contents: vec![],
             permissions: Permissions::root_only(),
         };
         assert_eq!(node.name, "test", "Node name does not match");
@@ -959,15 +936,8 @@ mod tests {
     #[test]
     fn test_create_directory() {
         let mut vfs = VFS::new();
-        let user = User::new("test", 0b111);
-        let sudoer = Group {
-            id: 0,
-            name: "sudo".to_string(),
-            permissions: 0b111,
-        };
-        let permissions = Permissions::new(Box::from(user.clone()), Box::from(sudoer), 0b111, 0b111, 0b111);
-        vfs.create_directory("/test", 0b111).unwrap();
-        assert!(vfs.find_node("/test").is_some(), "Directory was not created");
+        vfs.create_directory("/test", Permissions::all_users()).unwrap();
+        assert!(vfs.find_node("/test").is_ok(), "Directory was not created");
     }
 }
 
