@@ -339,6 +339,19 @@ impl VFS {
             groups: Default::default(),
         }
     }
+    /// Checks if a file or directory exists.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file or directory.
+    ///
+    /// # Returns
+    ///
+    /// True if the file or directory exists, false otherwise.
+    pub fn exists(&self, path: &str, user: Box<User>) -> bool {
+        let node = self.validate_path(path, user, Permissions::can_read);
+        node.is_ok()
+    }
 
     pub fn serialize_to_file(&self, path: &str) -> Result<(), VfsError> {
         let serialized = bincode::serialize(&self.root).unwrap();
@@ -349,6 +362,15 @@ impl VFS {
     pub fn deserialize_from_file(&mut self, path: &str) -> Result<(), VfsError> {
         let serialized = std::fs::read(path).unwrap();
         self.root = bincode::deserialize(&serialized).unwrap();
+        Ok(())
+    }
+
+    pub fn try_deserialize_from_file(&mut self, path: &str) -> Result<(), VfsError> {
+        let serialized = std::fs::read(path);
+        if serialized.is_err() {
+            return Err(VfsError::InvalidOperation);
+        }
+        self.root = bincode::deserialize(&serialized.unwrap()).unwrap();
         Ok(())
     }
 
@@ -364,7 +386,7 @@ impl VFS {
     /// # Returns
     ///
     /// The VFS node corresponding to the path.
-    fn validate_path(&mut self, path: &str, user: Box<User>, permission_check: fn(&Permissions, Box<User>) -> bool) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+    fn validate_path(& self, path: &str, user: Box<User>, permission_check: fn(&Permissions, Box<User>) -> bool) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
         //if path is empty or root, return root
         if path == "" || path == "/" {
             return Ok(self.root.0.clone());
@@ -401,6 +423,9 @@ impl VFS {
 
         for component in components {
             let children = current_node.as_ref().unwrap().lock().unwrap().children.clone();
+            if !children.0.lock().unwrap().contains_key(component) {
+                return Err(VfsError::InvalidPath);
+            }
             current_node = Some(children.0.lock().unwrap().get(component).unwrap().0.clone());
         }
 
@@ -418,7 +443,7 @@ impl VFS {
         let parent_node = self.find_node(&parent_path);
 
         let binding = parent_node.unwrap();
-        let  node_guard = binding.lock().unwrap();
+        let node_guard = binding.lock().unwrap();
         let name = path.file_name().unwrap().to_str().unwrap();
         //create our file node
         let new_node = ArcMutexVfsNode::new(VfsNode {
@@ -450,7 +475,7 @@ impl VFS {
         let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
         let parent_node = self.find_node(&parent_path);
         let binding = parent_node.unwrap();
-        let  node_guard = binding.lock().unwrap();
+        let node_guard = binding.lock().unwrap();
 
         //Create our new node in the parent_node
         let new_node = ArcMutexVfsNode::new(VfsNode {
@@ -552,6 +577,72 @@ impl VFS {
         Ok(node_guard.contents = content)
     }
 
+    /// Reads a file from native file system and writes it to the VFS.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the on the native file system.
+    /// - `vfs_path`: The path to the file in the VFS.
+    ///
+    /// # Returns
+    ///
+    /// Result indicating the operation's success.
+    pub fn read_file_from_disk(&mut self, path: &str, vfs_path: &str) -> Result<(), VfsError> {
+        let content = std::fs::read(path).unwrap();
+        let node = self.create_file(vfs_path, Permissions::public_perms())?;
+        let mut node_guard = node.lock().unwrap();
+        Ok(node_guard.contents = content)
+    }
+
+    /// Writes a file from the VFS to the native file system.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file on the native file system.
+    /// - `vfs_path`: The path to the file in the VFS.
+    ///
+    /// # Returns
+    ///
+    /// Result indicating the operation's success.
+    pub fn write_file_to_disk(&mut self, path: &str, vfs_path: &str) -> Result<(), VfsError> {
+        let node = self.find_node(vfs_path)?;
+        let node_guard = node.lock().unwrap();
+        std::fs::write(path, node_guard.contents.clone()).unwrap();
+        Ok(())
+    }
+
+    /// Copies a file from one location to another.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file to copy.
+    /// - `new_path`: The path to the new file.
+    ///
+    /// # Returns
+    ///
+    /// Result indicating the operation's success.
+    pub fn copy_file(&mut self, _path: &str, new_path: &str, user: Box<User>) -> Result<(), VfsError> {
+        let path = Path::new(_path);
+        let new_path = Path::new(new_path);
+        let node = self.validate_path(_path, user.clone(), Permissions::can_read)?;
+        let node_guard = node.lock().unwrap();
+        let new_node = ArcMutexVfsNode::new(VfsNode {
+            name: path.file_name().unwrap().to_str().unwrap().to_string(),
+            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            children: ArcMutexHashMap::new(),
+            contents: node_guard.contents.clone(),
+            permissions: node_guard.permissions.clone(),
+        });
+        let parent_path = new_path.parent().unwrap().to_str().unwrap();
+        let parent_node = self.find_node(&parent_path);
+        let binding = parent_node.unwrap();
+        let node_guard = binding.lock().unwrap();
+        let name = new_path.file_name().unwrap().to_str().unwrap().to_string();
+        let binding = node_guard.children.clone();
+        let mut child_lock = binding.0.lock().unwrap();
+        child_lock.insert(name, new_node);
+        Ok(())
+    }
 
     /// Deletes a file or directory.
     ///
@@ -576,7 +667,7 @@ impl VFS {
         let node_name = segments.last().unwrap();
         let parent_path = &segments[..segments.len() - 1].join("/");
         let parent_node = self.validate_path(parent_path, user, Permissions::can_write)?;
-        let  node_guard = parent_node.lock().unwrap();
+        let node_guard = parent_node.lock().unwrap();
         let mut child_guard = node_guard.children.0.lock().unwrap();
 
         let result = Ok(child_guard.remove(node_name.to_string().as_str()).ok_or(VfsError::InvalidOperation)?);
@@ -843,6 +934,7 @@ impl<'de> Deserialize<'de> for ArcMutexVecGroup {
 mod tests {
     use super::*;
 
+
     #[test]
     fn test_user_creation() {
         let user = User::new("Alice", 0b111);
@@ -884,7 +976,7 @@ mod tests {
 
     #[test]
     fn test_new_file_node() {
-        let  vfs = VFS::new();
+        let vfs = VFS::new();
         // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
         let perms = Permissions::default();
         let result = vfs.create_file("/blah", perms);
@@ -897,7 +989,7 @@ mod tests {
 
     #[test]
     fn test_nested_file_node() {
-        let  vfs = VFS::new();
+        let vfs = VFS::new();
         // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
         let result = vfs.create_file("/blah", Permissions::default());
         assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
@@ -909,7 +1001,7 @@ mod tests {
     // 2. Directory Tests
     #[test]
     fn test_create_directory() {
-        let  vfs = VFS::new();
+        let vfs = VFS::new();
         vfs.create_directory("/test", Permissions::public_perms()).unwrap();
         assert!(vfs.find_node("/test").is_ok(), "Directory was not created");
     }
@@ -966,6 +1058,41 @@ mod tests {
 
         let contents = result.unwrap();
         assert_eq!(contents, vec![1, 2, 3], "File contents do not match");
+    }
+
+    #[test]
+    fn test_reading_file_from_disk() {
+        let mut vfs = VFS::new();
+        let user = vfs.add_user(User::new("root", 0b111)).unwrap();
+
+        vfs.read_file_from_disk("test.txt", "/test.txt").unwrap();
+
+        let result = vfs.read_file("/test.txt", user);
+        assert!(result.is_ok(), "Got error {:?} when reading file", result.err());
+
+        let contents = result.unwrap();
+        //the contents of test.txt are "hello, from the disk!"
+        assert_eq!(contents, vec![104, 101, 108, 108, 111, 44, 32, 102, 114, 111, 109, 32, 116, 104, 101, 32, 100, 105, 115, 107, 33], "File contents do not match");
+
+        //test that we can write to the file
+        vfs.write_file_to_disk("test_2.txt", "/test.txt").unwrap();
+    }
+
+    #[test]
+    fn test_copying_file() {
+        let mut vfs = VFS::new();
+
+        let _user = vfs.add_user(User::new("root", 0b111)).unwrap();
+        vfs.read_file_from_disk("test.txt", "/test.txt").unwrap();
+
+        vfs.copy_file("/test.txt", "/test_2.txt", _user.clone()).unwrap();
+
+        let result = vfs.read_file("/test_2.txt", _user);
+        assert!(result.is_ok(), "Got error {:?} when reading file", result.err());
+
+        let contents = result.unwrap();
+        //the contents of test.txt are "hello, from the disk!"
+        assert_eq!(contents, vec![104, 101, 108, 108, 111, 44, 32, 102, 114, 111, 109, 32, 116, 104, 101, 32, 100, 105, 115, 107, 33], "File contents do not match");
     }
 }
 

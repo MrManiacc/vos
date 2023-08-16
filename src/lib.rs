@@ -6,6 +6,5 @@ pub mod prelude {
     // Re-export core functionalities for easier access throughout the project.
 
     pub use crate::kernel::{vfs::VFS, window_manager::WindowManager, graphics_lib::GraphicsLib};
-    pub use crate::user::{lua_runtime::LuaRuntime, api::{vfs_api, graphics_api}};
     pub use crate::utils::*;
 }
