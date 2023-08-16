@@ -461,43 +461,6 @@ impl VFS {
     }
 
 
-    /// Creats a directory. If the directory already exists, returns an error.
-    ///
-    /// # Parameters
-    ///
-    /// - `path`: The path to the directory.
-    /// - `user`: The user attempting the operation.
-    ///
-    /// # Returns
-    ///
-    /// Result indicating the operation's success.
-    pub fn create_directory(&self, path: &str, permissions: Permissions) -> Result<(), &'static str> {
-        let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
-        let parent_node = self.find_node(&parent_path);
-        let binding = parent_node.unwrap();
-        let node_guard = binding.lock().unwrap();
-
-        //Create our new node in the parent_node
-        let new_node = ArcMutexVfsNode::new(VfsNode {
-            name: path.split('/').last().unwrap().to_string(),
-            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-            children: ArcMutexHashMap::new(),
-            contents: vec![],
-            permissions,
-        });
-        let binding = node_guard.children.clone();
-        let mut child_lock = binding.0.lock().unwrap();
-        child_lock.insert(path.split('/').last().unwrap().to_string(), new_node);
-        //validate by calling find_node
-        let node = self.find_node(path);
-
-        if node.is_err() {
-            return Err("Invalid path");
-        }
-
-        Ok(())
-    }
-
 
     ///Get the size of a directory (including nested content).
     ///
@@ -998,15 +961,6 @@ mod tests {
     }
 
 
-    // 2. Directory Tests
-    #[test]
-    fn test_create_directory() {
-        let vfs = VFS::new();
-        vfs.create_directory("/test", Permissions::public_perms()).unwrap();
-        assert!(vfs.find_node("/test").is_ok(), "Directory was not created");
-    }
-
-
     #[test]
     fn test_file_no_permission_delete() {
         let mut vfs = VFS::new();
@@ -1064,8 +1018,11 @@ mod tests {
     fn test_reading_file_from_disk() {
         let mut vfs = VFS::new();
         let user = vfs.add_user(User::new("root", 0b111)).unwrap();
-
-        vfs.read_file_from_disk("test.txt", "/test.txt").unwrap();
+        //If file doesn't exists on disk, this will fail so we need to create it and add "hello, from the disk!" to it
+        if std::fs::metadata("tests/test.txt").is_err() {
+            std::fs::write("tests/test.txt", "hello, from the disk!").unwrap();
+        }
+        vfs.read_file_from_disk("tests/test.txt", "/test.txt").unwrap();
 
         let result = vfs.read_file("/test.txt", user);
         assert!(result.is_ok(), "Got error {:?} when reading file", result.err());
@@ -1083,7 +1040,7 @@ mod tests {
         let mut vfs = VFS::new();
 
         let _user = vfs.add_user(User::new("root", 0b111)).unwrap();
-        vfs.read_file_from_disk("test.txt", "/test.txt").unwrap();
+        vfs.read_file_from_disk("tests/test.txt", "/test.txt").unwrap();
 
         vfs.copy_file("/test.txt", "/test_2.txt", _user.clone()).unwrap();
 
