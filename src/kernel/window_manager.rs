@@ -28,7 +28,7 @@ impl WindowManager {
     /// # Returns
     ///
     /// Returns a reference to the newly created window.
-    pub fn open_window(&self, title: &str, width: u32, height: u32) {
+    pub fn open_window(&self, _title: &str, _width: u32, _height: u32) {
         // Actual implementation will go here.
     }
 
@@ -41,7 +41,7 @@ impl WindowManager {
     /// # Returns
     ///
     /// Returns a Result indicating the success or failure of the operation.
-    pub fn close_window(&self, window: &str) -> Result<(), &'static str> {
+    pub fn close_window(&self, _window: &str) -> Result<(), &'static str> {
         // Actual implementation will go here.
         Ok(())
     }

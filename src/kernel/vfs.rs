@@ -1,10 +1,7 @@
-use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::{Arc, Mutex};
-use rayon::iter::IntoParallelRefIterator;
-use rayon::ThreadPoolBuilder;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 
@@ -17,28 +14,6 @@ use serde::{Serialize, Deserialize, Serializer, Deserializer};
 ///
 /// The virtual file system (VFS) is structured as a tree of nodes, where each node represents either a file or a directory.
 /// This enum provides the differentiation between a file (which contains binary data) and a directory (which can have child nodes).
-
-///
-/// A node in the virtual file system can either be a file with binary data
-/// or a directory which can contain other `VfsNode` objects.
-///
-/// # Variants
-/// - `File`: Represents a file node with binary data.
-/// - `Directory`: Represents a directory node with a hashmap of child nodes.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum NodeType {
-    File(Vec<u8>),
-    Directory(ArcMutexHashMap),
-}
-
-impl NodeType {
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-}
-
-/// Represents a node within the virtual file system (VFS).
-///
 /// Each node in the VFS is characterized by its name, last modified timestamp, type (file or directory), and permissions.
 /// The node can either be a file (with associated binary data) or a directory (which can contain child nodes).
 
@@ -76,7 +51,7 @@ impl VfsNode {
             last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
             children: ArcMutexHashMap::new(),
             contents: vec![],
-            permissions: Permissions::all_users(),
+            permissions: Permissions::public_perms(),
         }
     }
 
@@ -107,7 +82,7 @@ impl VfsNode {
 /// - `permissions`: The permissions granted to the group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    id: u32,
+    id: u16,
     name: String,
     permissions: u8,
     groups: ArcMutexVecGroup,
@@ -129,9 +104,20 @@ pub struct User {
 /// - `permissions`: The permissions granted to the group.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Group {
-    id: u32,
+    id: u16,
     name: String,
     permissions: u8,
+}
+
+
+impl Group {
+    pub fn new(name: &str, permissions: u8, id: u16) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            permissions,
+        }
+    }
 }
 
 impl ArcMutexVecGroup {
@@ -168,8 +154,14 @@ impl User {
         }
     }
 
-    pub fn is_member_of(&self, group: &Group) -> bool {
-        self.groups.0.lock().unwrap().contains(group)
+    pub fn is_member_of_any(&self, group_ids: &Vec<u16>) -> bool {
+        let groups = self.groups.0.lock().unwrap();
+        for group_id in group_ids {
+            if groups.contains(group_id) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -187,8 +179,8 @@ impl User {
 /// - Execute Permission is represented by the value: 0b001
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Permissions {
-    owner: Box<User>,
-    group: Box<Group>,
+    owner_id: u16,
+    group_ids: Vec<u16>,
     // permissions in the linux style (rwxrwxrwx)
     owner_perms: u8,
     group_perms: u8,
@@ -208,10 +200,10 @@ impl Permissions {
     /// # Returns
     ///
     /// A new Permissions instance.
-    pub fn new(owner: Box<User>, group: Box<Group>, owner_perms: u8, group_perms: u8, other_perms: u8) -> Self {
+    pub fn new(owner_id: u16, group_ids: Vec<u16>, owner_perms: u8, group_perms: u8, other_perms: u8) -> Self {
         Self {
-            owner,
-            group,
+            owner_id,
+            group_ids,
             owner_perms,
             group_perms,
             other_perms,
@@ -222,15 +214,6 @@ impl Permissions {
         self.owner_perms | self.group_perms | self.other_perms
     }
 
-    pub fn default_for(user: Box<User>) -> Self {
-        Self {
-            owner: user.clone(),
-            group: Box::from(user.groups.0.lock().unwrap().first().unwrap().clone()),
-            owner_perms: 0b111,
-            group_perms: 0b111,
-            other_perms: 0b111,
-        }
-    }
 
     /// Checks if the given user has read permission.
     ///
@@ -242,9 +225,9 @@ impl Permissions {
     ///
     /// True if the user has read permission, false otherwise.
     pub fn can_read(&self, user: Box<User>) -> bool {
-        if user.id == *&self.owner.id {
+        if user.id == self.owner_id {
             self.owner_perms & 0b100 == 0b100
-        } else if user.is_member_of(&self.group) {
+        } else if user.is_member_of_any(&self.group_ids) {
             self.group_perms & 0b100 == 0b100
         } else {
             self.other_perms & 0b100 == 0b100
@@ -261,9 +244,9 @@ impl Permissions {
     ///
     /// True if the user has write permission, false otherwise.
     pub fn can_write(&self, user: Box<User>) -> bool {
-        if user.id == *&self.owner.id {
+        if user.id == self.owner_id {
             self.owner_perms & 0b010 == 0b010
-        } else if user.is_member_of(&self.group) {
+        } else if user.is_member_of_any(&self.group_ids) {
             self.group_perms & 0b010 == 0b010
         } else {
             self.other_perms & 0b010 == 0b010
@@ -280,9 +263,9 @@ impl Permissions {
     ///
     /// True if the user has execute permission, false otherwise.
     pub fn can_execute(&self, user: Box<User>) -> bool {
-        if user.id == *&self.owner.id {
+        if user.id == self.owner_id {
             self.owner_perms & 0b001 == 0b001
-        } else if user.is_member_of(&self.group) {
+        } else if user.is_member_of_any(&self.group_ids) {
             self.group_perms & 0b001 == 0b001
         } else {
             self.other_perms & 0b001 == 0b001
@@ -294,32 +277,33 @@ impl Permissions {
     /// # Returns
     ///
     /// A Permissions object with root-only access.
-    pub fn root_only() -> Self {
+    pub fn private_perms_for_root() -> Self {
         Self {
-            owner: Box::from(User::new("root", 0b111)),
-            group: Box::from(Group {
-                id: 0,
-                name: "root".to_string(),
-                permissions: 0b111,
-            }),
+            owner_id: 0,
+            group_ids: vec![],
             owner_perms: 0b111,
             group_perms: 0b000,
             other_perms: 0b000,
         }
     }
 
-
-    pub fn all_users() -> Self {
+    pub fn public_perms() -> Self {
         Self {
-            owner: Box::from(User::new("root", 0b111)),
-            group: Box::from(Group {
-                id: 0,
-                name: "root".to_string(),
-                permissions: 0b111,
-            }),
+            owner_id: 0,
+            group_ids: vec![],
             owner_perms: 0b111,
             group_perms: 0b111,
             other_perms: 0b111,
+        }
+    }
+
+    pub fn private_perms_for(user: Box<User>) -> Self {
+        Self {
+            owner_id: user.id,
+            group_ids: vec![],
+            owner_perms: 0b111,
+            group_perms: 0b000,
+            other_perms: 0b000,
         }
     }
 }
@@ -330,7 +314,6 @@ impl Permissions {
 #[derive(Debug)]
 pub struct VFS {
     root: ArcMutexVfsNode,
-    thread_pool: rayon::ThreadPool,
     locked_files: HashSet<String>,
     users: HashMap<String, Box<User>>,
     groups: HashMap<String, Box<Group>>,
@@ -343,21 +326,32 @@ impl VFS {
     ///
     /// A new VFS instance.
     pub fn new() -> Self {
-        let thread_pool = ThreadPoolBuilder::new().build().unwrap();
         Self {
             root: ArcMutexVfsNode::new(VfsNode {
                 name: "/".to_string(),
                 last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
                 children: ArcMutexHashMap::new(),
                 contents: vec![],
-                permissions: Permissions::all_users(),
+                permissions: Permissions::public_perms(),
             }),
-            thread_pool,
             locked_files: HashSet::new(),
             users: Default::default(),
             groups: Default::default(),
         }
     }
+
+    pub fn serialize_to_file(&self, path: &str) -> Result<(), VfsError> {
+        let serialized = bincode::serialize(&self.root).unwrap();
+        std::fs::write(path, serialized).unwrap();
+        Ok(())
+    }
+
+    pub fn deserialize_from_file(&mut self, path: &str) -> Result<(), VfsError> {
+        let serialized = std::fs::read(path).unwrap();
+        self.root = bincode::deserialize(&serialized).unwrap();
+        Ok(())
+    }
+
 
     /// Helper function to validate a path and return the corresponding node.
     ///
@@ -424,7 +418,7 @@ impl VFS {
         let parent_node = self.find_node(&parent_path);
 
         let binding = parent_node.unwrap();
-        let mut node_guard = binding.lock().unwrap();
+        let  node_guard = binding.lock().unwrap();
         let name = path.file_name().unwrap().to_str().unwrap();
         //create our file node
         let new_node = ArcMutexVfsNode::new(VfsNode {
@@ -456,12 +450,7 @@ impl VFS {
         let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
         let parent_node = self.find_node(&parent_path);
         let binding = parent_node.unwrap();
-        let mut node_guard = binding.lock().unwrap();
-
-
-        // if !permission_check(&node_guard.permissions.to_full_permissions(), ) {
-        //     return Err("Permission denied");
-        // }
+        let  node_guard = binding.lock().unwrap();
 
         //Create our new node in the parent_node
         let new_node = ArcMutexVfsNode::new(VfsNode {
@@ -560,7 +549,6 @@ impl VFS {
 
         let node = self.validate_path(path, user, Permissions::can_write)?;
         let mut node_guard = node.lock().unwrap();
-        //TODO: write the file contents and create it if it doesn't exist
         Ok(node_guard.contents = content)
     }
 
@@ -576,16 +564,22 @@ impl VFS {
     ///
     /// Result indicating the operation's success.
     pub fn delete(&mut self, path: &str, user: Box<User>) -> Result<ArcMutexVfsNode, VfsError> {
+        //validate the path permissions for the user
+        let validated_lookup = self.validate_path(path, user.clone(), Permissions::can_write);
+        if validated_lookup.is_err() {
+            return Err(validated_lookup.err().unwrap());
+        }
         let segments: Vec<&str> = path.split('/').collect();
         if segments.len() < 2 {
             return Err(VfsError::InvalidOperation);  // Cannot delete root
         }
-
         let node_name = segments.last().unwrap();
         let parent_path = &segments[..segments.len() - 1].join("/");
         let parent_node = self.validate_path(parent_path, user, Permissions::can_write)?;
-        let mut node_guard = parent_node.lock().unwrap();
-        let result = Ok(node_guard.children.0.lock().unwrap().remove(node_name.clone()).ok_or(VfsError::InvalidOperation)?);
+        let  node_guard = parent_node.lock().unwrap();
+        let mut child_guard = node_guard.children.0.lock().unwrap();
+
+        let result = Ok(child_guard.remove(node_name.to_string().as_str()).ok_or(VfsError::InvalidOperation)?);
         result
     }
 
@@ -655,13 +649,19 @@ impl VFS {
     /// # Returns
     ///
     /// Result indicating the operation's success.
-    pub fn add_user(&mut self, user: User) -> Result<(), VfsError> {
+    pub fn add_user(&mut self, user: User) -> Result<Box<User>, VfsError> {
         // For simplicity, we're using a HashSet, but in a real-world scenario, a dedicated database or structure would be used.
         if self.users.contains_key(&user.name) {
             Err(VfsError::InvalidOperation)
         } else {
-            self.users.insert(user.name.clone(), Box::new(user));
-            Ok(())
+            let mut user = Box::new(user);
+            self.users.insert(user.name.clone(), user.clone());
+            //update the user id
+            if user.id != 0 {
+                return Ok(user);
+            }
+            user.id = self.users.len() as u16 - 1;
+            Ok(user.clone())
         }
     }
 
@@ -751,20 +751,11 @@ impl Default for Permissions {
     fn default() -> Self {
         // TODO: Provide a proper default implementation
         Self {
-            owner: Box::new(User {
-                id: 0,
-                name: "".to_string(),
-                permissions: 0,
-                groups: ArcMutexVecGroup::new(),
-            }),
-            group: Box::new(Group {
-                id: 0,
-                name: "".to_string(),
-                permissions: 0,
-            }),
-            owner_perms: 0,
-            group_perms: 0,
-            other_perms: 0,
+            owner_id: 0,
+            group_ids: vec![],
+            owner_perms: 0b111,
+            group_perms: 0b000,
+            other_perms: 0b000,
         }  // Assuming Permissions has no fields
     }
 }
@@ -808,7 +799,7 @@ impl ArcMutexHashMap {
 }
 
 #[derive(Debug, Clone)]
-pub struct ArcMutexVecGroup(Arc<Mutex<Vec<Group>>>);
+pub struct ArcMutexVecGroup(Arc<Mutex<Vec<u16>>>);
 
 impl Serialize for ArcMutexHashMap {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -843,7 +834,7 @@ impl<'de> Deserialize<'de> for ArcMutexVecGroup {
         where
             D: Deserializer<'de>,
     {
-        let vec = Vec::<Group>::deserialize(deserializer)?;
+        let vec = Vec::<u16>::deserialize(deserializer)?;
         Ok(ArcMutexVecGroup(Arc::new(Mutex::new(vec))))
     }
 }
@@ -862,11 +853,7 @@ mod tests {
 
     #[test]
     fn test_group_creation() {
-        let group = Group {
-            id: 1,
-            name: "Admin".to_string(),
-            permissions: 0b111,
-        };
+        let group = Group::new("Admin", 0b111, 1);
         assert_eq!(group.name, "Admin");
         assert_eq!(group.permissions, 0b111);
     }
@@ -897,7 +884,7 @@ mod tests {
 
     #[test]
     fn test_new_file_node() {
-        let mut vfs = VFS::new();
+        let  vfs = VFS::new();
         // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
         let perms = Permissions::default();
         let result = vfs.create_file("/blah", perms);
@@ -910,46 +897,75 @@ mod tests {
 
     #[test]
     fn test_nested_file_node() {
-        let mut vfs = VFS::new();
+        let  vfs = VFS::new();
         // assert_eq!(vfs.root.0.lock().unwrap().name, "/", "Root node name does not match");
-        let result = vfs.create_file("/blah",  Permissions::default());
+        let result = vfs.create_file("/blah", Permissions::default());
         assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
-
-        let result = vfs.create_file("/blah/blah2",  Permissions::default());
-
+        let result = vfs.create_file("/blah/blah2", Permissions::default());
         assert!(result.is_ok(), "File was not created, error: {:?}", result.err());
     }
 
-    #[test]
-    fn test_new_vfs_node() {
-        let node = VfsNode {
-            name: "test".to_string(),
-            last_modified: 0,
-            children: ArcMutexHashMap::new(),
-            contents: vec![],
-            permissions: Permissions::root_only(),
-        };
-        assert_eq!(node.name, "test", "Node name does not match");
-    }
 
     // 2. Directory Tests
     #[test]
     fn test_create_directory() {
-        let mut vfs = VFS::new();
-        vfs.create_directory("/test", Permissions::all_users()).unwrap();
+        let  vfs = VFS::new();
+        vfs.create_directory("/test", Permissions::public_perms()).unwrap();
         assert!(vfs.find_node("/test").is_ok(), "Directory was not created");
+    }
+
+
+    #[test]
+    fn test_file_no_permission_delete() {
+        let mut vfs = VFS::new();
+        let root_user = vfs.add_user(User::new("root", 0b111)).unwrap();
+        let regular_user = vfs.add_user(User::new("regular", 0b100)).unwrap();
+        vfs.create_file("/test", Permissions::private_perms_for_root()).unwrap();
+        let result = vfs.delete("/test", regular_user);
+        assert!(result.is_err(), "Got error {:?} when deleting file", result.err());
+        let result = vfs.delete("/test", root_user);
+        assert!(result.is_ok(), "Got error {:?} when deleting file", result.err());
+    }
+
+    #[test]
+    fn test_serialization() {
+        let mut vfs = VFS::new();
+        let _root_user = vfs.add_user(User::new("root", 0b111)).unwrap();
+        let _regular_user = vfs.add_user(User::new("regular", 0b100)).unwrap();
+        vfs.create_file("/test", Permissions::private_perms_for_root()).unwrap();
+        vfs.serialize_to_file("test.bin").unwrap();
+        let mut new_vfs = VFS::new();
+        new_vfs.deserialize_from_file("test.bin").unwrap();
+        assert!(new_vfs.find_node("/test").is_ok(), "Failed to deserialize file");
+    }
+
+    #[test]
+    fn test_writing_of_file() {
+        let mut vfs = VFS::new();
+        let root_user = vfs.add_user(User::new("root", 0b111)).unwrap();
+
+        let result = vfs.create_file("/test", Permissions::private_perms_for_root());
+        assert!(result.is_ok(), "Got error {:?} when creating file", result.err());
+        let result = vfs.write_file("/test", vec![1, 2, 3], root_user);
+        assert!(result.is_ok(), "Got error {:?} when writing to file", result.err());
+    }
+
+    #[test]
+    fn test_reading_of_file() {
+        let mut vfs = VFS::new();
+        let root_user = vfs.add_user(User::new("root", 0b111)).unwrap();
+
+        let result = vfs.create_file("/test", Permissions::private_perms_for_root());
+        assert!(result.is_ok(), "Got error {:?} when creating file", result.err());
+        let result = vfs.write_file("/test", vec![1, 2, 3], root_user.clone());
+        assert!(result.is_ok(), "Got error {:?} when writing to file", result.err());
+
+        let result = vfs.read_file("/test", root_user);
+
+        assert!(result.is_ok(), "Got error {:?} when reading file", result.err());
+
+        let contents = result.unwrap();
+        assert_eq!(contents, vec![1, 2, 3], "File contents do not match");
     }
 }
 
-
-/// Check if a user has the required permissions.
-///
-/// # Parameters
-/// * `permissions` - Permissions of the node.
-/// * `user` - The user whose permissions are being checked.
-///
-/// # Returns
-/// `true` if the user has the required permissions, `false` otherwise.
-fn permission_check(permissions: &u8, user: u8) -> bool {
-    *permissions & user != 0
-}
