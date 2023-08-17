@@ -1,8 +1,4 @@
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::sync::{Arc, Mutex};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use crate::prelude::*;
 
 
 // ==========================================
@@ -26,7 +22,7 @@ use serde::{Serialize, Deserialize, Serializer, Deserializer};
 /// - `last_modified`: The last modified timestamp of the node.
 /// - `node_type`: The type of the node (file or directory).
 /// - `permissions`: The permissions associated with the node.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, ext::Serialize, ext::Deserialize)]
 pub struct VfsNode {
     name: String,
     last_modified: u64,
@@ -48,14 +44,14 @@ impl VfsNode {
     pub fn new(name: String) -> Self {
         Self {
             name,
-            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_modified: ext::SystemTime::now().duration_since(ext::UNIX_EPOCH).unwrap().as_secs(),
             children: ArcMutexHashMap::new(),
             contents: vec![],
             permissions: Permissions::public_perms(),
         }
     }
 
-    pub fn get_child(&self, name: &str) -> Option<Arc<Mutex<VfsNode>>> {
+    pub fn get_child(&self, name: &str) -> Option<ext::Arc<ext::Mutex<VfsNode>>> {
         let lock = self.children.0.lock().unwrap();
         let result = lock.get(name).map(|node| node.0.clone());
         result
@@ -80,7 +76,7 @@ impl VfsNode {
 /// - `id`: The unique identifier of the group.
 /// - `name`: The name of the group.
 /// - `permissions`: The permissions granted to the group.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, ext::Serialize, ext::Deserialize)]
 pub struct User {
     id: u16,
     name: String,
@@ -102,7 +98,7 @@ pub struct User {
 /// - `id`: The unique identifier of the group.
 /// - `name`: The name of the group.
 /// - `permissions`: The permissions granted to the group.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, ext::Serialize, ext::Deserialize, PartialEq, Eq, Hash)]
 pub struct Group {
     id: u16,
     name: String,
@@ -122,7 +118,18 @@ impl Group {
 
 impl ArcMutexVecGroup {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(vec![])))
+        Self(ext::Arc::new(ext::Mutex::new(vec![])))
+    }
+}
+
+impl Default for User {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: "root".to_string(),
+            permissions: 0b111,
+            groups: ArcMutexVecGroup::new(),
+        }
     }
 }
 
@@ -177,7 +184,7 @@ impl User {
 /// - Read Permission is represented by the value: 0b100
 /// - Write Permission is represented by the value: 0b010
 /// - Execute Permission is represented by the value: 0b001
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, ext::Serialize, ext::Deserialize)]
 pub struct Permissions {
     owner_id: u16,
     group_ids: Vec<u16>,
@@ -314,9 +321,9 @@ impl Permissions {
 #[derive(Debug)]
 pub struct VFS {
     root: ArcMutexVfsNode,
-    locked_files: HashSet<String>,
-    users: HashMap<String, Box<User>>,
-    groups: HashMap<String, Box<Group>>,
+    locked_files: ext::HashSet<String>,
+    users: ext::HashMap<String, Box<User>>,
+    groups: ext::HashMap<String, Box<Group>>,
 }
 
 impl VFS {
@@ -329,16 +336,21 @@ impl VFS {
         Self {
             root: ArcMutexVfsNode::new(VfsNode {
                 name: "/".to_string(),
-                last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                last_modified: ext::SystemTime::now().duration_since(ext::UNIX_EPOCH).unwrap().as_secs(),
                 children: ArcMutexHashMap::new(),
                 contents: vec![],
                 permissions: Permissions::public_perms(),
             }),
-            locked_files: HashSet::new(),
+            locked_files: ext::HashSet::new(),
             users: Default::default(),
             groups: Default::default(),
         }
     }
+
+    pub fn new_ref() -> ext::Arc<ext::Mutex<Self>> {
+        return ext::Arc::new(ext::Mutex::new(VFS::new()));
+    }
+
     /// Checks if a file or directory exists.
     ///
     /// # Parameters
@@ -386,7 +398,7 @@ impl VFS {
     /// # Returns
     ///
     /// The VFS node corresponding to the path.
-    fn validate_path(& self, path: &str, user: Box<User>, permission_check: fn(&Permissions, Box<User>) -> bool) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+    fn validate_path(&self, path: &str, user: Box<User>, permission_check: fn(&Permissions, Box<User>) -> bool) -> Result<ext::Arc<ext::Mutex<VfsNode>>, VfsError> {
         //if path is empty or root, return root
         if path == "" || path == "/" {
             return Ok(self.root.0.clone());
@@ -413,13 +425,13 @@ impl VFS {
     ///
     /// The VFS node corresponding to the path.
     // Updated find_node method
-    fn find_node(&self, path: &str) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+    fn find_node(&self, path: &str) -> Result<ext::Arc<ext::Mutex<VfsNode>>, VfsError> {
         //if path is empty or root, return root
         if path == "" || path == "/" {
             return Ok(self.root.0.clone());
         }
         let components: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-        let mut current_node: Option<Arc<Mutex<VfsNode>>> = Some(self.root.0.clone());
+        let mut current_node: Option<ext::Arc<ext::Mutex<VfsNode>>> = Some(self.root.0.clone());
 
         for component in components {
             let children = current_node.as_ref().unwrap().lock().unwrap().children.clone();
@@ -432,12 +444,12 @@ impl VFS {
         Ok(current_node.unwrap())
     }
 
-    pub fn create_file(&self, path: &str, permissions: Permissions) -> Result<Arc<Mutex<VfsNode>>, VfsError> {
+    pub fn create_file(&self, path: &str, permissions: Permissions) -> Result<ext::Arc<ext::Mutex<VfsNode>>, VfsError> {
         println!("Creating file: {}", path);
         if path == "" || path == "/" || path.contains("//") || !path.starts_with("/") {
             return Err(VfsError::InvalidPath);
         }
-        let path = Path::new(path);
+        let path = ext::Path::new(path);
         // let parent_path = path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/");
         let parent_path = path.parent().unwrap().to_str().unwrap();
         let parent_node = self.find_node(&parent_path);
@@ -448,7 +460,7 @@ impl VFS {
         //create our file node
         let new_node = ArcMutexVfsNode::new(VfsNode {
             name: name.to_string(),
-            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_modified: ext::SystemTime::now().duration_since(ext::UNIX_EPOCH).unwrap().as_secs(),
             children: ArcMutexHashMap::new(),
             contents: vec![],
             permissions,
@@ -459,7 +471,6 @@ impl VFS {
         child_lock.insert(path.file_name().unwrap().to_str().unwrap().to_string(), new_node);
         return Ok(new_node_binding);
     }
-
 
 
     ///Get the size of a directory (including nested content).
@@ -585,13 +596,13 @@ impl VFS {
     ///
     /// Result indicating the operation's success.
     pub fn copy_file(&mut self, _path: &str, new_path: &str, user: Box<User>) -> Result<(), VfsError> {
-        let path = Path::new(_path);
-        let new_path = Path::new(new_path);
+        let path = ext::Path::new(_path);
+        let new_path = ext::Path::new(new_path);
         let node = self.validate_path(_path, user.clone(), Permissions::can_read)?;
         let node_guard = node.lock().unwrap();
         let new_node = ArcMutexVfsNode::new(VfsNode {
             name: path.file_name().unwrap().to_str().unwrap().to_string(),
-            last_modified: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_modified: ext::SystemTime::now().duration_since(ext::UNIX_EPOCH).unwrap().as_secs(),
             children: ArcMutexHashMap::new(),
             contents: node_guard.contents.clone(),
             permissions: node_guard.permissions.clone(),
@@ -815,81 +826,81 @@ impl Default for Permissions {
 }
 
 #[derive(Debug)]
-pub struct ArcMutexVfsNode(Arc<Mutex<VfsNode>>);
+pub struct ArcMutexVfsNode(ext::Arc<ext::Mutex<VfsNode>>);
 
 impl ArcMutexVfsNode {
     pub fn new(node: VfsNode) -> Self {
-        Self(Arc::new(Mutex::new(node)))
+        Self(ext::Arc::new(ext::Mutex::new(node)))
     }
 }
 
-impl Serialize for ArcMutexVfsNode {
+impl ext::Serialize for ArcMutexVfsNode {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
-            S: Serializer,
+            S: ext::Serializer,
     {
         self.0.lock().unwrap().serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for ArcMutexVfsNode {
+impl<'de> ext::Deserialize<'de> for ArcMutexVfsNode {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
-            D: Deserializer<'de>,
+            D: ext::Deserializer<'de>,
     {
         let node = VfsNode::deserialize(deserializer)?;
-        Ok(ArcMutexVfsNode(Arc::new(Mutex::new(node))))
+        Ok(ArcMutexVfsNode(ext::Arc::new(ext::Mutex::new(node))))
     }
 }
 
 // Newtype wrappers
 #[derive(Debug, Clone)]
-pub struct ArcMutexHashMap(Arc<Mutex<HashMap<String, ArcMutexVfsNode>>>);
+pub struct ArcMutexHashMap(ext::Arc<ext::Mutex<ext::HashMap<String, ArcMutexVfsNode>>>);
 
 impl ArcMutexHashMap {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(HashMap::new())))
+        Self(ext::Arc::new(ext::Mutex::new(ext::HashMap::new())))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ArcMutexVecGroup(Arc<Mutex<Vec<u16>>>);
+pub struct ArcMutexVecGroup(ext::Arc<ext::Mutex<Vec<u16>>>);
 
-impl Serialize for ArcMutexHashMap {
+impl ext::Serialize for ArcMutexHashMap {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
-            S: Serializer,
+            S: ext::Serializer,
     {
         self.0.lock().unwrap().serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for ArcMutexHashMap {
+impl<'de> ext::Deserialize<'de> for ArcMutexHashMap {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
-            D: Deserializer<'de>,
+            D: ext::Deserializer<'de>,
     {
-        let map = HashMap::<String, ArcMutexVfsNode>::deserialize(deserializer)?;
-        Ok(ArcMutexHashMap(Arc::new(Mutex::new(map))))
+        let map = ext::HashMap::<String, ArcMutexVfsNode>::deserialize(deserializer)?;
+        Ok(ArcMutexHashMap(ext::Arc::new(ext::Mutex::new(map))))
     }
 }
 
-impl Serialize for ArcMutexVecGroup {
+impl ext::Serialize for ArcMutexVecGroup {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
-            S: Serializer,
+            S: ext::Serializer,
     {
         self.0.lock().unwrap().serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for ArcMutexVecGroup {
+impl<'de> ext::Deserialize<'de> for ArcMutexVecGroup {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
-            D: Deserializer<'de>,
+            D: ext::Deserializer<'de>,
     {
         let vec = Vec::<u16>::deserialize(deserializer)?;
-        Ok(ArcMutexVecGroup(Arc::new(Mutex::new(vec))))
+        Ok(ArcMutexVecGroup(ext::Arc::new(ext::Mutex::new(vec))))
     }
 }
 

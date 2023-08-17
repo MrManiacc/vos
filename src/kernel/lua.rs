@@ -2,19 +2,15 @@
 
 // For the sake of example, we'll just outline the basic structure.
 
-use mlua::{Function, Table};
+use mlua::{Function, Table, UserData};
 use mlua::prelude::*;
 
-pub enum LuaError {
-    // Actual error types will go here.
-    ScriptExecutionFailed
-}
 
 /// Represents the Lua Runtime.
 pub struct LuaRuntime {
     // Actual Lua runtime data structures go here.
     // For simplicity, we will leave it empty for now.
-    lua: Lua,
+    pub(crate) lua: Lua,
 }
 
 impl LuaRuntime {
@@ -25,6 +21,24 @@ impl LuaRuntime {
             lua: Lua::new(),
         }
     }
+
+    pub fn create_function<'lua, A, R, F>(&'lua self, function: F) -> Result<Function<'lua>, LuaError>
+        where
+            A: FromLuaMulti<'lua>,
+            R: IntoLuaMulti<'lua>,
+            F: 'static + Send + Sync + Fn(&'lua Lua, A) -> Result<R, LuaError>,
+    {
+        self.lua.create_function(function)
+    }
+
+    pub fn create_table(&self) -> Table {
+        self.lua.create_table().unwrap()
+    }
+
+    pub fn add_table(&self, name: &str, table: Table) {
+        self.lua.globals().set(name, table).unwrap();
+    }
+
     /// Adds a function to the Lua runtime.
     ///
     /// # Parameters
@@ -38,6 +52,7 @@ impl LuaRuntime {
     pub fn add_function(&self, name: &str, function: Function) {
         self.lua.globals().set(name, function).unwrap();
     }
+
     /// Gets a string from the Lua runtime.
     ///
     /// # Parameters
@@ -89,6 +104,7 @@ impl LuaRuntime {
     pub fn get_i64(&self, name: &str) -> i64 {
         self.lua.globals().get(name).unwrap()
     }
+
     /// Gets a number from the Lua runtime.
     ///
     /// # Parameters
@@ -167,7 +183,7 @@ impl LuaRuntime {
         let result = self.lua.load(script).exec();
         match result {
             Ok(_) => Ok(()),
-            Err(_) => Err(LuaError::ScriptExecutionFailed),
+            Err(_) => Err(result.unwrap_err()),
         }
     }
 }
@@ -251,6 +267,4 @@ mod tests {
 
         vfs.serialize_to_file("scripts/os.bin").expect("Failed to serialize to file");
     }
-
-
 }
