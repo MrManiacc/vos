@@ -23,7 +23,8 @@ void destroy_process_view(ProcessView *view) {
 
 void resize_process_view(ProcessView *view, u32 new_capacity) {
     Process **new_processes =
-        kreallocate(view->processes, sizeof(Process *) * new_capacity, MEMORY_TAG_PROCESS); // It's a pointer to Process
+            kreallocate(view->processes, sizeof(Process *) * new_capacity,
+                        MEMORY_TAG_PROCESS); // It's a pointer to Process
     if (new_processes == NULL) {
         vwarn("Failed to resize the process view.");
         return;
@@ -33,10 +34,10 @@ void resize_process_view(ProcessView *view, u32 new_capacity) {
 }
 
 static const char *process_state_strings[PROCESS_STATE_MAX_STATES] = {
-    "STOPPED",
-    "RUNNING",
-    "PAUSED",
-    "TERMINATED"
+        "STOPPED",
+        "RUNNING",
+        "PAUSED",
+        "TERMINATED"
 };
 
 static ProcessID next_process_id = 0;
@@ -58,6 +59,9 @@ Process *process_create(const char *script_path) {
 }
 
 b8 process_add_child(Process *parent, Process *child) {
+// Make the child's lua_State a copy of the parent's lua_State
+    child->lua_state = parent->lua_state;
+
     if (parent->child_context->count == parent->child_context->capacity) {
         // Double the capacity
         u32 new_capacity = parent->child_context->capacity * 2;
@@ -65,7 +69,7 @@ b8 process_add_child(Process *parent, Process *child) {
     }
 
     // Add the new child to the processes array and increment the count
-    parent->child_context->processes[parent->child_context->count++] = child;
+    parent->child_context->processes[parent->child_context->count++] = *child;
     return TRUE;
 }
 
@@ -89,16 +93,48 @@ b8 process_remove_child(Process *parent, ProcessID child_id) {
 /**
  * Destroys a process. This will stop the process and free all memory.
  */
-void process_destroy(Process *process){
+void process_destroy(Process *process) {
     // Stop the process
-    process_stop(process);
+    process_stop(process, TRUE, TRUE);
 
     // Destroy the child context
     destroy_process_view(process->child_context);
 
     // Free the script path
-    kfree((void *)process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_PROCESS);
+    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_PROCESS);
 
     // Free the process
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
+}
+
+/**
+ * Starts a process. This will start the process and all child processes.
+ */
+b8 process_start(Process *process) {
+    vinfo("Process %d started", process->process_id);
+    //run the lua source file
+    process->state = PROCESS_STATE_RUNNING;
+
+    if (luaL_dofile(process->lua_state, process->script_path) != LUA_OK) {
+        verror("Failed to run script %s", process->script_path);
+        process->state = PROCESS_STATE_STOPPED;
+        return FALSE;
+    }
+    // iterate through all the children and start them
+    for (u32 i = 0; i < process->child_context->count; ++i) {
+        Process *child = &process->child_context->processes[i];
+        process_start(child);
+    }
+    return TRUE;
+}
+
+/**
+ * Stops a process. This will stop the process and all child processes.
+ * @param process The process to stop.
+ * @param force If TRUE, the process will be stopped immediately. If FALSE, the process will be stopped gracefully.
+ * @param kill_children If TRUE, all child processes will be stopped immediately. If FALSE, child processes will be stopped gracefully.
+ */
+b8 process_stop(Process *process, b8 force, b8 kill_children) {
+    vinfo("Process %d stopped", process->process_id);
+    return TRUE;
 }

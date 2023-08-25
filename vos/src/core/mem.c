@@ -7,7 +7,7 @@
 // TODO: Custom string lib
 #include <string.h>
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 struct memory_stats {
   u64 total_allocated;

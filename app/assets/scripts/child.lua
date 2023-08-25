@@ -1,0 +1,1 @@
+print("Got global:" .. global)

@@ -10,4 +10,3 @@ set_property(TARGET vos PROPERTY C_STANDARD 17)
 target_include_directories(vos  PUBLIC src)
 target_link_libraries(vos ${LUA_LIBRARIES} raylib unofficial::tree-sitter::tree-sitter)
 
-
