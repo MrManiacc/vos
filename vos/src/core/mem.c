@@ -7,19 +7,20 @@
 // TODO: Custom string lib
 #include <string.h>
 #include <stdio.h>
+#include <malloc.h>
 
 struct memory_stats {
-    u64 total_allocated;
-    u64 tagged_allocations[MEMORY_TAG_MAX_TAGS];
+  u64 total_allocated;
+  u64 tagged_allocations[MEMORY_TAG_MAX_TAGS];
 };
 
-static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
+static const char *memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
     "UNKNOWN    ",
     "ARRAY      ",
     "DARRAY     ",
     "DICT       ",
     "RING_QUEUE ",
-    "BST        ",
+    "PROCESS    ",
     "STRING     ",
     "APPLICATION",
     "JOB        ",
@@ -41,7 +42,7 @@ void initialize_memory() {
 void shutdown_memory() {
 }
 
-void* kallocate(u64 size, memory_tag tag) {
+void *kallocate(u64 size, memory_tag tag) {
     if (tag == MEMORY_TAG_UNKNOWN) {
         vwarn("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.");
     }
@@ -50,12 +51,37 @@ void* kallocate(u64 size, memory_tag tag) {
     stats.tagged_allocations[tag] += size;
 
     // TODO: Memory alignment
-    void* block = platform_allocate(size, FALSE);
+    void *block = platform_allocate(size, FALSE);
     platform_zero_memory(block, size);
     return block;
 }
 
-void kfree(void* block, u64 size, memory_tag tag) {
+void *kreallocate(void *block, u64 size, memory_tag tag) {
+    if (tag == MEMORY_TAG_UNKNOWN) {
+        vwarn("kreallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.");
+    }
+
+    // Adjust the memory statistics before reallocating
+    // Assuming you've stored the old size somewhere, you would subtract that from the stats
+    // and add the new size to the stats. If you don't store sizes, consider tracking them
+    // somehow as this is a common requirement for custom memory management.
+
+    // stats.total_allocated -= old_size; // Adjust with old size
+    stats.total_allocated += size;       // Adjust with new size
+    // stats.tagged_allocations[tag] -= old_size; // Adjust with old size
+    stats.tagged_allocations[tag] += size;       // Adjust with new size
+
+    // Now use realloc to resize the memory block
+    void *new_block = realloc(block, size);
+    if (!new_block) {
+        // handle error, perhaps logging that the reallocation failed
+        return NULL;
+    }
+
+    return new_block;
+}
+
+void kfree(void *block, u64 size, memory_tag tag) {
     if (tag == MEMORY_TAG_UNKNOWN) {
         vwarn("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.");
     }
@@ -67,19 +93,19 @@ void kfree(void* block, u64 size, memory_tag tag) {
     platform_free(block, FALSE);
 }
 
-void* kzero_memory(void* block, u64 size) {
+void *kzero_memory(void *block, u64 size) {
     return platform_zero_memory(block, size);
 }
 
-void* kcopy_memory(void* dest, const void* source, u64 size) {
+void *kcopy_memory(void *dest, const void *source, u64 size) {
     return platform_copy_memory(dest, source, size);
 }
 
-void* kset_memory(void* dest, i32 value, u64 size) {
+void *kset_memory(void *dest, i32 value, u64 size) {
     return platform_set_memory(dest, value, size);
 }
 
-char* get_memory_usage_str() {
+char *get_memory_usage_str() {
     const u64 gib = 1024 * 1024 * 1024;
     const u64 mib = 1024 * 1024;
     const u64 kib = 1024;
@@ -91,22 +117,22 @@ char* get_memory_usage_str() {
         float amount = 1.0f;
         if (stats.tagged_allocations[i] >= gib) {
             unit[0] = 'G';
-            amount = stats.tagged_allocations[i] / (float)gib;
+            amount = stats.tagged_allocations[i] / (float) gib;
         } else if (stats.tagged_allocations[i] >= mib) {
             unit[0] = 'M';
-            amount = stats.tagged_allocations[i] / (float)mib;
+            amount = stats.tagged_allocations[i] / (float) mib;
         } else if (stats.tagged_allocations[i] >= kib) {
             unit[0] = 'K';
-            amount = stats.tagged_allocations[i] / (float)kib;
+            amount = stats.tagged_allocations[i] / (float) kib;
         } else {
             unit[0] = 'B';
             unit[1] = 0;
-            amount = (float)stats.tagged_allocations[i];
+            amount = (float) stats.tagged_allocations[i];
         }
 
         i32 length = snprintf(buffer + offset, 8000, "  %s: %.2f%s\n", memory_tag_strings[i], amount, unit);
         offset += length;
     }
-    char* out_string = string_duplicate(buffer);
+    char *out_string = string_duplicate(buffer);
     return out_string;
 }

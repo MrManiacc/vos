@@ -27,7 +27,6 @@ typedef char b8;
 #define STATIC_ASSERT static_assert
 #endif
 
-
 #define TRUE 1
 #define FALSE 0
 
