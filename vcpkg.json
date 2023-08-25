@@ -1,0 +1,15 @@
+{
+  "name" : "vlos",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "4a8d11802f0a9ffbe5c68f6143d61d469d800a7d",
+  "dependencies" : [ {
+    "name" : "lua",
+    "version>=" : "5.4.6"
+  }, {
+    "name" : "tree-sitter",
+    "version>=" : "0.20.6"
+  }, {
+    "name" : "raylib",
+    "version>=" : "4.5.0#1"
+  } ]
+}
