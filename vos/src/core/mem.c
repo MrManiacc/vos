@@ -3,6 +3,7 @@
 #include "core/logger.h"
 #include "core/str.h"
 #include "platform/platform.h"
+#include "containers/darray.h"
 
 // TODO: Custom string lib
 #include <string.h>
@@ -12,11 +13,12 @@
 struct memory_stats {
   u64 total_allocated;
   u64 tagged_allocations[MEMORY_TAG_MAX_TAGS];
+  void *tagged_allocation_pointers[MEMORY_TAG_MAX_TAGS];
 };
 
 static const char *memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
     "UNKNOWN    ",
-    "ARRAY      ",
+    "VFS        ",
     "DARRAY     ",
     "KERNEL     ",
     "RING_QUEUE ",
@@ -37,22 +39,46 @@ static struct memory_stats stats;
 
 void initialize_memory() {
     platform_zero_memory(&stats, sizeof(stats));
+    // Inside initialize_memory()
+
 }
 
 void shutdown_memory() {
+//    for (u32 i = 0; i < MEMORY_TAG_MAX_TAGS; i++) {
+//        for (u32 j = 0; j < darray_length(stats.tagged_allocation_pointers[i]); j++) {
+//            void *ptr;
+//            darray_pop_at(stats.tagged_allocation_pointers[i], j, &ptr);
+////            kfree(ptr, darray_stride(stats.tagged_allocation_pointers[i]), i);
+//            if (i == MEMORY_TAG_STRING) {
+//                vdebug("[0x%04x] Left over string - %s", ptr, (char *) ptr);
+////                platform_free(ptr, false);
+//            } else if (i == MEMORY_TAG_DARRAY) {
+//                vdebug("[0x%04x] Left over darray size: %d, stride: %d", ptr, darray_length(ptr), darray_stride(ptr));
+////                kfree(ptr, darray_stride(stats.tagged_allocation_pointers[i]), i);
+////                platform_free(ptr, false);
+//
+////                platform_free(ptr, false);
+//
+//            } else if (i == MEMORY_TAG_VFS) {
+//                vdebug("[0x%04x] Left over vfs", ptr);
+//            }
+//        }
+//        darray_destroy(stats.tagged_allocation_pointers[i]);
+//    }
 }
 
 void *kallocate(u64 size, memory_tag tag) {
     if (tag == MEMORY_TAG_UNKNOWN) {
         vwarn("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.");
     }
-
     stats.total_allocated += size;
     stats.tagged_allocations[tag] += size;
-
     // TODO: Memory alignment
-    void *block = platform_allocate(size, FALSE);
+    void *block = platform_allocate(size, false);
     platform_zero_memory(block, size);
+//    if (tag != MEMORY_TAG_DARRAY) {
+//        darray_push(stats.tagged_allocation_pointers[tag], block)
+//    }
     return block;
 }
 
@@ -75,7 +101,7 @@ void *kreallocate(void *block, u64 size, memory_tag tag) {
     void *new_block = realloc(block, size);
     if (!new_block) {
         // handle error, perhaps logging that the reallocation failed
-        return NULL;
+        return null;
     }
 
     return new_block;
@@ -88,9 +114,9 @@ void kfree(void *block, u64 size, memory_tag tag) {
 
     stats.total_allocated -= size;
     stats.tagged_allocations[tag] -= size;
-
+//    darray_remove(stats.tagged_allocation_pointers[tag], block);
     // TODO: Memory alignment
-    platform_free(block, FALSE);
+    platform_free(block, false);
 }
 
 void *kzero_memory(void *block, u64 size) {

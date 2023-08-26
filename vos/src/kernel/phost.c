@@ -46,22 +46,21 @@ b8 process_add_child(Process *parent, Process *child) {
 //
 //    // Add the new child to the processes array and increment the count
 //    parent->child_context->processes[parent->child_context->count++] = *child;
-    return TRUE;
+    return true;
 }
 
 b8 process_remove_child(Process *parent, ProcessID child_id) {
     u64 length = darray_length(parent->children_pids);
-
     for (u64 i = 0; i < length; ++i) {
         if (parent->children_pids[i] == child_id) {
             ProcessID child_pid;
             darray_pop_at(parent->children_pids, i, &child_pid);
             vdebug("Child process %d removed from parent process %d", child_pid, parent->pid);
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 /**
@@ -69,11 +68,12 @@ b8 process_remove_child(Process *parent, ProcessID child_id) {
  */
 void process_destroy(Process *process) {
     // Stop the process
-    process_stop(process, TRUE, TRUE);
+    process_stop(process, true, true);
 
     darray_destroy(process->children_pids)
+
     // Free the script path
-    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_PROCESS);
+    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_STRING);
 
     // Free the process
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
@@ -90,7 +90,7 @@ b8 process_start(Process *process) {
     if (luaL_dofile(process->lua_state, process->script_path) != LUA_OK) {
         verror("Failed to run script %s", process->script_path);
         process->state = PROCESS_STATE_STOPPED;
-        return FALSE;
+        return false;
     }
     // iterate through all the children and start them
 //    for (u32 i = 0; i < process->child_context->count; ++i) {
@@ -100,7 +100,7 @@ b8 process_start(Process *process) {
 //        else
 //            vwarn("Child process %d is already running", child->pid);
 //    }
-    return TRUE;
+    return true;
 }
 
 /**
@@ -111,5 +111,5 @@ b8 process_start(Process *process) {
  */
 b8 process_stop(Process *process, b8 force, b8 kill_children) {
 //    vinfo("Process %d stopped", process->pid);
-    return TRUE;
+    return true;
 }

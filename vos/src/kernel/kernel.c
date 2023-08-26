@@ -16,54 +16,15 @@ void id_pool_release_id(ProcessID id);
 b8 id_exists_in_stack(IDPool *pool, ProcessID id);
 char *id_to_string(ProcessID id);
 
-static KernelContext *kernel_context = NULL;
-static b8 kernel_initialized = FALSE;
-
-/**
- * Determines if the kernel operation was successful.
- * @param code The error code.
- * @return TRUE if the operation was successful, else FALSE.
- */
-b8 is_kernel_success(KernelCode code) {
-    return code >= KERNEL_SUCCESS;
-}
-
-/**
- * Gets the result message for a kernel operation.
- * @param result The result of the kernel operation.
- * @return
- */
-const char *get_kernel_result_message(KernelResult result) {
-    char *message = kallocate(256, MEMORY_TAG_KERNEL);
-    switch (result.code) {
-        case KERNEL_SUCCESS:sprintf(message, "The kernel operation was successful.");
-            break;
-        case KERNEL_ALREADY_INITIALIZED:sprintf(message, "The kernel has already been initialized.");
-            break;
-        case KERNEL_ALREADY_SHUTDOWN:sprintf(message, "The kernel has already been shutdown.");
-            break;
-        case KERNEL_CALL_BEFORE_INIT:sprintf(message, "The kernel has not been initialized.");
-            break;
-        case KERNEL_PROCESS_CREATED:sprintf(message, "The process was successfully created.");
-            break;
-        case KERNEL_PROCESS_NOT_FOUND:
-            sprintf(message,
-                    "The process with id %d was not found.",
-                    (ProcessID) result.data);
-            break;
-        case KERNEL_ERROR:sprintf(message, "Kernel error: %s", (char *) result.data);
-            break;
-        default:sprintf(message, "An unknown kernel error occurred.");
-            break;
-    }
-    return message;
-}
+static KernelContext *kernel_context = null;
+static b8 kernel_initialized = false;
 
 KernelResult kernel_initialize() {
     if (kernel_initialized) {
-        KernelResult result = {KERNEL_ALREADY_INITIALIZED, NULL};
+        KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
+    initialize_memory();
 
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
@@ -72,14 +33,26 @@ KernelResult kernel_initialize() {
     kernel_context->id_pool = kallocate(sizeof(IDPool), MEMORY_TAG_KERNEL);
     kernel_context->id_pool->top_index = 0;
     kernel_context->id_pool->max_id = 0;
-    kernel_initialized = TRUE;
-    KernelResult result = {KERNEL_SUCCESS, NULL};
+    KernelResult create_vfs_result = vfs_initialize();
+    if (!is_kernel_success(create_vfs_result.code)) return create_vfs_result;
+    kernel_context->vfs = create_vfs_result.data;
+    vdebug("Kernel initialized")
+    kernel_initialized = true;
+    KernelResult result = {KERNEL_SUCCESS, kernel_context};
+    return result;
+}
+
+KernelResult kernel_initialize_from(Node *root_node) {
+    KernelResult result = kernel_initialize();
+    if (!is_kernel_success(result.code)) return result;
+    Vfs *vfs = kernel_context->vfs;
+    vfs_add_node(vfs, root_node);
     return result;
 }
 
 KernelResult kernel_create_process(const char *script_path) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, NULL};
+        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
 
@@ -101,32 +74,32 @@ KernelResult kernel_create_process(const char *script_path) {
 
 KernelResult kernel_attach_process(ProcessID pid, ProcessID parent_pid) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, NULL};
+        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
     Process *process = kernel_context->processes[pid];
-    if (process == NULL) {
+    if (process == null) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
     Process *parent_process = kernel_context->processes[parent_pid];
-    if (parent_process == NULL) {
+    if (parent_process == null) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) parent_pid};
         return result;
     }
     process_add_child(parent_process, process);
     vdebug("Attached process 0x%04x to process 0x%04x", pid, parent_pid)
-    KernelResult result = {KERNEL_SUCCESS, NULL};
+    KernelResult result = {KERNEL_SUCCESS, null};
     return result;
 }
 
 KernelResult kernel_lookup_process(ProcessID pid) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, NULL};
+        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
     Process *process = kernel_context->processes[pid];
-    if (process == NULL) {
+    if (process == null) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
@@ -135,24 +108,24 @@ KernelResult kernel_lookup_process(ProcessID pid) {
 }
 KernelResult kernel_destroy_process(ProcessID pid) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, NULL};
+        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
     Process *process = kernel_context->processes[pid];
-    if (process == NULL) {
+    if (process == null) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
     process_destroy(process);
     id_pool_release_id(pid);
-    KernelResult result = {KERNEL_SUCCESS, NULL};
+    KernelResult result = {KERNEL_SUCCESS, null};
     vdebug("Destroyed process 0x%04x", pid)
     return result;
 }
 
 KernelResult kernel_shutdown() {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_ALREADY_SHUTDOWN, NULL};
+        KernelResult result = {KERNEL_ALREADY_SHUTDOWN, null};
         return result;
     }
     //TODO: do we need to destroy the processes?
@@ -167,9 +140,12 @@ KernelResult kernel_shutdown() {
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
 //    darray_destroy(kernel_context->processes);
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
+    vfs_shutdown(kernel_context->vfs);
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
-    kernel_initialized = FALSE;
-    KernelResult result = {KERNEL_SUCCESS, NULL};
+    kernel_initialized = false;
+    KernelResult result = {KERNEL_SUCCESS, null};
+    shutdown_memory();
+    vinfo("Mem usuage: %s", get_memory_usage_str())
     return result;
 }
 
@@ -202,9 +178,9 @@ void id_pool_release_id(ProcessID id) {
 b8 id_exists_in_stack(IDPool *pool, ProcessID id) {
     for (u32 i = 0; i < pool->top_index; i++) {
         if (pool->ids[i] == id) {
-            return TRUE;
+            return true;
         }
     }
-    return FALSE;
+    return false;
 }
 #pragma clang diagnostic pop

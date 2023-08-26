@@ -34,7 +34,7 @@ b8 platform_startup(
     clock_frequency = 1.0 / (f64)frequency.QuadPart;
     QueryPerformanceCounter(&start_time);
 
-    return TRUE;
+    return true;
 }
 
 void platform_shutdown(platform_state *plat_state) {
@@ -45,7 +45,7 @@ void platform_shutdown(platform_state *plat_state) {
 }
 
 b8 platform_pump_messages(platform_state *plat_state) {
-    return TRUE;
+    return true;
 }
 
 void *platform_allocate(u64 size, b8 aligned) {
@@ -75,7 +75,7 @@ void platform_console_write(const char* str, u8 color) {
     SetConsoleTextAttribute(hConsole, levels[color]);
     u64 length = strlen(str);
     LPDWORD written = 0;
-    WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), str, (DWORD) length, written, NULL);
+    WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), str, (DWORD) length, written, null);
 }
 
 void platform_console_write_error(const char* str, u8 color) {
@@ -85,7 +85,7 @@ void platform_console_write_error(const char* str, u8 color) {
     SetConsoleTextAttribute(hConsole, levels[color]);
     u64 length = strlen(str);
     LPDWORD written = 0;
-    WriteConsole(GetStdHandle(STD_ERROR_HANDLE), str, (DWORD) length, written, NULL);
+    WriteConsole(GetStdHandle(STD_ERROR_HANDLE), str, (DWORD) length, written, null);
 }
 
 f64 platform_get_absolute_time() {

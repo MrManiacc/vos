@@ -1,3 +1,4 @@
+#include <string.h>
 #include "containers/darray.h"
 
 #include "core/mem.h"
@@ -116,4 +117,26 @@ void* _darray_insert_at(void* array, u64 index, void* value_ptr) {
 
     _darray_field_set(array, DARRAY_LENGTH, length + 1);
     return array;
+}
+
+u64 _darray_find(void *array, void *value_ptr) {
+    u64 length = darray_length(array);
+    u64 stride = darray_stride(array);
+    u8 *addr = (u8 *)array;  // use byte pointer for address arithmetic
+    for (u64 i = 0; i < length; ++i) {
+        if (memcmp(addr, value_ptr, stride) == 0) {
+            return i;
+        }
+        addr += stride;
+    }
+    return -1;  // returning -1 to signify not found, consider using ULLONG_MAX from limits.h
+}
+
+u64 _darray_remove(void *array, void *value_ptr) {
+    u64 index = _darray_find(array, value_ptr);
+    if (index == -1) {
+        return -1;
+    }
+    _darray_pop_at(array, index, value_ptr);
+    return index;
 }

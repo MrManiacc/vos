@@ -11,6 +11,8 @@
 
 #include "defines.h"
 #include "phost.h"
+#include "kresult.h"
+#include "vfs.h"
 
 //The maximum number of processes that can be created.
 #define MAX_PROCESSES 10000
@@ -23,89 +25,6 @@ typedef struct IDPool {
   u32 top_index; // For stack operations, indicates the top of the stack.
   ProcessID max_id; // The highest ID ever generated.
 } IDPool;
-
-/**
- * This is used to mark the result of a kernel operation.
- * All error codes are > KERNEL_SUCCESS.
- */
-typedef enum KernelCode {
-  /**
-   * The kernel id pool has overflowed.
-   * @data the max id that was generated (u32)
-   */
-  KERNEL_ID_POOL_OVERFLOW = -6,
-  /**
-   * The kernel has already been initialized.
-   * @data no data is returned
-   */
-  KERNEL_ALREADY_INITIALIZED = -5,
-  /**
-   * The kernel has already been shutdown.
-   * @data no data is returned
-   */
-  KERNEL_ALREADY_SHUTDOWN = -4,
-  /**
-   * The kernel has not been initialized.
-   * @data no data is returned
-   */
-  KERNEL_CALL_BEFORE_INIT = -3,
-  /**
-   * The process was not found.
-   * @data a pointer to the process id that was not found
-   */
-  KERNEL_PROCESS_NOT_FOUND = -2,
-  /**
-   * The operation failed due to a lack of memory.
-   * @data total memory used
-   */
-  KERNEL_ERROR_OUT_OF_MEMORY = -1,
-
-  /**
-   * A general kernel error occurred.
-   * @data a general error message
-   */
-  KERNEL_ERROR = 0,
-
-  /**
-   * The operation was successful. This allows KernelCode to be used as a boolean. 0 is SUCCESS, all other values are errors.
-   * @data no data is returned
-   */
-  KERNEL_SUCCESS = 1,
-
-  /**
-   * A kernel process was successfully created.
-   * This is a success code.
-   * @data A pointer to the process id.
-   */
-  KERNEL_PROCESS_CREATED = 2,
-
-} KernelCode;
-
-/**
- * Allows us to return a result from a kernel operation.
- * @param code The error code.
- * @param data The data to return.
- */
-typedef struct KernelResult {
-  // The error code of the operation.
-  KernelCode code;
-  // Can be used to return data from a kernel operation, may be NULL depending on the operation.
-  void *data;
-} KernelResult;
-
-/**
- * Determines if the kernel operation was successful.
- * @param code The error code.
- * @return TRUE if the operation was successful, else FALSE.
- */
-b8 is_kernel_success(KernelCode code);
-
-/**
- * Gets the result message for a kernel operation.
- * @param result The result of the kernel operation.
- * @return
- */
-const char *get_kernel_result_message(KernelResult result);
 
 /**
  * A process context is used to store the state of a process and it's thread.
@@ -124,6 +43,8 @@ typedef struct KernelContext {
   Process **processes;
   // The id pool is used to track the next available process id.
   IDPool *id_pool;
+  // The virtual file system is used to load lua scripts.
+  Vfs *vfs;
 } KernelContext;
 
 /**
@@ -137,13 +58,22 @@ typedef struct KernelContext {
 KernelResult kernel_initialize();
 
 /**
+ * Initializes the kernel. This will allocate the kernel context and initialize the root process view.
+ * This will always load the process at assets/scripts/main.lua as the root process.
+ * We will keep a static pointer to the kernel context. This will allow us to access the kernel context from
+ * anywhere in the application. There will only ever be one kernel context.
+ *
+ * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
+ */
+KernelResult kernel_initialize_from(Node *root_node);
+
+/**
  * Creates a new process from a lua script. This will parse the script and create a new lua_State for the process.
  *
  * @param script_path The path to the lua script.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
 KernelResult kernel_create_process(const char *script_path);
-
 
 /**
  * Attaches a process to a parent process. This will add the child process to the parent's child process array.

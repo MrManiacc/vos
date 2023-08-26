@@ -1,5 +1,4 @@
 #pragma once
-
 // Unsigned int types.
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -27,9 +26,9 @@ typedef char b8;
 #define STATIC_ASSERT static_assert
 #endif
 
-#define TRUE 1
-#define FALSE 0
-
+#define true 1
+#define false 0
+#define null 0
 // Platform detection
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
 #define KPLATFORM_WINDOWS 1
