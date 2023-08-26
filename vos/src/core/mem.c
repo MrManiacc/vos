@@ -18,7 +18,7 @@ static const char *memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
     "UNKNOWN    ",
     "ARRAY      ",
     "DARRAY     ",
-    "DICT       ",
+    "KERNEL     ",
     "RING_QUEUE ",
     "PROCESS    ",
     "STRING     ",

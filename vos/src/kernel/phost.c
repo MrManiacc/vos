@@ -7,37 +7,13 @@
 #include "core/str.h"
 
 #include "platform/platform.h"
-
-ProcessView *create_process_view(u32 initial_process_count) {
-    ProcessView *view = kallocate(sizeof(ProcessView), MEMORY_TAG_PROCESS);
-    view->processes = kallocate(sizeof(Process) * initial_process_count, MEMORY_TAG_PROCESS);
-    view->count = 0;
-    view->capacity = initial_process_count * 2;
-    return view;
-}
-
-void destroy_process_view(ProcessView *view) {
-    kfree(view->processes, sizeof(Process) * view->capacity, MEMORY_TAG_PROCESS);
-    kfree(view, sizeof(ProcessView), MEMORY_TAG_PROCESS);
-}
-
-void resize_process_view(ProcessView *view, u32 new_capacity) {
-    Process **new_processes =
-            kreallocate(view->processes, sizeof(Process *) * new_capacity,
-                        MEMORY_TAG_PROCESS); // It's a pointer to Process
-    if (new_processes == NULL) {
-        vwarn("Failed to resize the process view.");
-        return;
-    }
-    view->processes = *new_processes;
-    view->capacity = new_capacity;
-}
+#include "containers/darray.h"
 
 static const char *process_state_strings[PROCESS_STATE_MAX_STATES] = {
-        "STOPPED",
-        "RUNNING",
-        "PAUSED",
-        "TERMINATED"
+    "STOPPED",
+    "RUNNING",
+    "PAUSED",
+    "TERMINATED"
 };
 
 static ProcessID next_process_id = 0;
@@ -52,8 +28,8 @@ Process *process_create(const char *script_path) {
     process->lua_state = luaL_newstate();
 
     // TODO: Create a process ID pool
-    process->process_id = next_process_id++;
-    process->child_context = create_process_view(INITIAL_NESTED_PROCESSES);
+    process->pid = next_process_id++;
+    process->children_pids = darray_create(ProcessID);
     luaL_openlibs(process->lua_state);
     return process;
 }
@@ -61,32 +37,30 @@ Process *process_create(const char *script_path) {
 b8 process_add_child(Process *parent, Process *child) {
 // Make the child's lua_State a copy of the parent's lua_State
     child->lua_state = parent->lua_state;
-
-    if (parent->child_context->count == parent->child_context->capacity) {
-        // Double the capacity
-        u32 new_capacity = parent->child_context->capacity * 2;
-        resize_process_view(parent->child_context, new_capacity);
-    }
-
-    // Add the new child to the processes array and increment the count
-    parent->child_context->processes[parent->child_context->count++] = *child;
+    darray_push(parent->children_pids, child->pid)
+//    if (parent->child_context->count == parent->child_context->capacity) {
+//        // Double the capacity
+//        u32 new_capacity = parent->child_context->capacity * 2;
+//        resize_process_view(parent->child_context, new_capacity);
+//    }
+//
+//    // Add the new child to the processes array and increment the count
+//    parent->child_context->processes[parent->child_context->count++] = *child;
     return TRUE;
 }
 
 b8 process_remove_child(Process *parent, ProcessID child_id) {
-    // Find the child in the processes array
-    for (u32 i = 0; i < parent->child_context->count; ++i) {
-        if (parent->child_context->processes[i].process_id == child_id) {
-            Process *child = &parent->child_context->processes[i];
-            // Swap the child with the last child in the array
-            parent->child_context->processes[i] = parent->child_context->processes[parent->child_context->count - 1];
-            // Decrement the count
-            parent->child_context->count--;
-            // Destroy the child
-            process_destroy(child);
+    u64 length = darray_length(parent->children_pids);
+
+    for (u64 i = 0; i < length; ++i) {
+        if (parent->children_pids[i] == child_id) {
+            ProcessID child_pid;
+            darray_pop_at(parent->children_pids, i, &child_pid);
+            vdebug("Child process %d removed from parent process %d", child_pid, parent->pid);
             return TRUE;
         }
     }
+
     return FALSE;
 }
 
@@ -97,9 +71,7 @@ void process_destroy(Process *process) {
     // Stop the process
     process_stop(process, TRUE, TRUE);
 
-    // Destroy the child context
-    destroy_process_view(process->child_context);
-
+    darray_destroy(process->children_pids)
     // Free the script path
     kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_PROCESS);
 
@@ -111,7 +83,7 @@ void process_destroy(Process *process) {
  * Starts a process. This will start the process and all child processes.
  */
 b8 process_start(Process *process) {
-    vinfo("Process %d started", process->process_id);
+    vinfo("Process %d started", process->pid);
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
 
@@ -121,10 +93,13 @@ b8 process_start(Process *process) {
         return FALSE;
     }
     // iterate through all the children and start them
-    for (u32 i = 0; i < process->child_context->count; ++i) {
-        Process *child = &process->child_context->processes[i];
-        process_start(child);
-    }
+//    for (u32 i = 0; i < process->child_context->count; ++i) {
+//        Process *child = &process->child_context->processes[i];
+//        if (child->state == PROCESS_STATE_STOPPED)
+//            process_start(child);
+//        else
+//            vwarn("Child process %d is already running", child->pid);
+//    }
     return TRUE;
 }
 
@@ -135,6 +110,6 @@ b8 process_start(Process *process) {
  * @param kill_children If TRUE, all child processes will be stopped immediately. If FALSE, child processes will be stopped gracefully.
  */
 b8 process_stop(Process *process, b8 force, b8 kill_children) {
-    vinfo("Process %d stopped", process->process_id);
+//    vinfo("Process %d stopped", process->pid);
     return TRUE;
 }

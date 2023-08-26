@@ -19,27 +19,19 @@ typedef enum ProcessState {
 // Process Structure
 typedef struct Process {
   // Unique process ID
-  ProcessID process_id;
+  ProcessID pid;
   // Path to the Lua script (process)
   // TODO: create vfs.h that can be used to load scripts from a virtual file system with hot reloading
   const char *script_path;
+  // Name of the process, used for debugging. Will be the filename of the script by default.
+  const char *process_name;
   // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
   lua_State *lua_state;
   // The context for accessing a process's child processes
-  struct ProcessView *child_context;
+  ProcessID *children_pids;
   // Current state of the process
   ProcessState state;
 } Process;
-
-//A dynamically growing array of processes
-typedef struct ProcessView {
-  // Current number of child processes
-  u32 count;
-  // Current capacity of child process array
-  u32 capacity;
-  // Array of pointers to child processes
-  Process *processes;
-} ProcessView;
 
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
