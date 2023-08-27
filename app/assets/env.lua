@@ -18,7 +18,6 @@ local config = {
 local click_count = 0
 sys.listen("update", function()
     local size = sys.window.size()
-    sys.log("size is " .. size.width .. ", " .. size.height)
     sys.gui.draw_rect(0, 0, size.width, size.height, config.color)
     render_stats(size.width - 300, 0)
     button(config, function()

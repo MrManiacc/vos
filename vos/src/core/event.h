@@ -115,13 +115,37 @@ typedef enum system_event_code {
    */
   EVENT_LUA_CUSTOM = 0x09,
 
+  /**
+   * A virtual file was loaded.
+   * Context usage:
+   * char* payload = data.data.c;
+   * u16 payload_length = strlen(payload);
+   */
+  EVENT_FILE_LOADED = 0x0A,
+
+  /**
+   * A virtual file was unloaded.
+   * Context usage:
+   * char* payload = data.data.c;
+   * u16 payload_length = strlen(payload);
+   */
+  EVENT_FILE_UNLOADED = 0x0B,
+
+  /**
+   * A virtual file was modified.
+   * Context usage:
+   * char* payload = data.data.c;
+   * u16 payload_length = strlen(payload);
+   */
+  EVENT_FILE_MODIFIED = 0x0C,
+
   MAX_EVENT_CODE = 0xFF
 } system_event_code;
 
 // Strips quotes from a string. used for defines to allow for named variables.
 #define add_quotes(str) #str
 
-#define lua_context( event_name )  \
+#define lua_context(event_name)  \
     event_context event_name;             \
     memcpy(event_name.data.c, #event_name, strlen(#event_name));\
 

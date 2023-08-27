@@ -43,8 +43,6 @@ typedef struct KernelContext {
   Process **processes;
   // The id pool is used to track the next available process id.
   IDPool *id_pool;
-  // The virtual file system is used to load lua scripts.
-  Vfs *vfs;
 } KernelContext;
 
 /**
@@ -52,20 +50,11 @@ typedef struct KernelContext {
  * This will always load the process at assets/scripts/main.lua as the root process.
  * We will keep a static pointer to the kernel context. This will allow us to access the kernel context from
  * anywhere in the application. There will only ever be one kernel context.
- *
+ * @param root_path The path to the root directory.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_initialize();
+KernelResult kernel_initialize(Node  *root_path);
 
-/**
- * Initializes the kernel. This will allocate the kernel context and initialize the root process view.
- * This will always load the process at assets/scripts/main.lua as the root process.
- * We will keep a static pointer to the kernel context. This will allow us to access the kernel context from
- * anywhere in the application. There will only ever be one kernel context.
- *
- * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
- */
-KernelResult kernel_initialize_from(Node *root_node);
 
 /**
  * Creates a new process from a lua script. This will parse the script and create a new lua_State for the process.
@@ -73,7 +62,7 @@ KernelResult kernel_initialize_from(Node *root_node);
  * @param script_path The path to the lua script.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
-KernelResult kernel_create_process( char *script_path);
+KernelResult kernel_create_process(char *script_path);
 
 /**
  * Attaches a process to a parent process. This will add the child process to the parent's child process array.

@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <pthread.h>
 #include "defines.h"
 #include "kresult.h"
 typedef const char *Path;
@@ -51,7 +52,7 @@ typedef struct Node {
   // The handle to the parent node, can be null.
   Handle parent_handle;
   // The path of the node, we can retrieve the name from this.
-   char *path;
+  char *path;
   // The permissions of the node.
   u16 permissions;
   // The owner of the node.
@@ -92,6 +93,9 @@ typedef struct Vfs {
   User *users;
   // The groups in the file system.
   Group *groups;
+  //Used for watching files
+  u8 running;
+  pthread_mutex_t vfs_mutex;
 } Vfs;
 
 typedef struct FileSystemContext {
@@ -107,9 +111,10 @@ typedef struct FileSystemContext {
  * Initializes the virtual file system.
  * This function sets up the necessary structures and state for the VFS to operate.
  * It prepares the system to manage, store, and operate on nodes (files, directories, etc.)
+ * @param root_path The path to the root directory of the VFS.
  * @return A KernelResult indicating success or failure.
  */
-KernelResult vfs_initialize();
+KernelResult vfs_initialize(Node *root_path);
 
 /**
  * Cleans up and releases all resources associated with the VFS.
@@ -117,7 +122,7 @@ KernelResult vfs_initialize();
  * @param fs The file system to shut down.
  * @return A KernelResult indicating success or failure.
  */
-KernelResult vfs_shutdown(Vfs *fs);
+KernelResult vfs_shutdown();
 
 /**
  * Adds a new user to the VFS.
@@ -128,7 +133,7 @@ KernelResult vfs_shutdown(Vfs *fs);
  * @param permissions The permissions bitmask for this user.
  * @return A KernelResult with status indicating success, failure, or specific issues.
  */
-KernelResult vfs_add_user(Vfs *fs, const char *name, const char *password, u16 permissions);
+KernelResult vfs_add_user(const char *name, const char *password, u16 permissions);
 
 /**
  * Remove a user from the file system. This will delete the user's home directory.
@@ -136,7 +141,7 @@ KernelResult vfs_add_user(Vfs *fs, const char *name, const char *password, u16 p
  * @param name the name of the user
  * @return KERNEL_SUCCESS if the user was successfully removed, else an error code.
  */
-KernelResult vfs_remove_user(Vfs *fs, const char *name);
+KernelResult vfs_remove_user(const char *name);
 
 /**
  * Add a group to the file system. This will create a group with no users.
@@ -145,14 +150,14 @@ KernelResult vfs_remove_user(Vfs *fs, const char *name);
  * @param permissions the permissions of the group
  * @return KERNEL_VFS_GROUP_CREATED if the group was successfully created, else an error code.
  */
-KernelResult vfs_add_group(Vfs *fs, const char *name, u16 permissions);
+KernelResult vfs_add_group(const char *name, u16 permissions);
 /**
  * Remove a group from the file system. This will remove the group from all users.
  * @param fs the file system to remove the group from
  * @param name the name of the group
  * @return KERNEL_SUCCESS if the group was successfully removed, else an error code.
  */
-KernelResult vfs_remove_group(Vfs *fs, const char *name);
+KernelResult vfs_remove_group(const char *name);
 
 /**
  * Assign a user to a group in the file system.
@@ -161,7 +166,7 @@ KernelResult vfs_remove_group(Vfs *fs, const char *name);
  * @param group the group to assign the user to
  * @return KERNEL_SUCCESS if the user was successfully assigned to the group, else an error code.
  */
-KernelResult vfs_assign_user_to_group(Vfs *fs, User *user, Group *group);
+KernelResult vfs_assign_user_to_group(User *user, Group *group);
 
 /**
  * Remove a user from a group in the file system.
@@ -170,14 +175,14 @@ KernelResult vfs_assign_user_to_group(Vfs *fs, User *user, Group *group);
  * @param group the group to remove the user from
  * @return KERNEL_SUCCESS if the user was successfully removed from the group, else an error code.
  */
-KernelResult vfs_remove_user_from_group(Vfs *fs, User *user, Group *group);
+KernelResult vfs_remove_user_from_group(User *user, Group *group);
 
 /**
  * Create a new file system context.
  * @param fs the file system to create the context for
  * @return a pointer to the file system context
  */
-KernelResult vfs_create_node(Vfs *fs, NodeType type, const char *path, u16 permissions);
+KernelResult vfs_create_node(NodeType type, const char *path, u16 permissions);
 /**
  * Add a node to the file system. This will import recursively all nodes in the directory.
  * This uses the path of the node to determine where to add it.
@@ -188,7 +193,7 @@ KernelResult vfs_create_node(Vfs *fs, NodeType type, const char *path, u16 permi
  * @param node the node to add
  * @return KERNEL_SUCCESS if the node was successfully added, else an error code.
  */
-KernelResult vfs_add_node(Vfs *fs, Node *node);
+KernelResult vfs_add_node(Node *node);
 
 /**
  * Delete a node from the file system.
@@ -196,7 +201,7 @@ KernelResult vfs_add_node(Vfs *fs, Node *node);
  * @param path the path of the node to delete
  * @return KERNEL_SUCCESS if the node was successfully deleted, else an error code.
  */
-KernelResult vfs_delete_node(Vfs *fs, const char *path);
+KernelResult vfs_delete_node(const char *path);
 
 /**
  * Change the permissions of a node.
@@ -205,7 +210,7 @@ KernelResult vfs_delete_node(Vfs *fs, const char *path);
  * @param permissions the new permissions of the node
  * @return KERNEL_SUCCESS if the permissions were successfully changed, else an error code.
  */
-KernelResult vfs_change_node_permissions(Vfs *fs, const char *path, u16 permissions);
+KernelResult vfs_change_node_permissions(const char *path, u16 permissions);
 
 /**
  * Move a node to a new path.
@@ -214,7 +219,7 @@ KernelResult vfs_change_node_permissions(Vfs *fs, const char *path, u16 permissi
  * @param user the new owner of the node
  * @return KERNEL_SUCCESS if the owner was successfully changed, else an error code.
  */
-KernelResult vfs_move_node(Vfs *fs, const char *old_path, const char *new_path);
+KernelResult vfs_move_node(const char *old_path, const char *new_path);
 
 /**
  * Find a node by path.
@@ -223,7 +228,7 @@ KernelResult vfs_move_node(Vfs *fs, const char *old_path, const char *new_path);
  * @param user the new owner of the node
  * @return KERNEL_SUCCESS if the owner was successfully changed, else an error code.
  */
-Node *vfs_find_node_by_path(Vfs *fs, const char *path);
+Node *vfs_find_node_by_path(const char *path);
 
 /**
  * Read from a file node
@@ -257,7 +262,7 @@ KernelResult vfs_list_directory(Node *directory_node);
  * @param symlink_path the path of the symlink
  * @return KERNEL_SYM_LINK_CREATED if the symlink was successfully created, else an error code.
  */
-KernelResult vfs_create_symlink(Vfs *fs, const char *target_path, const char *symlink_path);
+KernelResult vfs_create_symlink(const char *target_path, const char *symlink_path);
 
 /**
  * Change the current working directory in the context

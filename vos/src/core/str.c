@@ -33,6 +33,18 @@ inline char *string_split(const char *str, const char *delimiter) {
     kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
     return token;
 }
+
+b8 string_starts_with(const char *str, const char *substr) {
+    return strncmp(str, substr, string_length(substr)) == 0;
+}
+
+b8 string_ends_with(const char *str, const char *substr) {
+    u64 str_len = string_length(str);
+    u64 substr_len = string_length(substr);
+    if (substr_len > str_len) return false;
+    return strncmp(str + str_len - substr_len, substr, substr_len) == 0;
+}
+
 // Splits the given string into an array of strings using the given delimiter.
 inline char *string_split_at(const char *str, const char *delimiter, u64 index) {
     char *copy = string_duplicate(str);

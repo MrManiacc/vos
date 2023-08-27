@@ -374,7 +374,7 @@ void configure_lua_gui(Process *process) {
     lua_setfield(process->lua_state, -2, "gui");
 }
 
-b8 initialize_syscalls_for(Vfs *vfs, Process *process) {
+b8 initialize_syscalls_for( Process *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
 

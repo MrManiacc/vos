@@ -21,11 +21,16 @@ char *id_to_string(ProcessID id);
 static KernelContext *kernel_context = null;
 static b8 kernel_initialized = false;
 
-KernelResult kernel_initialize() {
+KernelResult kernel_initialize(Node *root_path) {
     if (kernel_initialized) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
+    KernelResult create_vfs_result = vfs_initialize(root_path);
+    if (!is_kernel_success(create_vfs_result.code)) {
+        return create_vfs_result;
+    }
+    vdebug("Root path: %s", root_path)
     initialize_memory();
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
@@ -34,9 +39,7 @@ KernelResult kernel_initialize() {
     kernel_context->id_pool = kallocate(sizeof(IDPool), MEMORY_TAG_KERNEL);
     kernel_context->id_pool->top_index = 0;
     kernel_context->id_pool->max_id = 0;
-    KernelResult create_vfs_result = vfs_initialize();
-    if (!is_kernel_success(create_vfs_result.code)) return create_vfs_result;
-    kernel_context->vfs = create_vfs_result.data;
+
     vdebug("Kernel initialized")
     kernel_initialized = true;
     event_initialize();
@@ -45,13 +48,7 @@ KernelResult kernel_initialize() {
     return result;
 }
 
-KernelResult kernel_initialize_from(Node *root_node) {
-    KernelResult result = kernel_initialize();
-    if (!is_kernel_success(result.code)) return result;
-    Vfs *vfs = kernel_context->vfs;
-    vfs_add_node(vfs, root_node);
-    return result;
-}
+
 
 KernelResult kernel_create_process(char *script_path) {
     if (!kernel_initialized) {
@@ -71,7 +68,7 @@ KernelResult kernel_create_process(char *script_path) {
         return result;
     }
     process->pid = pid;
-    initialize_syscalls_for(kernel_context->vfs, process);
+    initialize_syscalls_for(process);
     kernel_context->processes[pid] = process;
     KernelResult result = {KERNEL_PROCESS_CREATED, (void *) pid};
     return result;
@@ -144,9 +141,8 @@ KernelResult kernel_shutdown() {
         }
     }
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
-//    darray_destroy(kernel_context->processes);
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
-    vfs_shutdown(kernel_context->vfs);
+    vfs_shutdown();
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};

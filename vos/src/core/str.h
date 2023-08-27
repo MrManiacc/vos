@@ -17,6 +17,10 @@ VAPI b8 string_contains(const char *str, const char *substr);
 // The returned array must be freed using darray_free.
 VAPI char *string_split(const char *str, const char *delimiter);
 
+VAPI b8 string_starts_with(const char *str, const char *substr);
+
+VAPI b8 string_ends_with(const char *str, const char *substr);
+
 // Returns the index of the first occurrence of the given character in the given string.
 // Returns -1 if the character is not found.
 VAPI i64 string_index_of(const char *str, char c);

@@ -8,6 +8,5 @@
 b8 initialize_syscalls();
 b8 shutdown_syscalls();
 
-b8 initialize_syscalls_for(Vfs *vfs, Process *process);
-
+b8 initialize_syscalls_for(Process *process);
 
