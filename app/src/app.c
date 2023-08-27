@@ -34,9 +34,9 @@ int main(void) {
     int count = 0;
     lua_context(update)
 
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow(800, 600, "VOS");
-//    SetTargetFPS(144);
-
+    SetTargetFPS(270 );
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -45,27 +45,6 @@ int main(void) {
     }
 
     CloseWindow();
-
-//    KernelResult child_process = kernel_create_process("assets/scripts/child.lua");
-//    if (!is_kernel_success(child_process.code)) {
-//        verror("Failed to create process: %s", get_kernel_result_message(child_process))
-//        return 1;
-//    }
-//    KernelResult proc_lookup = kernel_lookup_process((ProcessID) child_process.data);
-//    if (!is_kernel_success(proc_lookup.code)) {
-//        verror("Failed to lookup process: %s", get_kernel_result_message(proc_lookup))
-//        return 1;
-//    }
-//
-//    KernelResult
-//        attach_result = kernel_attach_process((ProcessID) child_process.data, (ProcessID) main_process_result.data);
-//    if (!is_kernel_success(attach_result.code)) {
-//        verror("Failed to attach process: %s", get_kernel_result_message(attach_result))
-//        return 1;
-//    }
-//
-//    Process *proc = proc_lookup.data;
-//    process_start(proc);
 
     KernelResult shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {

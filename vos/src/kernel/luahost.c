@@ -9,6 +9,8 @@
 #include <raylib.h>
 #include "luahost.h"
 #include "core/event.h"
+#include "core/str.h"
+#include "core/mem.h"
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
   Process *process;
@@ -205,11 +207,173 @@ int lua_color(lua_State *L) {
     return 1;
 }
 
-
 int lua_time(lua_State *L) {
     lua_pushnumber(L, GetTime());
     return 1;
 }
+
+int lua_import(lua_State *L) {
+    if (lua_gettop(L) != 1) {
+        return luaL_error(L, "Expected 1 argument to import");
+    }
+    const char *module_name = lua_tostring(L, 1);
+    lua_getglobal(L, "sys");
+    lua_getfield(L, -1, "path");
+    const char *path = lua_tostring(L, -1);
+    lua_getfield(L, -2, "name");
+    const char *process_name = lua_tostring(L, -1);
+    u64 length = string_length(path) - string_length(process_name) - 1;
+    char *full_path = kallocate(length + string_length(module_name) + 1, MEMORY_TAG_STRING);
+    memcpy(full_path, path, length);
+    memcpy(full_path + length, module_name, string_length(module_name));
+    full_path[length + string_length(module_name)] = '\0';
+    vdebug("Importing module %s from %s", module_name, full_path);
+    if (luaL_dofile(L, full_path) != LUA_OK) {
+        verror("Failed to run script %s", full_path);
+        //print the error
+        verror("Error: %s", lua_tostring(L, -1));
+    }
+//    char *full_path = malloc(strlen(path) + strlen(module_name) + 1);
+
+}
+
+int lua_is_button_down(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 1) {
+        return luaL_error(L, "Expected 1 argument to is_button_down");
+    }
+    int button = lua_tointeger(L, 1);
+    lua_pushboolean(L, IsMouseButtonDown(button));
+    return 1;
+}
+
+int lua_is_button_up(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 1) {
+        return luaL_error(L, "Expected 1 argument to is_button_down");
+    }
+    int button = lua_tointeger(L, 1);
+    lua_pushboolean(L, IsMouseButtonUp(button));
+    return 1;
+}
+
+int lua_is_button_pressed(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 1) {
+        return luaL_error(L, "Expected 1 argument to is_button_down");
+    }
+    int button = lua_tointeger(L, 1);
+    lua_pushboolean(L, IsMouseButtonPressed(button));
+    return 1;
+}
+
+int lua_is_button_released(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 1) {
+        return luaL_error(L, "Expected 1 argument to is_button_down");
+    }
+    int button = lua_tointeger(L, 1);
+    lua_pushboolean(L, IsMouseButtonReleased(button));
+    return 1;
+}
+
+int lua_mouse(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 0) {
+        return luaL_error(L, "Expected 0 argument to mouse");
+    }
+    Vector2 mouse = GetMousePosition();
+    lua_newtable(L);
+    lua_pushinteger(L, mouse.x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, mouse.y);
+    lua_setfield(L, -2, "y");
+    lua_pushcfunction(L, lua_is_button_down);
+    lua_setfield(L, -2, "is_down");
+
+    lua_pushcfunction(L, lua_is_button_up);
+    lua_setfield(L, -2, "is_up");
+
+    lua_pushcfunction(L, lua_is_button_pressed);
+    lua_setfield(L, -2, "is_pressed");
+
+    lua_pushcfunction(L, lua_is_button_released);
+    lua_setfield(L, -2, "is_released");
+    return 1;
+}
+
+void configure_lua_input(Process *process) {
+    // Create the gui table
+    lua_newtable(process->lua_state);
+
+    // Add a color function to the gui table
+    lua_pushcfunction(process->lua_state, lua_mouse);
+    lua_setfield(process->lua_state, -2, "mouse");
+
+
+    // Attach the gui table to the sys table
+    lua_setfield(process->lua_state, -2, "input");
+}
+int lua_text_width(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 2) {
+        return luaL_error(L, "Expected 2 argument to text_width");
+    }
+    const char *text = lua_tostring(L, 1);
+    int size = lua_tointeger(L, 2);
+    lua_pushinteger(L, MeasureText(text, size));
+    return 1;
+}
+
+int lua_windwow_size(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 0) {
+        return luaL_error(L, "Expected 0 argument to window_size");
+    }
+    lua_newtable(L);
+    lua_pushinteger(L, GetScreenWidth());
+    lua_setfield(L, -2, "width");
+    lua_pushinteger(L, GetScreenHeight());
+    lua_setfield(L, -2, "height");
+    return 1;
+}
+
+int configure_lua_window(Process *process) {
+    // Create the gui table
+    lua_newtable(process->lua_state);
+
+    // Add a color function to the gui table
+    lua_pushcfunction(process->lua_state, lua_windwow_size);
+    lua_setfield(process->lua_state, -2, "size");
+
+    // Attach the gui table to the sys table
+    lua_setfield(process->lua_state, -2, "window");
+}
+
+void configure_lua_gui(Process *process) {
+    // Create the gui table
+    lua_newtable(process->lua_state);
+
+    // Add a color function to the gui table
+    lua_pushcfunction(process->lua_state, lua_color);
+    lua_setfield(process->lua_state, -2, "color");
+
+    // Add a draw_string function to the gui table
+    lua_pushcfunction(process->lua_state, lua_draw_string);
+    lua_setfield(process->lua_state, -2, "draw_text");
+
+    // Add a draw_rect function to the gui table
+    lua_pushcfunction(process->lua_state, lua_draw_rect);
+    lua_setfield(process->lua_state, -2, "draw_rect");
+
+    // Add a text_width function to the gui table
+    lua_pushcfunction(process->lua_state, lua_text_width);
+    lua_setfield(process->lua_state, -2, "text_width");
+
+    // Attach the gui table to the sys table
+    lua_setfield(process->lua_state, -2, "gui");
+}
+
 b8 initialize_syscalls_for(Vfs *vfs, Process *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
@@ -239,23 +403,14 @@ b8 initialize_syscalls_for(Vfs *vfs, Process *process) {
     lua_pushcfunction(process->lua_state, lua_time);
     lua_setfield(process->lua_state, -2, "time");
 
-    // Create the gui table
-    lua_newtable(process->lua_state);
+    lua_pushcfunction(process->lua_state, lua_import);
+    lua_setfield(process->lua_state, -2, "import");
 
-    // Add a color function to the gui table
-    lua_pushcfunction(process->lua_state, lua_color);
-    lua_setfield(process->lua_state, -2, "color");
+    configure_lua_gui(process);
 
-    // Add a draw_string function to the gui table
-    lua_pushcfunction(process->lua_state, lua_draw_string);
-    lua_setfield(process->lua_state, -2, "draw_text");
+    configure_lua_input(process);
 
-    // Add a draw_rect function to the gui table
-    lua_pushcfunction(process->lua_state, lua_draw_rect);
-    lua_setfield(process->lua_state, -2, "draw_rect");
-
-    // Attach the gui table to the sys table
-    lua_setfield(process->lua_state, -2, "gui");
+    configure_lua_window(process);
 
     lua_setglobal(process->lua_state, "sys"); // Set the sys table as a global variable
 }
