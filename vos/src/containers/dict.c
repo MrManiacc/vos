@@ -55,16 +55,19 @@ char *dict_to_string(dict *table) {
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
         while (e != NULL) {
-            char *key = string_duplicate(e->key);
-            char *value = string_duplicate(e->object);
-            char *entry = string_concat(key, ": ");
-            entry = string_concat(entry, value);
-            entry = string_concat(entry, ", ");
-            result = string_concat(result, entry);
+            u64 hash_key = table->hash_func(e->key);
+            result = string_format("%s\n\t0x%x: {\n\t\tKey: %s,\n\t\tValue Pointer: 0x%4p\n\t}\n",
+                                   result,
+                                   hash_key,
+                                   e->key,
+                                   e->object);
+            if (e->next != NULL)
+                result = string_concat(result, ",");
             e = e->next;
         }
     }
-    result[string_length(result) - 2] = '}';
+    result = string_concat(result, "\n");
+    result[string_length(result) - 1] = '}';
     return result;
 }
 

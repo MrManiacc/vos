@@ -4,20 +4,6 @@
 #pragma once
 #include "defines.h"
 
-typedef enum {
-  FILE_CREATED,
-  FILE_MODIFIED,
-  FILE_DELETED,
-} FileEventType;
-
-typedef struct {
-  FileEventType type;
-  char *path; // Path to the changed file.
-} FileEvent;
-
-typedef void (*FileWatcherCallback)(FileEvent event);
-
-typedef struct FileWatcher FileWatcher;
 
 void watcher_initialize(const char *path, b8 *running);
 

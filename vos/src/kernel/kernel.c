@@ -27,10 +27,10 @@ KernelResult kernel_initialize(char *root_path) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
-    KernelResult create_vfs_result = vfs_initialize(root_path);
-    if (!is_kernel_success(create_vfs_result.code)) {
-        return create_vfs_result;
-    }
+//    KernelResult create_vfs_result = vfs_initialize(root_path);
+//    if (!is_kernel_success(create_vfs_result.code)) {
+//        return create_vfs_result;
+//    }
     vdebug("Root path: %s", root_path)
     initialize_memory();
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
@@ -44,6 +44,7 @@ KernelResult kernel_initialize(char *root_path) {
     vdebug("Kernel initialized")
     kernel_initialized = true;
     event_initialize();
+    fs_initialize(root_path);
     initialize_syscalls();
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
     return result;
@@ -149,7 +150,7 @@ KernelResult kernel_shutdown() {
     }
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
-    vfs_shutdown();
+    fs_shutdown();
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};

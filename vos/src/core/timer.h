@@ -8,5 +8,6 @@ typedef void (*TimerCallback)(const char *id);
 
 void timer_initialize();
 void timer_set(const char *id, u32 delay, TimerCallback callback);
+b8 timer_exists(const char *id);
 void timer_poll();
 void timer_cleanup();

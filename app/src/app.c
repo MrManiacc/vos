@@ -41,9 +41,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     process_start(proc_lookup.data);
-    int count = 0;
     lua_context(update)
-
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow(800, 600, "VOS");
     SetTargetFPS(270);

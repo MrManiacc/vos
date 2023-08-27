@@ -25,9 +25,13 @@ VAPI b8 string_ends_with(const char *str, const char *substr);
 // The returned string must be freed using kfree.
 // The original strings are freed
 VAPI char *string_concat(const char *str0, const char *str1);
-
+VAPI char *string_replace(const char *str, const char *substr, const char *replacement);
 // Returns the index of the first occurrence of the given character in the given string.
 // Returns -1 if the character is not found.
 VAPI i64 string_index_of(const char *str, char c);
 VAPI i32 string_split_count(const char *str, const char *delimiter);
 VAPI char *string_split_at(const char *str, const char *delimiter, u64 index);
+
+VAPI char *string_trim(const char *str);
+
+VAPI char* string_format(const char* str, ...);

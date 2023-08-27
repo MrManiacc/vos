@@ -1,30 +1,47 @@
 #include <pthread.h>
-#include "vfswatch.h"
+#include "vfs_watch.h"
 #include "core/logger.h"
 #include "core/timer.h"
 #include "containers/dict.h"
+#include "core/str.h"
+#include "core/mem.h"
+#include "vfs.h"
+#include "core/event.h"
 
 static pthread_t watcher_thread;
 static b8 *watcher_running;
+static dict *watched_events;
 
 //TODO: we need to implement a multi threaded file watcher and implement a way to manage files easily
 #include <windows.h>
 
 #define DEBOUNCE_DURATION 500 // 500 millisecond delay
 
-struct FileWatcher {
+typedef enum {
+  FILE_CREATED,
+  FILE_MODIFIED,
+  FILE_DELETED,
+} FileEventType;
+
+typedef struct {
+  FileEventType type;
+  char *path; // Path to the changed file.
+} FileEvent;
+
+typedef struct FileWatcher {
   HANDLE directoryHandle;
   char path[MAX_PATH];
-  FileWatcherCallback callback;
   char buffer[1024];
   OVERLAPPED overlapped;
-};
+} FileWatcher;
 
-FileWatcher *file_watcher_create(const char *path, FileWatcherCallback callback) {
+// Callback function for the timer to call after debounce.
+void debounced_file_event(const char *id);
+
+FileWatcher *file_watcher_create(const char *path) {
     FileWatcher *watcher = (FileWatcher *) malloc(sizeof(FileWatcher));
     if (!watcher) return NULL;
     strncpy(watcher->path, path, MAX_PATH);
-    watcher->callback = callback;
     watcher->directoryHandle = CreateFileA(
         path,
         FILE_LIST_DIRECTORY,
@@ -88,7 +105,7 @@ void file_watcher_poll(FileWatcher *watcher) {
 //
 //    // In a real-world scenario, you'd want to handle these changes asynchronously.
 //    // Here, we're simplifying by polling.
-//    SleepEx(0, TRUE);
+    SleepEx(0, TRUE);
 
     FILE_NOTIFY_INFORMATION *info = (FILE_NOTIFY_INFORMATION *) watcher->buffer;
 
@@ -103,57 +120,78 @@ void file_watcher_poll(FileWatcher *watcher) {
             continue;
         }
 
-        FileEvent event;
-        event.path = convertedPath;
+        FileEvent *event = kallocate(sizeof(FileEvent), MEMORY_TAG_VFS);
+        event->path = convertedPath;
+        if (timer_exists(event->path) || dict_lookup(watched_events, event->path))
+            continue;
         switch (info->Action) {
-            case FILE_ACTION_ADDED:event.type = FILE_CREATED;
+            case FILE_ACTION_ADDED:event->type = FILE_CREATED;
                 break;
-            case FILE_ACTION_REMOVED:event.type = FILE_DELETED;
+            case FILE_ACTION_REMOVED:event->type = FILE_DELETED;
                 break;
-            case FILE_ACTION_MODIFIED:event.type = FILE_MODIFIED;
+            case FILE_ACTION_MODIFIED:event->type = FILE_MODIFIED;
                 break;
             default:continue;
         }
-        watcher->callback(event);
+        //Wait for a second
+        timer_set(event->path, 1000, debounced_file_event);
+        dict_insert(watched_events, event->path, (void *) event);
         info = (FILE_NOTIFY_INFORMATION *) ((char *) info + info->NextEntryOffset);
     }
     while (info->NextEntryOffset != 0);
 }
+
 void *watcher_thread_func(void *arg) {
     FileWatcher *watcher = (FileWatcher *) arg;
     while (*watcher_running) {
         file_watcher_poll(watcher);
     }
-    //TODO: close the thread here ?
     vdebug("Shutting down watcher")
     file_watcher_destroy(watcher);
     pthread_join(watcher_thread, NULL);
-
-}
-static FileEvent last_event;
-
-// Callback function for the timer to call after debounce.
-void debounced_file_event(const char *id) {
-    if (!*watcher_running)
-        return;
-    char *path = last_event.path;
-    vdebug("File event after debounce: %s", path);
-}
-
-void on_file_event(FileEvent event) {
-    last_event = event;
-    timer_set(event.path, DEBOUNCE_DURATION, debounced_file_event);
 }
 
 static FileWatcher *watcher;
 
 void watcher_initialize(const char *path, b8 *running) {
     watcher_running = running; //allow for the thread to be stopped
-    watcher = file_watcher_create(path, on_file_event);
+    watcher = file_watcher_create(path);
+    watched_events = dict_create_default();
     pthread_create(&watcher_thread, NULL, watcher_thread_func, watcher);
 }
 
 void watcher_shutdown() {
     *watcher_running = false;
+    dict_destroy(watched_events);
+}
 
+void debounced_file_event(const char *id) {
+    if (!*watcher_running)
+        return;
+    if (!dict_lookup(watched_events, id))
+        return;
+    FileEvent *event = (FileEvent *) dict_remove(watched_events, id);
+    if (!event)
+        return;
+    //build path to file
+    char *pathed = string_concat("/", id);
+    char *path = string_concat(watcher->path, string_replace(pathed, "\\", "/"));
+    kfree(pathed, string_length(pathed) + 1, MEMORY_TAG_STRING);
+    FileEventType type = event->type;
+    //check if the file still exists
+    event_context event_context;
+    memcpy(event_context.data.c, path, strlen(path));
+    //null terminate the string
+    event_context.data.c[strlen(path)] = '\0';
+    switch (event->type) {
+        case FILE_CREATED:event_fire(EVENT_FILE_CREATED, NULL, event_context);
+            break;
+        case FILE_MODIFIED:event_fire(EVENT_FILE_MODIFIED, NULL, event_context);
+            break;
+        case FILE_DELETED:event_fire(EVENT_FILE_DELETED, NULL, event_context);
+            break;
+    }
+    kfree(event->path, string_length(path) + 1, MEMORY_TAG_STRING);
+    kfree(event, sizeof(FileEvent), MEMORY_TAG_VFS);
+//    vdebug("File event after debounce: %s", path);
 }

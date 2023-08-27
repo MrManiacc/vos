@@ -3,6 +3,8 @@
 #include "logger.h"
 
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 inline u64 string_length(const char *str) {
     return strlen(str);
@@ -92,10 +94,24 @@ inline i64 string_index_of(const char *str, char c) {
     }
     return ptr - str;
 }
-/**
- * removes the first occurrence of the given character in the given string.
- * @return
- */
-u32 string_dealloc_all() {
-
+char *string_replace(const char *str, const char *substr, const char *replacement) {
+    char *copy = string_duplicate(str);
+    char *token = strtok(copy, substr);
+    char *result = string_duplicate(token);
+    token = strtok(null, substr);
+    while (token != null) {
+        result = string_concat(result, replacement);
+        result = string_concat(result, token);
+        token = strtok(null, substr);
+    }
+    kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
+    return result;
+}
+inline char* string_format(const char* str, ...){
+    va_list args;
+    va_start(args, str);
+    char* result = kallocate(1024, MEMORY_TAG_STRING);
+    vsprintf(result, str, args);
+    va_end(args);
+    return result;
 }

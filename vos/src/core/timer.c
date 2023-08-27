@@ -31,22 +31,18 @@ void timer_set(const char *id, u32 delay, TimerCallback callback) {
     delay /= 1000;
     data->expiration_time = current_time + delay;
     data->callback = callback;
-    if (dict_lookup(timers, id)) {
-        return;
-    }
-
     dict_insert(timers, id, data);
+}
 
+b8 timer_exists(const char *id) {
+    if (!timers) return false;
+    return NULL != dict_lookup(timers, id);
 }
 
 void timer_poll() {
     if (!timers) return;
 
     idict it = dict_iterator(timers);
-
-    // List of keys to be removed after iteration
-    char **keys_to_remove = NULL;
-    u64 remove_count = 0;
 
     while (dict_next(&it)) {
         time_t current_time;
@@ -57,14 +53,6 @@ void timer_poll() {
             dict_remove(timers, it.entry->key);
         }
     }
-
-//    // Now, remove the keys from the dictionary
-//    for (u64 i = 0; i < remove_count; i++) {
-//        dict_remove(timers, keys_to_remove[i]);
-//    }
-//
-//    // Free the list of keys to remove
-//    kfree(keys_to_remove, sizeof(char *) * remove_count, MEMORY_TAG_DICT);
 }
 
 void timer_cleanup() {

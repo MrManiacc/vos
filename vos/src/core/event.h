@@ -121,7 +121,7 @@ typedef enum system_event_code {
    * char* payload = data.data.c;
    * u16 payload_length = strlen(payload);
    */
-  EVENT_FILE_LOADED = 0x0A,
+  EVENT_FILE_CREATED = 0x0A,
 
   /**
    * A virtual file was unloaded.
@@ -129,7 +129,7 @@ typedef enum system_event_code {
    * char* payload = data.data.c;
    * u16 payload_length = strlen(payload);
    */
-  EVENT_FILE_UNLOADED = 0x0B,
+  EVENT_FILE_DELETED = 0x0B,
 
   /**
    * A virtual file was modified.
