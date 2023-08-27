@@ -65,7 +65,7 @@ inline char *string_split_at(const char *str, const char *delimiter, u64 index) 
         if (i == index) {
             char *output = string_duplicate(token);
             kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
-            vdebug("string_split_at: %s", output);
+//            vdebug("string_split_at: %s", output);
             return output;
         }
         token = strtok(null, delimiter);

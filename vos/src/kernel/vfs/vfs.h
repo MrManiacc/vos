@@ -3,7 +3,7 @@
  */
 #pragma once
 
-#include <pthread.h>
+//#include <pthread.h>
 #include "defines.h"
 #include "kernel/kresult.h"
 
@@ -38,62 +38,51 @@ typedef struct Group {
   u16 permissions;
 } Group;
 
-typedef u64 Handle;
+typedef struct Fs Fs;
 
-typedef struct Node {
-  //The path of the node relative to the root.
-  Path path;
-  // The Parent of the node.
-  struct Node *parent;
-  // A union of the data that can be stored in the node, can be a directory or a file.
-  union {
-    // The data of the node if it is a directory.
-    struct {
-      // The children of the directory.
-      struct Node *children[NODE_CAPACITY];
-      // The number of children in the directory.
-      u32 child_count;
-    } directory;
-    // The data of the node if it is a file.
-    struct {
-      // The size of the file in bytes.
-      u64 size;
-      // The raw data of the file.
-      const char *data;
-    } file;
-  } data;
-} Node;
+typedef enum NodeAction {
+  NODE_CREATED,
+  NODE_DELETED,
+  NODE_MODIFIED,
+  NODE_RENAMED
+} NodeAction;
 
-typedef struct Fs {
-  //The root directory of the file system.
-  Path root;
-  //The current working directory of the file system.
-  Path cwd;
-  //The current user of the file system.
-  User *user;
-  //The current group of the file systems.
-  Group *group;
-  //Whether the file system is running.
-  b8 running;
-} Fs;
+typedef enum NodeType {
+  NODE_FILE,
+  NODE_DIRECTORY,
+  NODE_SYMLINK
+} NodeType;
+typedef struct Node Node;
 
 b8 fs_initialize(Path root);
 
 /**
- * Creates a new node from the given path. If the path is a directory, the node will be a directory
- * node. If the path is a file, the node will be a file node. If the path is invalid, the node will
- * be NULL.
- * @param path The path to create a node from.
- * @return
+ * This function will return the node at the given path. If the path is invalid, the node will be NULL.
+ * It will attempt to load the node from the file system if it is not already loaded. The node will be cached
+ * in memory for future use. We also watch the file system for changes to the node and update the node
+ * accordingly to keep it in sync with the file system. This method is thread safe and guarantees that
+ * a node will only be loaded once.
+ * @param path The path to get the node from. Path can be absolute or relative to the current working directory, this is
+ * determined by the first character of the path. If the path starts with a '/', it is absolute. Otherwise,
+ * it is relative to the current working directory.
+ *
+ * @param action The action that was performed on the node. This is used to determine how to update the node.
+ *
+ * Windows paths will be converted to Unix paths, with /c/ being the root of the C drive.
+ * @return The node at the given path or NULL if the path is invalid.
  */
-Node *fs_load_node_from(Path path);
+Node *fs_sync_node(Path path, NodeAction action);
 
 /**
- * Gets the node at the given path. If the path is invalid, the node will be NULL. This assumes that
- * the requested node has been loaded into memory using fs_load_node_from.
+ * This function will return the node at the given path. If the path is invalid, the node will be NULL.
+ * It uses the cached nodes in memory and does not attempt to load the node from the file system.
  * @param path The path to get the node from.
- * @return The node at the given path.
+ * @return The node at the given path or NULL if the path is invalid.
  */
-Node *fs_get_node(Path path);
+Node *fs_node_exists(Path path);
+
+char *fs_to_string();
+
+char *fs_node_to_string(Node *node);
 
 void fs_shutdown();

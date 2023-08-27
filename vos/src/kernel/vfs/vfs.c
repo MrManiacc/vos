@@ -1,16 +1,62 @@
 #include <sys/stat.h>
-#include "vfs.h"
+
 #include "core/mem.h"
 #include "containers/dict.h"
 #include "core/logger.h"
 #include "vfs_watch.h"
 #include "core/timer.h"
 #include "core/event.h"
+#include "containers/darray.h"
+
+#include <stdio.h>
+#include <dirent.h>
+#include "vfs.h"
+#include "core/str.h"
 
 static Fs *fs = NULL;
 static dict *loaded_nodes = NULL;
 
 b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context data);
+void fs_node_destroy(Node *node);
+
+typedef struct Fs {
+  //The root directory of the file system.
+  Node *root;
+  //The current working directory of the file system.
+  Path cwd;
+  //The current user of the file system.
+  User *user;
+  //The current group of the file systems.
+  Group *group;
+  //Whether the file system is running.
+  b8 running;
+} Fs;
+
+typedef struct Node {
+  //The path of the node relative to the root.
+  Path path;
+  // The Parent of the node.
+  struct Node *parent;
+  // the type of the node.
+  NodeType type;
+  // A union of the data that can be stored in the node, can be a directory or a file.
+  union {
+    // The data of the node if it is a directory.
+    struct {
+      // The children of the directory.
+      struct Node **children;
+      // The number of children in the directory.
+      u32 child_count;
+    } directory;
+    // The data of the node if it is a file.
+    struct {
+      // The size of the file in bytes.
+      u64 size;
+      // The raw data of the file.
+      char *data;
+    } file;
+  } data;
+} Node;
 
 b8 fs_initialize(Path root) {
     if (fs != NULL) {
@@ -19,12 +65,22 @@ b8 fs_initialize(Path root) {
     }
     //TODO internally create the file tree structure recursively from the root at startup and then just update it here
     fs = kallocate(sizeof(Fs), MEMORY_TAG_VFS);
-    fs->running = true;
+    kzero_memory(fs, sizeof(Fs));
+    //Load the root node, this will recursively load all children
     loaded_nodes = dict_create_default();
+    fs->root = fs_sync_node(root, NODE_CREATED);
+    fs->running = true;
     event_register(EVENT_FILE_CREATED, 0, fs_on_file_event);
     event_register(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
     event_register(EVENT_FILE_DELETED, 0, fs_on_file_event);
     watcher_initialize(root, &fs->running);
+    vwarn(fs_to_string());
+    char *test = fs_node_to_string(fs->root);
+    if (test == NULL) {
+        verror("Could not convert node to string");
+        return false;
+    }
+    vinfo("Initialized VFS with root: %s", test);
     return true;
 }
 
@@ -38,69 +94,351 @@ void fs_shutdown() {
     event_unregister(EVENT_FILE_DELETED, 0, fs_on_file_event);
     fs->running = false;
     watcher_shutdown();
+    fs_node_destroy(fs->root);
     dict_destroy(loaded_nodes);
     kfree(fs, sizeof(Fs), MEMORY_TAG_VFS);
 }
 
 b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context data) {
     char *path = (char *) data.data.c;
-
     switch (code) {
         case EVENT_FILE_CREATED: {
             vdebug("File was created: %s\n\tloading from path...", path)
-            fs_load_node_from(path);
+            Node *node = fs_sync_node(path, NODE_CREATED);
+            char *parent_path = string_format("%s", path);
+            char *last_slash = strrchr(parent_path, '/');
+            if (last_slash != NULL) {
+                *last_slash = '\0';
+            }
+            Node *parent = fs_sync_node(parent_path, NODE_MODIFIED);
+            if (parent == NULL) {
+                verror("Could not sync parent node: %s", parent_path);
+                return false;
+            }
+            if (node->parent == NULL) {
+                vdebug("Setting parent of node: %s to: %s", node->path, parent->path)
+                node->parent = parent;
+            }
             break;
         }
-        case EVENT_FILE_MODIFIED:vdebug("File modified: %s", path)
+        case EVENT_FILE_MODIFIED: {
+            Node *synced = fs_sync_node(path, NODE_MODIFIED);
+            if (synced == NULL) {
+                verror("Could not sync node: %s", path);
+                return false;
+            }
+            vdebug("File modified: %s\nNew Contents: \n%s", path, synced->data.file.data)
+//            fs_sync_node(fs->root->path, NODE_MODIFIED);
+            //Find the parent path
+            char *parent_path = string_format("%s", path);
+            char *last_slash = strrchr(parent_path, '/');
+            if (last_slash != NULL) {
+                *last_slash = '\0';
+            }
+            Node *parent = fs_sync_node(parent_path, NODE_MODIFIED);
+            if (parent == NULL) {
+                verror("Could not sync parent node: %s", parent_path);
+                return false;
+            }
+            if (synced->parent == NULL) {
+                vdebug("Setting parent of node: %s to: %s", synced->path, parent->path)
+                synced->parent = parent;
+            }
 
             break;
+        }
+
         case EVENT_FILE_DELETED: {
-            if (dict_lookup(loaded_nodes, path) != NULL)
-                dict_remove(loaded_nodes, path);
             vdebug("File deleted: %s", path)
+            fs_sync_node(path, NODE_DELETED);
             break;
         }
     }
-    return false;
+    vinfo(fs_node_to_string(fs->root))
+    return true;
 }
 
-/**
- * Creates a new node from the given path. If the path is a directory, the node will be a directory
- * node. If the path is a file, the node will be a file node. If the path is invalid, the node will
- * be NULL.
- * @param path The path to create a node from.
- * @return
- */
-Node *fs_load_node_from(Path path) {
+//Reads the directory at the given path and loads all children
+void read_directory(Node *node) {
 
-    //Use fopen and fstat to get information about the file
-    struct stat file_stat;
-    if (stat(path, &file_stat) != 0) {
-        verror("Failed to get file stat for %s", path);
+}
+
+void read_file(Node *node) {
+
+}
+
+Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
+    // We need to create a new node and load it from the file system
+    if (action == NODE_CREATED) {
+        Node *node = kallocate(sizeof(Node), MEMORY_TAG_VFS);
+        node->type = NODE_DIRECTORY;
+        node->path = path;
+        //if the root node is null, set it to this node
+        if (fs->root == NULL) {
+            fs->root = node;
+            vinfo("Set root node to: %s", path)
+        }
+        //TODO: lookup parent node
+        node->data.directory.child_count = 0;
+        //initialize the children array to the DEFAULT_NODE_CAPACITY
+        node->data.directory.children = kallocate(sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
+        DIR *handle = opendir(path);
+        if (handle == NULL) {
+            verror("Could not open directory: %s", path);
+            return NULL;
+        }
+        struct dirent *entry;
+        while ((entry = readdir(handle)) != NULL) {
+            //make sure we don't load the current directory or the parent directory
+            if (strings_equal(entry->d_name, ".") || strings_equal(entry->d_name, "..")) {
+                continue;
+            }
+            vwarn("Found entry: %s", entry->d_name);
+            char *child_path = string_format("%s/%s", path, entry->d_name);
+            Node *child = fs_sync_node(child_path, NODE_CREATED);
+            if (child == NULL) {
+                verror("Could not load child node: %s", child_path);
+                continue;
+            }
+            node->data.directory.children[node->data.directory.child_count++] = child;
+            //set child parent
+            child->parent = node;
+        }
+        closedir(handle);
+        //We need to add the node to the loaded nodes dictionary
+        dict_insert(loaded_nodes, path, node);
+        return node;
+    } else if (action == NODE_MODIFIED) {
+        //TODO implement this
+        Node *node = dict_lookup(loaded_nodes, path);
+        if (node == NULL) {
+            verror("Could not find node for path: %s", path);
+            return NULL;
+        }
+        DIR *handle = opendir(path);
+        if (handle == NULL) {
+            verror("Could not open directory: %s", path);
+            return NULL;
+        }
+        kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
+        node->data.directory.children = kallocate(sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
+
+        node->data.directory.child_count = 0;
+        struct dirent *entry;
+        while ((entry = readdir(handle)) != NULL) {
+            //make sure we don't load the current directory or the parent directory
+            if (strings_equal(entry->d_name, ".") || strings_equal(entry->d_name, "..")) {
+                continue;
+            }
+            char *child_path = string_format("%s/%s", path, entry->d_name);
+            Node *child;
+            if (dict_lookup(loaded_nodes, child_path) != NULL) {
+                child = fs_sync_node(child_path, NODE_MODIFIED);
+                //the node is already loaded, we don't need to do anything
+            } else
+                child = fs_sync_node(child_path, NODE_CREATED);
+
+            if (child == NULL) {
+                verror("Could not load child node: %s", child_path);
+                continue;
+            }
+            node->data.directory.children[node->data.directory.child_count++] = child;
+            //set child parent
+            child->parent = node;
+        }
+        closedir(handle);
+        //We need to add the node to the loaded nodes dictionary
+        dict_insert(loaded_nodes, path, node);
+        return node;
+    }
+
+    return NULL;
+}
+
+Node *load_file_node(Path path, NodeAction action) {
+    if (action == NODE_CREATED) {
+        //TODO implement this
+        FILE *handle = fopen(path, "r");
+        if (handle == NULL) {
+            verror("Could not open file: %s", path);
+            return NULL;
+        }
+
+        Node *node = kallocate(sizeof(Node), MEMORY_TAG_VFS);
+        node->type = NODE_FILE;
+        node->path = path;
+        node->parent = NULL;
+        //store a total of 10MB of data
+        char *data = kallocate(10 * 1024 * 1024, MEMORY_TAG_VFS);
+        i32 index = 0;
+        // Printing what is written in file
+        // character by character using loop.
+        char ch;
+        do {
+            ch = fgetc(handle);
+            data[index++] = ch;
+        }
+        while (ch != EOF);
+        node->data.file.size = index;
+        node->data.file.data = kallocate(index, MEMORY_TAG_VFS);
+        kcopy_memory(node->data.file.data, data, index);
+        //make sure it's null terminated
+        node->data.file.data[index] = '\0';
+        kfree(data, 10 * 1024 * 1024, MEMORY_TAG_VFS);
+        dict_insert(loaded_nodes, path, node);
+        fclose(handle);
+        return node;
+    } else if (action == NODE_MODIFIED) {
+        //TODO implement this
+        Node *node = dict_lookup(loaded_nodes, path);
+        if (node == NULL) {
+            verror("Could not find node for path: %s", path);
+            return NULL;
+        }
+        FILE *handle = fopen(path, "r");
+        if (handle == NULL) {
+            verror("Could not open file: %s", path);
+            return NULL;
+        }
+        //store a total of 10MB of data
+        char *data = kallocate(10 * 1024 * 1024, MEMORY_TAG_VFS);
+        i32 index = 0;
+        // Printing what is written in file
+        // character by character using loop.
+        char ch;
+        do {
+            ch = fgetc(handle);
+            data[index++] = ch;
+        }
+        while (ch != EOF);
+        node->data.file.size = index;
+        node->data.file.data = kallocate(index, MEMORY_TAG_VFS);
+        kcopy_memory(node->data.file.data, data, index);
+        //make sure it's null terminated
+        node->data.file.data[index] = '\0';
+        kfree(data, 10 * 1024 * 1024, MEMORY_TAG_VFS);
+        fclose(handle);
+        return node;
+    }
+    return NULL;
+}
+char *fs_to_string() {
+    return dict_to_string(loaded_nodes);
+}
+
+// Helper function for indentation
+char *repeat_str(const char *str, int times) {
+    if (times <= 0) return strdup("");
+
+    size_t len = strlen(str);
+    char *result = kallocate(len * times + 1, MEMORY_TAG_VFS);
+    for (int i = 0; i < times; ++i) {
+        strcpy(result + i * len, str);
+    }
+    return result;
+}
+
+char *fs_node_to_string_recursive(Node *node, int depth) {
+    if (node == NULL) {
+        return strdup(""); // Return an empty string for easy concatenation
+    }
+
+    char *result = NULL;
+    char *indent = repeat_str("|  ", depth - 1); // Indentation for depth
+
+    switch (node->type) {
+        case NODE_DIRECTORY: {
+            char *children_str = strdup(""); // Initialize to empty string
+
+            for (u32 i = 0; i < node->data.directory.child_count; ++i) {
+                Node *child = node->data.directory.children[i];
+                if (child == NULL)
+                    continue;
+
+                char *child_str = fs_node_to_string_recursive(child, depth + 1);
+                char *temp = children_str;
+                children_str = string_format("%s%s", children_str, child_str);
+                kfree(child_str, string_length(child_str) + 1, MEMORY_TAG_VFS);
+                kfree(temp, string_length(temp) + 1, MEMORY_TAG_VFS);
+            }
+
+            result = string_format("%s|-- %s/\n%s", indent, node->path, children_str);
+            kfree(children_str, string_length(children_str) + 1, MEMORY_TAG_STRING);
+            break;
+        }
+        case NODE_FILE: {
+            result = string_format("%s|-- %s\n", indent, node->path);
+            break;
+        }
+        case NODE_SYMLINK: {
+            // You can define the behavior for symlinks here if needed
+            break;
+        }
+    }
+
+    kfree(indent, string_length(indent) + 1, MEMORY_TAG_VFS);
+    return result ? result : strdup(""); // Return result or an empty string if NULL
+}
+
+char *fs_node_to_string(Node *node) {
+    return fs_node_to_string_recursive(node, 0);
+}
+
+Node *fs_sync_node(Path path, NodeAction action) {
+    if (action != NODE_DELETED) {
+        struct stat file_stat;
+        if (stat(path, &file_stat) < 0) {
+            verror("Could not get file stats for: %s", path);
+            return NULL;
+        }
+        //Check if file or directory
+        if (S_ISDIR(file_stat.st_mode)) {
+            return load_directory_node(file_stat, path, action);
+        } else if (S_ISREG(file_stat.st_mode)) {
+            return load_file_node(path, action);
+        } else if (S_ISFIFO(file_stat.st_mode)) {
+            //TODO implement symbolic links
+        }
+    } else {
+        //We're only deleting the node in memory.
+        Node *node = dict_lookup(loaded_nodes, path);
+        if (node == NULL) {
+            verror("Could not find node for path: %s", path);
+            return NULL;
+        }
+        Node *parent = node->parent;
+        if (parent == NULL) {
+            verror("Cannot delete root node: %s", path);
+            return NULL;
+        }
+        //remove the node from the loaded nodes dictionary
+        dict_remove(loaded_nodes, path);
+
+        fs_sync_node(parent->path, NODE_MODIFIED);
+//
+//        //destroy the node
+//        fs_node_destroy(node);
         return NULL;
     }
-
-    //Create a new node
-    Node *node = kallocate(sizeof(Node), MEMORY_TAG_VFS);
-    node->path = path;
-    node->parent = NULL;
-    //TODO: load the node data
-
-    //Add the node to the loaded nodes dictionary. We only update this if the file modified event callback is fired.
-    dict_insert(loaded_nodes, path, node);
-    vdebug("Loaded node from path: %s", dict_to_string(loaded_nodes))
-    return node;
+    return NULL;
 }
 
-/**
- * Gets the node at the given path. If the path is invalid, the node will be NULL. This assumes that
- * the requested node has been loaded into memory using fs_load_node_from.
- * @param path The path to get the node from.
- * @return The node at the given path.
- */
-Node *fs_get_node(Path path) {
-    Node *node = dict_lookup(loaded_nodes, path);
-    if (node != NULL)
-        return node;
-    return fs_load_node_from(path);
+void fs_node_destroy(Node *node) {
+    if (node->type == NODE_DIRECTORY) {
+        vwarn("Destroying node directory at path: %s", node->path);
+        //TODO implement this
+        node->data.directory.child_count = 0;
+        //recursively destroy all children
+        for (u32 i = 0; i < node->data.directory.child_count; i++) {
+            Node _node;
+            fs_node_destroy(&_node);
+        }
+        kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
+    } else {
+        //TODO implement this
+        kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
+    }
+    kfree(node->path, string_length(node->path) + 1, MEMORY_TAG_VFS);
+    //destroy the node
+    kfree(node, sizeof(Node), MEMORY_TAG_VFS);
 }

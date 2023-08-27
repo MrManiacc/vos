@@ -7,7 +7,7 @@
 
 typedef u64 (hash_function)(const char *);
 
-typedef struct _dict dict;
+typedef struct dict dict;
 
 typedef struct entry {
   char *key;
@@ -15,7 +15,7 @@ typedef struct entry {
   struct entry *next;
 } entry;
 
-typedef struct _dict {
+typedef struct dict {
   u32 size;
   hash_function *hash_func;
   entry **elements;
