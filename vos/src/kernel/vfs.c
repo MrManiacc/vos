@@ -4,9 +4,15 @@
 #include "core/mem.h"
 #include "core/str.h"
 #include "containers/darray.h"
+
 KernelResult vfs_initialize() {
     Vfs *vfs = kallocate(sizeof(Vfs), MEMORY_TAG_VFS);
-    vfs->root = 0;
+    Node *root = kallocate(sizeof(Node), MEMORY_TAG_VFS);
+    root->path = string_duplicate("/");
+    root->type = NODE_TYPE_DIRECTORY;
+    root->directory.child_count = 0;
+    root->directory.children = darray_create(Node);
+    vfs->root = root;
     vfs->users = darray_create(User);
     vfs->groups = darray_create(Group);
     KernelResult result = {KERNEL_SUCCESS, vfs};
@@ -57,23 +63,28 @@ KernelResult vfs_add_node(Vfs *vfs, Node *node) {
     if (last_slash) {
         *last_slash = '\0';
     }
-
     Node *parent = vfs_resolve_path_to_node(vfs, parent_path);
     kfree(parent_path, string_length(parent_path) + 1, MEMORY_TAG_STRING);
     return (KernelResult) {KERNEL_SUCCESS, null};
 }
-//        {
-//        .root = 0,
-//        .users = kallocate(sizeof(User) * 255, MEMORY_TAG_VFS),
-//        .groups = kallocate(sizeof(Group) * 255, MEMORY_TAG_VFS),
-//        .user_count = 0,
-//        .group_count = 0,
-//    };
-//
+
+b8 vfs_destroy_node(Node *node) {
+    if (node->type == NODE_TYPE_DIRECTORY) {
+        for (u32 i = 0; i < node->directory.child_count; ++i) {
+            vfs_destroy_node(node->directory.children[i]);
+        }
+        darray_destroy(node->directory.children);
+    }
+    kfree(node->path, string_length(node->path) + 1, MEMORY_TAG_STRING);
+    kfree(node, sizeof(Node), MEMORY_TAG_VFS);
+    return true;
+}
 
 KernelResult vfs_shutdown(Vfs *fs) {
     darray_destroy(fs->users);
     darray_destroy(fs->groups);
+    if (fs->root)
+        vfs_destroy_node(fs->root);
     kfree(fs, sizeof(Vfs), MEMORY_TAG_VFS);
     return (KernelResult) {KERNEL_SUCCESS, null};
 }

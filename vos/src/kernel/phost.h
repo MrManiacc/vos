@@ -24,7 +24,7 @@ typedef struct Process {
   // TODO: create vfs.h that can be used to load scripts from a virtual file system with hot reloading
   const char *script_path;
   // Name of the process, used for debugging. Will be the filename of the script by default.
-  const char *process_name;
+  char *process_name;
   // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
   lua_State *lua_state;
   // The context for accessing a process's child processes

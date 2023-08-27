@@ -1,1 +1,0 @@
-print("Got global:" .. global)

@@ -6,6 +6,8 @@
 #include "core/logger.h"
 #include "pthread.h"
 #include "core/str.h"
+#include "luahost.h"
+#include "core/event.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
@@ -25,7 +27,6 @@ KernelResult kernel_initialize() {
         return result;
     }
     initialize_memory();
-
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     //make sure the processes array is zeroed out
@@ -38,6 +39,8 @@ KernelResult kernel_initialize() {
     kernel_context->vfs = create_vfs_result.data;
     vdebug("Kernel initialized")
     kernel_initialized = true;
+    event_initialize();
+    initialize_syscalls();
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
     return result;
 }
@@ -50,7 +53,7 @@ KernelResult kernel_initialize_from(Node *root_node) {
     return result;
 }
 
-KernelResult kernel_create_process(const char *script_path) {
+KernelResult kernel_create_process(char *script_path) {
     if (!kernel_initialized) {
         KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
@@ -61,12 +64,14 @@ KernelResult kernel_create_process(const char *script_path) {
     char *script_name = string_split_at(script_path, "/", count - 1);
     vdebug("Creating process for script %s", script_name)
     Process *process = process_create(script_path);
+    process->process_name = script_name;
     ProcessID pid = id_pool_next_id();
     if (pid == MAX_PROCESSES) {
         KernelResult result = {KERNEL_ID_POOL_OVERFLOW, (void *) pid};
         return result;
     }
     process->pid = pid;
+    initialize_syscalls_for(kernel_context->vfs, process);
     kernel_context->processes[pid] = process;
     KernelResult result = {KERNEL_PROCESS_CREATED, (void *) pid};
     return result;
@@ -106,6 +111,7 @@ KernelResult kernel_lookup_process(ProcessID pid) {
     KernelResult result = {KERNEL_PROCESS_CREATED, process};
     return result;
 }
+
 KernelResult kernel_destroy_process(ProcessID pid) {
     if (!kernel_initialized) {
         KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
@@ -116,10 +122,10 @@ KernelResult kernel_destroy_process(ProcessID pid) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
+    vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
     process_destroy(process);
     id_pool_release_id(pid);
     KernelResult result = {KERNEL_SUCCESS, null};
-    vdebug("Destroyed process 0x%04x", pid)
     return result;
 }
 
@@ -145,6 +151,8 @@ KernelResult kernel_shutdown() {
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};
     shutdown_memory();
+    shutdown_syscalls();
+    event_shutdown();
     vinfo("Mem usuage: %s", get_memory_usage_str())
     return result;
 }

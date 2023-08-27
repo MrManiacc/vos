@@ -25,12 +25,8 @@ Process *process_create(const char *script_path) {
     Process *process = kallocate(sizeof(Process), MEMORY_TAG_PROCESS);
     process->script_path = string_duplicate(script_path);
     process->state = PROCESS_STATE_STOPPED;
-    process->lua_state = luaL_newstate();
-
-    // TODO: Create a process ID pool
-    process->pid = next_process_id++;
     process->children_pids = darray_create(ProcessID);
-    luaL_openlibs(process->lua_state);
+    vdebug("Process %d created", process->pid)
     return process;
 }
 
@@ -38,14 +34,6 @@ b8 process_add_child(Process *parent, Process *child) {
 // Make the child's lua_State a copy of the parent's lua_State
     child->lua_state = parent->lua_state;
     darray_push(parent->children_pids, child->pid)
-//    if (parent->child_context->count == parent->child_context->capacity) {
-//        // Double the capacity
-//        u32 new_capacity = parent->child_context->capacity * 2;
-//        resize_process_view(parent->child_context, new_capacity);
-//    }
-//
-//    // Add the new child to the processes array and increment the count
-//    parent->child_context->processes[parent->child_context->count++] = *child;
     return true;
 }
 
@@ -69,13 +57,14 @@ b8 process_remove_child(Process *parent, ProcessID child_id) {
 void process_destroy(Process *process) {
     // Stop the process
     process_stop(process, true, true);
-
     darray_destroy(process->children_pids)
 
     // Free the script path
+    kfree((void *) process->process_name, string_length(process->script_path) + +1, MEMORY_TAG_STRING);
     kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_STRING);
 
     // Free the process
+    lua_close(process->lua_state);
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
 }
 
@@ -86,20 +75,13 @@ b8 process_start(Process *process) {
     vinfo("Process %d started", process->pid);
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
-
     if (luaL_dofile(process->lua_state, process->script_path) != LUA_OK) {
         verror("Failed to run script %s", process->script_path);
+        //print the error
+        verror("Error: %s", lua_tostring(process->lua_state, -1));
         process->state = PROCESS_STATE_STOPPED;
         return false;
     }
-    // iterate through all the children and start them
-//    for (u32 i = 0; i < process->child_context->count; ++i) {
-//        Process *child = &process->child_context->processes[i];
-//        if (child->state == PROCESS_STATE_STOPPED)
-//            process_start(child);
-//        else
-//            vwarn("Child process %d is already running", child->pid);
-//    }
     return true;
 }
 

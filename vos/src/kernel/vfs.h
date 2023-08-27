@@ -51,7 +51,7 @@ typedef struct Node {
   // The handle to the parent node, can be null.
   Handle parent_handle;
   // The path of the node, we can retrieve the name from this.
-  const char *path;
+   char *path;
   // The permissions of the node.
   u16 permissions;
   // The owner of the node.

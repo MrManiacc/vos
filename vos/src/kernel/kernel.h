@@ -73,7 +73,7 @@ KernelResult kernel_initialize_from(Node *root_node);
  * @param script_path The path to the lua script.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
-KernelResult kernel_create_process(const char *script_path);
+KernelResult kernel_create_process( char *script_path);
 
 /**
  * Attaches a process to a parent process. This will add the child process to the parent's child process array.
@@ -90,6 +90,7 @@ KernelResult kernel_attach_process(ProcessID pid, ProcessID parent_pid);
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process, else an error code.
  */
 KernelResult kernel_lookup_process(ProcessID pid);
+
 /**
  * Destroys a process. This will stop the process and free all memory. It also frees the id from the id pool.
  * @param pid  The process id.

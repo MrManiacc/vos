@@ -1,5 +1,6 @@
 #include "core/str.h"
 #include "core/mem.h"
+#include "logger.h"
 
 #include <string.h>
 
@@ -36,11 +37,13 @@ inline char *string_split(const char *str, const char *delimiter) {
 inline char *string_split_at(const char *str, const char *delimiter, u64 index) {
     char *copy = string_duplicate(str);
     char *token = strtok(copy, delimiter);
-    kfree(copy, string_length(str) + 1, MEMORY_TAG_STRING);
     u64 i = 0;
     while (token != null) {
         if (i == index) {
-            return token;
+            char *output = string_duplicate(token);
+            kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
+            vdebug("string_split_at: %s", output);
+            return output;
         }
         token = strtok(null, delimiter);
         i++;
@@ -51,12 +54,12 @@ inline char *string_split_at(const char *str, const char *delimiter, u64 index) 
 inline i32 string_split_count(const char *str, const char *delimiter) {
     char *copy = string_duplicate(str);
     char *token = strtok(copy, delimiter);
-    kfree(copy, string_length(str) + 1, MEMORY_TAG_STRING);
     i32 count = 0;
     while (token != null) {
         count++;
         token = strtok(null, delimiter);
     }
+    kfree(copy, string_length(str) + 1, MEMORY_TAG_STRING);
     return count;
 }
 // Returns the index of the first occurrence of the given character in the given string.
@@ -72,6 +75,6 @@ inline i64 string_index_of(const char *str, char c) {
  * removes the first occurrence of the given character in the given string.
  * @return
  */
-u32 string_dealloc_all(){
+u32 string_dealloc_all() {
 
 }
