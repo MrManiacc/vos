@@ -11,6 +11,7 @@
 #include "core/event.h"
 #include "core/str.h"
 #include "core/mem.h"
+#include "kernel/vfs/vfs.h"
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
   Process *process;
@@ -374,7 +375,13 @@ void configure_lua_gui(Process *process) {
     lua_setfield(process->lua_state, -2, "gui");
 }
 
-b8 initialize_syscalls_for( Process *process) {
+int lua_file_system_string(lua_State *L) {
+    //
+    lua_pushstring(L, fs_to_string());
+    return 1;
+}
+
+b8 initialize_syscalls_for(Process *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
 
@@ -406,6 +413,9 @@ b8 initialize_syscalls_for( Process *process) {
     lua_pushcfunction(process->lua_state, lua_import);
     lua_setfield(process->lua_state, -2, "import");
 
+    lua_pushcfunction(process->lua_state, lua_file_system_string);
+    lua_setfield(process->lua_state, -2, "fs_str");
+
     configure_lua_gui(process);
 
     configure_lua_input(process);
@@ -413,6 +423,8 @@ b8 initialize_syscalls_for( Process *process) {
     configure_lua_window(process);
 
     lua_setglobal(process->lua_state, "sys"); // Set the sys table as a global variable
+
+
 }
 
 b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {

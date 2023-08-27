@@ -128,8 +128,6 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
                 return false;
             }
             vdebug("File modified: %s\nNew Contents: \n%s", path, synced->data.file.data)
-//            fs_sync_node(fs->root->path, NODE_MODIFIED);
-            //Find the parent path
             char *parent_path = string_format("%s", path);
             char *last_slash = strrchr(parent_path, '/');
             if (last_slash != NULL) {
@@ -193,7 +191,6 @@ Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
             if (strings_equal(entry->d_name, ".") || strings_equal(entry->d_name, "..")) {
                 continue;
             }
-            vwarn("Found entry: %s", entry->d_name);
             char *child_path = string_format("%s/%s", path, entry->d_name);
             Node *child = fs_sync_node(child_path, NODE_CREATED);
             if (child == NULL) {

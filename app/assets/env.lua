@@ -8,7 +8,7 @@ sys.import("/sys/libgui.lua")
 
 
 local config = {
-    x = 20,
+    x = 300,
     y = 20,
     text = "Hello World",
     text_size = 20,
@@ -24,6 +24,12 @@ sys.listen("update", function()
         click_count = click_count + 1
         config.text = "Clicked " .. click_count .. " times"
     end)
+    local str = sys.fs_str()
+    local width = sys.gui.text_width(str, 8)
+    sys.gui.draw_text(str, 20, 20, 8)
+
+
+
 end)
 
 

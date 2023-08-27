@@ -9,8 +9,3 @@ void watcher_initialize(const char *path, b8 *running);
 
 void watcher_shutdown();
 
-//
-//VAPI FileWatcher *file_watcher_create(const char *path, FileWatcherCallback callback);
-//VAPI void file_watcher_destroy(FileWatcher *watcher);
-//VAPI void file_watcher_poll(FileWatcher *watcher);
-//
