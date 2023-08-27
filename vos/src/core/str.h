@@ -21,6 +21,11 @@ VAPI b8 string_starts_with(const char *str, const char *substr);
 
 VAPI b8 string_ends_with(const char *str, const char *substr);
 
+// Combines two strings into a new string. and returns a new one.
+// The returned string must be freed using kfree.
+// The original strings are freed
+VAPI char *string_concat(const char *str0, const char *str1);
+
 // Returns the index of the first occurrence of the given character in the given string.
 // Returns -1 if the character is not found.
 VAPI i64 string_index_of(const char *str, char c);

@@ -5,7 +5,7 @@
 
 #include <pthread.h>
 #include "defines.h"
-#include "kresult.h"
+#include "kernel/kresult.h"
 typedef const char *Path;
 #ifndef NODE_CAPACITY
 #define NODE_CAPACITY 1024
@@ -114,7 +114,7 @@ typedef struct FileSystemContext {
  * @param root_path The path to the root directory of the VFS.
  * @return A KernelResult indicating success or failure.
  */
-KernelResult vfs_initialize(Node *root_path);
+KernelResult vfs_initialize(char *root_path);
 
 /**
  * Cleans up and releases all resources associated with the VFS.

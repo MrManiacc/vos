@@ -38,6 +38,15 @@ b8 string_starts_with(const char *str, const char *substr) {
     return strncmp(str, substr, string_length(substr)) == 0;
 }
 
+char *string_concat(const char *str0, const char *str1) {
+    u64 str0_len = string_length(str0);
+    u64 str1_len = string_length(str1);
+    char *result = kallocate(str0_len + str1_len + 1, MEMORY_TAG_STRING);
+    kcopy_memory(result, str0, str0_len);
+    kcopy_memory(result + str0_len, str1, str1_len);
+    result[str0_len + str1_len] = '\0';
+    return result;
+}
 b8 string_ends_with(const char *str, const char *substr) {
     u64 str_len = string_length(str);
     u64 substr_len = string_length(substr);

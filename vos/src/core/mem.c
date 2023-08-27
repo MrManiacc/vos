@@ -21,7 +21,7 @@ static const char *memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
     "VFS        ",
     "DARRAY     ",
     "KERNEL     ",
-    "RING_QUEUE ",
+    "DICTIONARY ",
     "PROCESS    ",
     "STRING     ",
     "APPLICATION",

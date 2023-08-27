@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     char *root_path = null;
     if (argc == 1) {
         root_path = getcwd(null, 0);
-    } else if (argc == 2){
+    } else if (argc == 2) {
         root_path = argv[1];
     }
     KernelResult result = kernel_initialize(root_path);
@@ -51,11 +51,11 @@ int main(int argc, char **argv) {
         BeginDrawing();
         ClearBackground(RAYWHITE);
         event_fire(EVENT_LUA_CUSTOM, NULL, update);
+        kernel_poll_update();
         EndDrawing();
     }
 
     CloseWindow();
-
     KernelResult shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))

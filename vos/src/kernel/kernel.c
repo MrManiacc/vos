@@ -8,6 +8,7 @@
 #include "core/str.h"
 #include "luahost.h"
 #include "core/event.h"
+#include "core/timer.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
@@ -21,7 +22,7 @@ char *id_to_string(ProcessID id);
 static KernelContext *kernel_context = null;
 static b8 kernel_initialized = false;
 
-KernelResult kernel_initialize(Node *root_path) {
+KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
@@ -39,7 +40,7 @@ KernelResult kernel_initialize(Node *root_path) {
     kernel_context->id_pool = kallocate(sizeof(IDPool), MEMORY_TAG_KERNEL);
     kernel_context->id_pool->top_index = 0;
     kernel_context->id_pool->max_id = 0;
-
+    timer_initialize();
     vdebug("Kernel initialized")
     kernel_initialized = true;
     event_initialize();
@@ -47,8 +48,6 @@ KernelResult kernel_initialize(Node *root_path) {
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
     return result;
 }
-
-
 
 KernelResult kernel_create_process(char *script_path) {
     if (!kernel_initialized) {
@@ -72,6 +71,14 @@ KernelResult kernel_create_process(char *script_path) {
     kernel_context->processes[pid] = process;
     KernelResult result = {KERNEL_PROCESS_CREATED, (void *) pid};
     return result;
+}
+
+b8 kernel_poll_update() {
+    if (!kernel_initialized) {
+        vwarn("Attempted to poll kernel before initialization");
+        return false;
+    }
+    timer_poll();
 }
 
 KernelResult kernel_attach_process(ProcessID pid, ProcessID parent_pid) {
@@ -146,6 +153,7 @@ KernelResult kernel_shutdown() {
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};
+    timer_cleanup();
     shutdown_memory();
     shutdown_syscalls();
     event_shutdown();

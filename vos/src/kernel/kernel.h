@@ -12,7 +12,7 @@
 #include "defines.h"
 #include "phost.h"
 #include "kresult.h"
-#include "vfs.h"
+#include "kernel/vfs/vfs.h"
 
 //The maximum number of processes that can be created.
 #define MAX_PROCESSES 10000
@@ -53,7 +53,7 @@ typedef struct KernelContext {
  * @param root_path The path to the root directory.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_initialize(Node  *root_path);
+KernelResult kernel_initialize(char  *root_path);
 
 
 /**
@@ -63,6 +63,12 @@ KernelResult kernel_initialize(Node  *root_path);
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
 KernelResult kernel_create_process(char *script_path);
+
+/**
+ * This is called once per frame. This will update the kernel and all processes.
+ * @return TRUE if the kernel was successfully updated; otherwise FALSE.
+ */
+b8 kernel_poll_update();
 
 /**
  * Attaches a process to a parent process. This will add the child process to the parent's child process array.
