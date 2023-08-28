@@ -3,6 +3,7 @@
 
 #include "lua.h"
 #include "defines.h"
+#include "kernel/vfs/vfs.h"
 // The maximum number of nested processes allowed.
 #define INITIAL_NESTED_PROCESSES 4
 // Unique identifiers for processes and groups.
@@ -20,11 +21,10 @@ typedef enum ProcessState {
 typedef struct Process {
   // Unique process ID
   ProcessID pid;
+  // Name of the process
+  const char *process_name;
   // Path to the Lua script (process)
-  // TODO: create vfs.h that can be used to load scripts from a virtual file system with hot reloading
-  const char *script_path;
-  // Name of the process, used for debugging. Will be the filename of the script by default.
-  char *process_name;
+  Asset *script_asset;
   // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
   lua_State *lua_state;
   // The context for accessing a process's child processes
@@ -36,7 +36,7 @@ typedef struct Process {
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
-Process *process_create(const char *script_path);
+Process *process_create(Asset *script_asset);
 
 /**
  * Adds a child process to a parent process. This will add the child process to the parent's child process array.

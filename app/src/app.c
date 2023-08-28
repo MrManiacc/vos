@@ -28,19 +28,20 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    KernelResult main_process_result = kernel_create_process("assets/env.lua");
-    if (!is_kernel_success(main_process_result.code)) {
-        verror("Failed to create process: %s", get_kernel_result_message(main_process_result))
-        return 1;
-    }
 
-    ProcessID main_process = (ProcessID) main_process_result.data;
-    KernelResult proc_lookup = kernel_lookup_process(main_process);
-    if (!is_kernel_success(proc_lookup.code)) {
-        verror("Failed to lookup process: %s", get_kernel_result_message(proc_lookup))
-        return 1;
-    }
-    process_start(proc_lookup.data);
+////    KernelResult main_process_result = kernel_create_process();
+////    if (!is_kernel_success(main_process_result.code)) {
+////        verror("Failed to create process: %s", get_kernel_result_message(main_process_result))
+////        return 1;
+////    }
+////
+////    ProcessID main_process = (ProcessID) main_process_result.data;
+////    KernelResult proc_lookup = kernel_lookup_process(main_process);
+////    if (!is_kernel_success(proc_lookup.code)) {
+////        verror("Failed to lookup process: %s", get_kernel_result_message(proc_lookup))
+////        return 1;
+////    }
+//    process_start(proc_lookup.data);
     lua_context(update)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow(800, 600, "VOS");

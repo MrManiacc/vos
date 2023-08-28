@@ -1,5 +1,6 @@
 #include <lauxlib.h>
 #include <lualib.h>
+#include <string.h>
 #include "phost.h"
 
 #include "core/mem.h"
@@ -21,12 +22,17 @@ static ProcessID next_process_id = 0;
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
-Process *process_create(const char *script_path) {
+Process *process_create(Asset *script_asset) {
     Process *process = kallocate(sizeof(Process), MEMORY_TAG_PROCESS);
-    process->script_path = string_duplicate(script_path);
+    process->script_asset = script_asset;
     process->state = PROCESS_STATE_STOPPED;
     process->children_pids = darray_create(ProcessID);
-    vdebug("Process %d created", process->pid)
+    Path path = process->script_asset->path;
+    //get the name by getting the last part of the path after the last slash
+    char *name = string_split_at(path, "/", string_split_count(path, "/") - 1);
+    //remove the extension
+    name = string_split_at(name, ".", 0);
+    process->process_name = name;
     return process;
 }
 
@@ -60,8 +66,8 @@ void process_destroy(Process *process) {
     darray_destroy(process->children_pids)
 
     // Free the script path
-    kfree((void *) process->process_name, string_length(process->script_path) + +1, MEMORY_TAG_STRING);
-    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_STRING);
+//    kfree((void *) process->process_name, string_length(process->script_path) + +1, MEMORY_TAG_STRING);
+//    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_STRING);
 
     // Free the process
     lua_close(process->lua_state);
@@ -75,8 +81,21 @@ b8 process_start(Process *process) {
     vinfo("Process %d started", process->pid);
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
-    if (luaL_dofile(process->lua_state, process->script_path) != LUA_OK) {
-        verror("Failed to run script %s", process->script_path);
+    //    process->process_name =
+    Asset *asset = process->script_asset;
+    if (asset == NULL) {
+        verror("Failed to load script %s", process->pid);
+        process->state = PROCESS_STATE_STOPPED;
+        return false;
+    }
+    const char *source = asset->data;
+    if (source == NULL) {
+        verror("Failed to load script %s", process->pid);
+        process->state = PROCESS_STATE_STOPPED;
+        return false;
+    }
+    if (luaL_dostring(process->lua_state, source) != LUA_OK) {
+        verror("Failed to run script %d", process->pid);
         //print the error
         verror("Error: %s", lua_tostring(process->lua_state, -1));
         process->state = PROCESS_STATE_STOPPED;
@@ -93,5 +112,12 @@ b8 process_start(Process *process) {
  */
 b8 process_stop(Process *process, b8 force, b8 kill_children) {
 //    vinfo("Process %d stopped", process->pid);
+//    if (process->state == PROCESS_STATE_STOPPED) {
+//        vwarn("Process %d is already stopped", process->pid);
+//        return false;
+//    }
+//
+//    // close the lua state
+//    lua_close(process->lua_state);
     return true;
 }

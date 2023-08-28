@@ -53,8 +53,7 @@ typedef struct KernelContext {
  * @param root_path The path to the root directory.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_initialize(char  *root_path);
-
+KernelResult kernel_initialize(char *root_path);
 
 /**
  * Creates a new process from a lua script. This will parse the script and create a new lua_State for the process.
@@ -62,7 +61,7 @@ KernelResult kernel_initialize(char  *root_path);
  * @param script_path The path to the lua script.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
-KernelResult kernel_create_process(char *script_path);
+Process *kernel_create_process(Asset *script_asset);
 
 /**
  * This is called once per frame. This will update the kernel and all processes.
@@ -92,6 +91,12 @@ KernelResult kernel_lookup_process(ProcessID pid);
  * @return  KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
 KernelResult kernel_destroy_process(ProcessID pid);
+/**
+ * Locates a process by name.
+ * @param name
+ * @return
+ */
+Process *kernel_locate_process(const char *name);
 /**
  * Destroys the kernel. This will deallocate the kernel context and destroy the root process view.
  * @param context The kernel context.

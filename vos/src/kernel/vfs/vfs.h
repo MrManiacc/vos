@@ -52,7 +52,50 @@ typedef enum NodeType {
   NODE_DIRECTORY,
   NODE_SYMLINK
 } NodeType;
-typedef struct Node Node;
+typedef struct Node {
+  //The path of the node relative to the root.
+  Path path;
+  // The Parent of the node.
+  struct Node *parent;
+  // the type of the node.
+  NodeType type;
+  // A union of the data that can be stored in the node, can be a directory or a file.
+  union {
+    // The data of the node if it is a directory.
+    struct {
+      // The children of the directory.
+      struct Node **children;
+      // The number of children in the directory.
+      u32 child_count;
+    } directory;
+    // The data of the node if it is a file.
+    struct {
+      // The size of the file in bytes.
+      u64 size;
+      // The raw data of the file.
+      char *data;
+    } file;
+  } data;
+} Node;
+
+typedef struct Asset {
+  // The path to the asset.
+  Path path;
+  // The data of the asset.
+  void *data;
+  // The size of the asset.
+  u64 size;
+} Asset;
+
+
+typedef struct asset_loader {
+  // The extension that this loader will handle.
+  const char *extension;
+  // The function that will be called to load the asset.
+  void (*load)(Node * node, Asset * out_asset);
+  // The function that will be called to unload the asset.
+  void (*unload)(Node * node);
+} asset_loader;
 
 b8 fs_initialize(Path root);
 
@@ -79,10 +122,22 @@ Node *fs_sync_node(Path path, NodeAction action);
  * @param path The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-Node *fs_node_exists(Path path);
+b8 fs_node_exists(Path path);
+/**
+ * This function will return the node at the given path. If the path is invalid, the node will be NULL.
+ * @param path  The path to get the node from.
+ * @return The node at the given path or NULL if the path is invalid.
+ */
+Node *fs_get_node(Path path);
 
 char *fs_to_string();
 
 char *fs_node_to_string(Node *node);
 
 void fs_shutdown();
+/**
+ * This will register a new asset loader. The loader will be used to load and unload assets.
+ * @param extension The extension that this loader will handle.
+ * @param loader The loader to register.
+ */
+void fs_register_asset_loader(asset_loader *loader);

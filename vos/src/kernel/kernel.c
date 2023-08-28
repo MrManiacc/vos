@@ -9,6 +9,7 @@
 #include "luahost.h"
 #include "core/event.h"
 #include "core/timer.h"
+#include "containers/dict.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
@@ -21,6 +22,7 @@ char *id_to_string(ProcessID id);
 
 static KernelContext *kernel_context = null;
 static b8 kernel_initialized = false;
+static dict *processes_by_name = null;
 
 KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {
@@ -43,35 +45,31 @@ KernelResult kernel_initialize(char *root_path) {
     timer_initialize();
     vdebug("Kernel initialized")
     kernel_initialized = true;
+    processes_by_name = dict_create_default();
+//    fs_register_asset_loader()
     event_initialize();
-    fs_initialize(root_path);
     initialize_syscalls();
+    fs_initialize(root_path);
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
     return result;
 }
 
-KernelResult kernel_create_process(char *script_path) {
+Process *kernel_create_process(Asset *script_asset) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
-        return result;
+        return NULL;
     }
-
     // Get the name of the script by removing the path and extension.
-    i32 count = string_split_count(script_path, "/");
-    char *script_name = string_split_at(script_path, "/", count - 1);
-    vdebug("Creating process for script %s", script_name)
-    Process *process = process_create(script_path);
-    process->process_name = script_name;
+    Process *process = process_create(script_asset);
     ProcessID pid = id_pool_next_id();
     if (pid == MAX_PROCESSES) {
-        KernelResult result = {KERNEL_ID_POOL_OVERFLOW, (void *) pid};
-        return result;
+        return NULL;
     }
     process->pid = pid;
     initialize_syscalls_for(process);
+    dict_insert(processes_by_name, process->script_asset->path, process);
     kernel_context->processes[pid] = process;
-    KernelResult result = {KERNEL_PROCESS_CREATED, (void *) pid};
-    return result;
+    vinfo("Created process 0x%04x named %s", pid, process->process_name)
+    return process;
 }
 
 b8 kernel_poll_update() {
@@ -127,11 +125,16 @@ KernelResult kernel_destroy_process(ProcessID pid) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
+    dict_remove(processes_by_name, process->script_asset->path);
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
     process_destroy(process);
     id_pool_release_id(pid);
     KernelResult result = {KERNEL_SUCCESS, null};
     return result;
+}
+
+Process *kernel_locate_process(const char *name) {
+    return dict_lookup(processes_by_name, name);
 }
 
 KernelResult kernel_shutdown() {
@@ -148,6 +151,7 @@ KernelResult kernel_shutdown() {
             if (!is_kernel_success(process_destroy_result.code))return process_destroy_result;
         }
     }
+    dict_destroy(processes_by_name);
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
     fs_shutdown();
