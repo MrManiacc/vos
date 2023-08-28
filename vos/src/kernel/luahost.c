@@ -56,7 +56,7 @@ int lua_execute_process(lua_State *L) {
 //        process_start(process);
     } else {
         int process_id = lua_tointeger(L, 1);
-        vdebug("Executing process with id: %d", process_id);
+        vdebug("Executing process main function with id: %d", process_id);
         KernelResult result = kernel_lookup_process((ProcessID) process_id);
         if (!is_kernel_success(result.code)) {
             verror("Failed to lookup process: %s", get_kernel_result_message(result));
@@ -97,9 +97,18 @@ int lua_listen_for_event(lua_State *L) {
         return luaL_error(L, "Exceeded maximum number of Lua callbacks");
     }
 
-    LuaPayload *payload = &lua_context.payloads[lua_context.count++];
+    //Find free slot
+    u64 index = 0;
+    for (u64 i = 0; i < MAX_LUA_PAYLOADS; ++i) {
+        if (lua_context.payloads[i].process == null) {
+            index = i;
+            break;
+        }
+    }
 
-    payload->event_name = strdup(event_name); // You'll need to free this later
+    LuaPayload *payload = &lua_context.payloads[index];
+    lua_context.count++;
+    payload->event_name = string_duplicate(event_name); // we'll need to free this later
     payload->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     lua_getglobal(L, "sys");
@@ -223,13 +232,15 @@ int lua_import(lua_State *L) {
     lua_getglobal(L, "sys");
     lua_getfield(L, -1, "path");
     const char *path = lua_tostring(L, -1);
-    lua_getfield(L, -2, "name");
-    const char *process_name = lua_tostring(L, -1);
-    u64 length = string_length(path) - string_length(process_name) - 1;
-    char *full_path = kallocate(length + string_length(module_name) + 1, MEMORY_TAG_STRING);
-    memcpy(full_path, path, length);
-    memcpy(full_path + length, module_name, string_length(module_name));
-    full_path[length + string_length(module_name)] = '\0';
+//    lua_getfield(L, -2, "name");
+//    const char *process_name = lua_tostring(L, -1);
+    //get the parent dir of the path by removing everything after the last slash
+    char *parent_dir = strdup(path);
+    char *last_slash = strrchr(parent_dir, '/');
+    if (last_slash != NULL) {
+        *last_slash = '\0';
+    }
+    char *full_path = string_format("%s/%s.lua", parent_dir, module_name);
     vdebug("Importing module %s from %s", module_name, full_path);
     if (luaL_dofile(L, full_path) != LUA_OK) {
         verror("Failed to run script %s", full_path);
@@ -437,6 +448,7 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
 
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
+        if (payload->process == null)continue;
         if (strcmp(payload->event_name, event_name) == 0) {
             lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
 
@@ -457,12 +469,15 @@ void load_lua_asset(Node *node, Asset *asset) {
     asset->path = node->path;
     asset->data = node->data.file.data;
     asset->size = node->data.file.size;
-    vdebug("Loaded lua asset %s", asset->data);
+//    vdebug("Loaded lua asset %s", asset->data);
 //    Process *process = process_create(asset);
 //    initialize_syscalls_for(process);
 //    process_start(process);
     Process *process = kernel_create_process(asset);
-    process_start(process);
+    if (strings_equal(process->process_name, "env")) {
+        process_start(process);
+    }
+//    process_start(process);
 
 }
 
@@ -470,8 +485,26 @@ void unload_lua_asset(Node *node) {
 //    asset->data = fs_read_file(asset->path, &asset->size);
     Process *process = kernel_locate_process(node->path);
     vdebug("Unloaded lua asset %s", process->process_name);
-    process_stop(process, true, true);
+    //Check if the process is running and stop it
+    //find and free any payloads with our process
+    for (int i = 0; i < lua_context.count; ++i) {
+        LuaPayload *payload = &lua_context.payloads[i];
+        if (payload->process == process) {
+//            luaL_unref(process->lua_state, LUA_REGISTRYINDEX, payload->callback_ref);
+            kfree(payload->event_name, string_length(payload->event_name), MEMORY_TAG_STRING);
+            payload->event_name = null;
+            payload->callback_ref = LUA_NOREF;
+            payload->process = null;
+            lua_context.count--;
+        }
+    }
+//    free the asset resources
+    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
+    if (process->state == PROCESS_STATE_RUNNING) {
+        process_stop(process, true, true);
+    }
     kernel_destroy_process(process->pid);
+
 }
 b8 initialize_syscalls() {
     event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);

@@ -145,7 +145,7 @@ typedef enum system_event_code {
 // Strips quotes from a string. used for defines to allow for named variables.
 #define add_quotes(str) #str
 
-#define lua_context(event_name)  \
+#define lua_ctx(event_name)  \
     event_context event_name;             \
     memcpy(event_name.data.c, #event_name, strlen(#event_name));\
 

@@ -35,10 +35,9 @@ void log_output(log_level level, const char* message, ...) {
     va_start(arg_ptr, message);
     vsnprintf(out_message, msg_length, message, arg_ptr);
     va_end(arg_ptr);
-
     char out_message2[msg_length];
     sprintf(out_message2, "%s%s\n", level_strings[level], out_message);
-
+    //include the line and file
     // Platform-specific output.
     if (is_error) {
         platform_console_write_error(out_message2, level);

@@ -58,6 +58,11 @@ Process *kernel_create_process(Asset *script_asset) {
     if (!kernel_initialized) {
         return NULL;
     }
+    if(dict_lookup(processes_by_name, script_asset->path) != null){
+        vwarn("Process already exists with name %s", script_asset->path)
+        return null;
+    }
+
     // Get the name of the script by removing the path and extension.
     Process *process = process_create(script_asset);
     ProcessID pid = id_pool_next_id();
@@ -129,12 +134,20 @@ KernelResult kernel_destroy_process(ProcessID pid) {
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
     process_destroy(process);
     id_pool_release_id(pid);
+//    kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
     KernelResult result = {KERNEL_SUCCESS, null};
     return result;
 }
 
 Process *kernel_locate_process(const char *name) {
-    return dict_lookup(processes_by_name, name);
+    if (!kernel_initialized) {
+        return null;
+    }
+    Process *process = dict_lookup(processes_by_name, name);
+    if (process == null) {
+        return null;
+    }
+    return process;
 }
 
 KernelResult kernel_shutdown() {
@@ -152,9 +165,9 @@ KernelResult kernel_shutdown() {
         }
     }
     dict_destroy(processes_by_name);
+    fs_shutdown();
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
-    fs_shutdown();
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};

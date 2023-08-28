@@ -75,6 +75,7 @@ void platform_console_write(const char* str, u8 color) {
     SetConsoleTextAttribute(hConsole, levels[color]);
     u64 length = strlen(str);
     LPDWORD written = 0;
+//    include the line and file
     WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), str, (DWORD) length, written, null);
 }
 

@@ -49,13 +49,13 @@ b8 fs_initialize(Path root) {
     event_register(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
     event_register(EVENT_FILE_DELETED, 0, fs_on_file_event);
     watcher_initialize(root, &fs->running);
-    vwarn(fs_to_string());
+//    vwarn(fs_to_string());
     char *test = fs_node_to_string(fs->root);
     if (test == NULL) {
         verror("Could not convert node to string");
         return false;
     }
-    vinfo("Initialized VFS with root: %s", test);
+    vdebug("Initialized VFS");
     return true;
 }
 
@@ -131,6 +131,7 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
         case EVENT_FILE_DELETED: {
             vdebug("File deleted: %s", path)
             fs_sync_node(path, NODE_DELETED);
+            //Delete the memory for the node
             break;
         }
     }
@@ -356,8 +357,6 @@ char *fs_node_to_string(Node *node) {
     return fs_node_to_string_recursive(node, 0);
 }
 
-
-
 Node *fs_sync_node(Path path, NodeAction action) {
     if (action != NODE_DELETED) {
         struct stat file_stat;
@@ -395,7 +394,7 @@ Node *fs_sync_node(Path path, NodeAction action) {
             Asset *asset = kallocate(sizeof(Asset), MEMORY_TAG_VFS);
             if (action == NODE_CREATED)
                 loader->load(node, asset);
-            else if (action == NODE_MODIFIED){
+            else if (action == NODE_MODIFIED) {
                 loader->unload(node);
                 loader->load(node, asset);
             }
@@ -433,6 +432,10 @@ Node *fs_sync_node(Path path, NodeAction action) {
             verror("Cannot delete root node: %s", path);
             return NULL;
         }
+        //Delete the asset data
+        kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_STRING);
+
+
         //remove the node from the loaded nodes dictionary
         dict_remove(loaded_nodes, path);
 

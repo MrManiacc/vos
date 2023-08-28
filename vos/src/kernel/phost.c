@@ -10,14 +10,7 @@
 #include "platform/platform.h"
 #include "containers/darray.h"
 
-static const char *process_state_strings[PROCESS_STATE_MAX_STATES] = {
-    "STOPPED",
-    "RUNNING",
-    "PAUSED",
-    "TERMINATED"
-};
 
-static ProcessID next_process_id = 0;
 
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
@@ -64,13 +57,12 @@ void process_destroy(Process *process) {
     // Stop the process
     process_stop(process, true, true);
     darray_destroy(process->children_pids)
-
-    // Free the script path
-//    kfree((void *) process->process_name, string_length(process->script_path) + +1, MEMORY_TAG_STRING);
-//    kfree((void *) process->script_path, string_length(process->script_path) + 1, MEMORY_TAG_STRING);
-
+    lua_gc(process->lua_state, LUA_GCCOLLECT, 0);
+    //free the asset
     // Free the process
     lua_close(process->lua_state);
+    process->pid = 0;
+//    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_ASSET);
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
 }
 
