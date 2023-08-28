@@ -10,8 +10,6 @@
 #include "platform/platform.h"
 #include "containers/darray.h"
 
-
-
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
@@ -57,12 +55,15 @@ void process_destroy(Process *process) {
     // Stop the process
     process_stop(process, true, true);
     darray_destroy(process->children_pids)
-    lua_gc(process->lua_state, LUA_GCCOLLECT, 0);
     //free the asset
     // Free the process
     lua_close(process->lua_state);
     process->pid = 0;
-//    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_ASSET);
+    //destroy the asset
+//    Asset *asset = process->script_asset;
+//    if (asset != NULL) {
+//        kfree(asset->data, string_length(asset->data), MEMORY_TAG_VFS);
+//    }
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
 }
 

@@ -132,8 +132,11 @@ KernelResult kernel_destroy_process(ProcessID pid) {
     }
     dict_remove(processes_by_name, process->script_asset->path);
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
+//    kfree(process->script_asset->data, string_length(process->script_asset->data), MEMORY_TAG_VFS);
+    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_VFS);
     process_destroy(process);
     id_pool_release_id(pid);
+
 //    kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
     KernelResult result = {KERNEL_SUCCESS, null};
     return result;

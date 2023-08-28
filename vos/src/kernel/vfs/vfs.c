@@ -23,16 +23,16 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
 void fs_node_destroy(Node *node);
 
 typedef struct Fs {
-    //The root directory of the file system.
-    Node *root;
-    //The current working directory of the file system.
-    Path cwd;
-    //The current user of the file system.
-    User *user;
-    //The current group of the file systems.
-    Group *group;
-    //Whether the file system is running.
-    b8 running;
+  //The root directory of the file system.
+  Node *root;
+  //The current working directory of the file system.
+  Path cwd;
+  //The current user of the file system.
+  User *user;
+  //The current group of the file systems.
+  Group *group;
+  //Whether the file system is running.
+  b8 running;
 } Fs;
 
 b8 fs_initialize(Path root) {
@@ -44,7 +44,7 @@ b8 fs_initialize(Path root) {
     kzero_memory(fs, sizeof(Fs));
     //Load the root node, this will recursively load all children
     loaded_nodes = dict_create_default();
-    fs->root = fs_sync_node(root, NODE_CREATED);
+    fs->root = fs_sync_node(root, NODE_CREATED, NULL);
     fs->running = true;
     event_register(EVENT_FILE_CREATED, 0, fs_on_file_event);
     event_register(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
@@ -83,12 +83,12 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
     switch (code) {
         case EVENT_FILE_CREATED: {
             vdebug("File was created: %s\n\tloading from path...", path)
-            Node *node = fs_sync_node(path, NODE_CREATED);
+            Node *node = fs_sync_node(path, NODE_CREATED, NULL);
             char *last_slash = strrchr(path, '/');
             if (last_slash != NULL) {
                 *last_slash = '\0';
             }
-            Node *parent = fs_sync_node(path, NODE_MODIFIED);
+            Node *parent = fs_sync_node(path, NODE_MODIFIED, NULL);
             if (parent == NULL) {
                 verror("Could not sync parent node: %s", path);
                 return false;
@@ -100,7 +100,7 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
             break;
         }
         case EVENT_FILE_MODIFIED: {
-            Node *synced = fs_sync_node(path, NODE_MODIFIED);
+            Node *synced = fs_sync_node(path, NODE_MODIFIED, NULL);
             if (synced == NULL) {
                 verror("Could not sync node: %s", path);
                 return false;
@@ -110,7 +110,7 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
             if (last_slash != NULL) {
                 *last_slash = '\0';
             }
-            Node *parent = fs_sync_node(parent_path, NODE_MODIFIED);
+            Node *parent = fs_sync_node(parent_path, NODE_MODIFIED, synced);
             if (parent == NULL) {
                 verror("Could not sync parent node: %s", parent_path);
                 return false;
@@ -125,7 +125,7 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
 
         case EVENT_FILE_DELETED: {
             vdebug("File deleted: %s", path)
-            fs_sync_node(path, NODE_DELETED);
+            fs_sync_node(path, NODE_DELETED, NULL);
             //Delete the memory for the node
             break;
         }
@@ -135,11 +135,7 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
     return true;
 }
 
-b8 fs_node_exists(Path path) {
-    return fs_get_node(path) != NULL;
-}
-
-Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
+Node *load_directory_node(Path path, NodeAction action, Node *caller) {
     // We need to create a new node and load it from the file system
     if (action == NODE_CREATED) {
         Node *node = kallocate(sizeof(Node), MEMORY_TAG_VFS);
@@ -166,7 +162,11 @@ Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
                 continue;
             }
             char *child_path = string_format("%s/%s", path, entry->d_name);
-            Node *child = fs_sync_node(child_path, NODE_CREATED);
+            if (caller != NULL && strings_equal(child_path, caller->path)) {
+                vdebug("Skipping caller node: %s", child_path);
+                continue;
+            }
+            Node *child = fs_sync_node(child_path, NODE_CREATED, caller);
             if (child == NULL) {
                 verror("Could not load child node: %s", child_path);
                 continue;
@@ -204,10 +204,15 @@ Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
             char *child_path = string_format("%s/%s", path, entry->d_name);
             Node *child;
             if (dict_lookup(loaded_nodes, child_path) != NULL) {
-                child = fs_sync_node(child_path, NODE_MODIFIED);
+                if (caller != NULL && strings_equal(child_path, caller->path)) {
+                    vdebug("Skipping caller node: %s", child_path);
+                    kfree(child_path, string_length(child_path) + 1, MEMORY_TAG_STRING);
+                    continue;
+                }
+                child = fs_sync_node(child_path, NODE_MODIFIED, caller);
                 //the node is already loaded, we don't need to do anything
             } else
-                child = fs_sync_node(child_path, NODE_CREATED);
+                child = fs_sync_node(child_path, NODE_CREATED, caller);
 
             if (child == NULL) {
                 verror("Could not load child node: %s", child_path);
@@ -216,6 +221,7 @@ Node *load_directory_node(struct stat file_stat, Path path, NodeAction action) {
             node->data.directory.children[node->data.directory.child_count++] = child;
             //set child parent
             child->parent = node;
+            kfree(child_path, string_length(child_path) + 1, MEMORY_TAG_STRING);
         }
         closedir(handle);
         //We need to add the node to the loaded nodes dictionary
@@ -270,6 +276,10 @@ Node *load_file_node(Path path, NodeAction action) {
             verror("Could not open file: %s", path);
             return NULL;
         }
+
+        //delete the previous data
+        if (node->data.file.data != NULL)
+            kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_STRING);
         //store a total of 10MB of data
         char *data = kallocate(10 * 1024 * 1024, MEMORY_TAG_VFS);
         i32 index = 0;
@@ -289,6 +299,121 @@ Node *load_file_node(Path path, NodeAction action) {
         return node;
     }
     return NULL;
+}
+
+Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
+    if (action != NODE_DELETED) {
+        struct stat file_stat;
+        if (stat(path, &file_stat) < 0) {
+            verror("Could not get file stats for: %s", path);
+            return NULL;
+        }
+        //Check if file or directory
+
+        if (S_ISDIR(file_stat.st_mode)) {
+            return load_directory_node(path, action, caller);
+        } else if (S_ISREG(file_stat.st_mode)) {
+
+            Node *node = load_file_node(path, action);
+            if (node == NULL) {
+                verror("Could not load file node: %s", path);
+                return NULL;
+            }
+            //Get the extension of the file
+            char *extension = strrchr(path, '.');
+            if (extension == NULL) {
+                verror("Could not get extension for file: %s", path);
+                return NULL;
+            }
+            //remove the '.' from the extension
+            extension++;
+            //get the asset loader for the extension
+            asset_loader *loader = dict_lookup(asset_loaders, extension);
+            if (loader == NULL) {
+                verror("Could not find asset loader for extension: %s", extension);
+//                vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
+                return NULL;
+            }
+            //load the asset
+            Asset *asset = kallocate(sizeof(Asset), MEMORY_TAG_VFS);
+            if (action == NODE_CREATED) {
+                loader->load(node, asset);
+            } else if (action == NODE_MODIFIED) {
+                loader->unload(node);
+                loader->load(node, asset);
+                printf("Loaded asset: %s\n", path);
+            }
+            return node;
+        } else if (S_ISFIFO(file_stat.st_mode)) {
+            //TODO implement symbolic links
+        }
+    } else {
+        //We're only deleting the node in memory.
+        Node *node = dict_lookup(loaded_nodes, path);
+        if (node == NULL) {
+            verror("Could not find node for path: %s", path);
+            return NULL;
+        }
+        //Get the extension of the file
+        char *extension = strrchr(path, '.');
+        if (extension == NULL) {
+            verror("Could not get extension for file: %s", path);
+            return NULL;
+        }
+        //remove the '.' from the extension
+        extension++;
+
+        //get the asset loader for the extension
+        asset_loader *loader = dict_lookup(asset_loaders, extension);
+        if (loader == NULL) {
+            verror("Could not find asset loader for extension: %s", extension);
+            vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
+            return NULL;
+        }
+        //unload the asset
+        loader->unload(node);
+        Node *parent = node->parent;
+        if (parent == NULL) {
+            verror("Cannot delete root node: %s", path);
+            return NULL;
+        }
+        //Delete the asset data
+        kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_STRING);
+        //remove the node from the loaded nodes dictionary
+        dict_remove(loaded_nodes, path);
+        fs_sync_node(parent->path, NODE_MODIFIED, NULL);
+        return NULL;
+    }
+    return NULL;
+}
+
+Node *fs_get_node(Path path) {
+    return dict_lookup(loaded_nodes, path);
+}
+
+void fs_node_destroy(Node *node) {
+    if (node->type == NODE_DIRECTORY) {
+        vwarn("Destroying node directory at path: %s", node->path);
+        //TODO implement this
+        //recursively destroy all children
+        for (u32 i = 0; i < node->data.directory.child_count; i++) {
+            Node *_node = node->data.directory.children[i];
+            if (_node != NULL)
+                fs_node_destroy(_node);
+        }
+        node->data.directory.child_count = 0;
+        kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
+    } else {
+        //TODO implement this
+//        kfree((void*) node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
+    }
+    kfree((void *) node->path, string_length(node->path) + 1, MEMORY_TAG_STRING);
+    //destroy the node
+    kfree(node, sizeof(Node), MEMORY_TAG_VFS);
+}
+
+b8 fs_node_exists(Path path) {
+    return fs_get_node(path) != NULL;
 }
 
 char *fs_to_string() {
@@ -351,116 +476,4 @@ char *fs_node_to_string_recursive(Node *node, int depth) {
 
 char *fs_node_to_string(Node *node) {
     return fs_node_to_string_recursive(node, 0);
-}
-
-Node *fs_sync_node(Path path, NodeAction action) {
-    if (action != NODE_DELETED) {
-        struct stat file_stat;
-        if (stat(path, &file_stat) < 0) {
-            verror("Could not get file stats for: %s", path);
-            return NULL;
-        }
-        //Check if file or directory
-
-        if (S_ISDIR(file_stat.st_mode)) {
-            return load_directory_node(file_stat, path, action);
-        } else if (S_ISREG(file_stat.st_mode)) {
-
-            Node *node = load_file_node(path, action);
-            if (node == NULL) {
-                verror("Could not load file node: %s", path);
-                return NULL;
-            }
-            //Get the extension of the file
-            char *extension = strrchr(path, '.');
-            if (extension == NULL) {
-                verror("Could not get extension for file: %s", path);
-                return NULL;
-            }
-            //remove the '.' from the extension
-            extension++;
-            //get the asset loader for the extension
-            asset_loader *loader = dict_lookup(asset_loaders, extension);
-            if (loader == NULL) {
-                verror("Could not find asset loader for extension: %s", extension);
-//                vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
-                return NULL;
-            }
-            //load the asset
-            Asset *asset = kallocate(sizeof(Asset), MEMORY_TAG_VFS);
-            if (action == NODE_CREATED)
-                loader->load(node, asset);
-            else if (action == NODE_MODIFIED) {
-                loader->unload(node);
-                loader->load(node, asset);
-            }
-            return node;
-        } else if (S_ISFIFO(file_stat.st_mode)) {
-            //TODO implement symbolic links
-        }
-    } else {
-        //We're only deleting the node in memory.
-        Node *node = dict_lookup(loaded_nodes, path);
-        if (node == NULL) {
-            verror("Could not find node for path: %s", path);
-            return NULL;
-        }
-        //Get the extension of the file
-        char *extension = strrchr(path, '.');
-        if (extension == NULL) {
-            verror("Could not get extension for file: %s", path);
-            return NULL;
-        }
-        //remove the '.' from the extension
-        extension++;
-
-        //get the asset loader for the extension
-        asset_loader *loader = dict_lookup(asset_loaders, extension);
-        if (loader == NULL) {
-            verror("Could not find asset loader for extension: %s", extension);
-            vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
-            return NULL;
-        }
-        //unload the asset
-        loader->unload(node);
-        Node *parent = node->parent;
-        if (parent == NULL) {
-            verror("Cannot delete root node: %s", path);
-            return NULL;
-        }
-        //Delete the asset data
-        kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_STRING);
-
-
-        //remove the node from the loaded nodes dictionary
-        dict_remove(loaded_nodes, path);
-        fs_sync_node(parent->path, NODE_MODIFIED);
-        return NULL;
-    }
-    return NULL;
-}
-
-Node *fs_get_node(Path path) {
-    return dict_lookup(loaded_nodes, path);
-}
-
-void fs_node_destroy(Node *node) {
-    if (node->type == NODE_DIRECTORY) {
-        vwarn("Destroying node directory at path: %s", node->path);
-        //TODO implement this
-        //recursively destroy all children
-        for (u32 i = 0; i < node->data.directory.child_count; i++) {
-            Node *_node = node->data.directory.children[i];
-            if (_node != NULL)
-                fs_node_destroy(_node);
-        }
-        node->data.directory.child_count = 0;
-        kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
-    } else {
-        //TODO implement this
-        kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
-    }
-    kfree((void *) node->path, string_length(node->path) + 1, MEMORY_TAG_STRING);
-    //destroy the node
-    kfree(node, sizeof(Node), MEMORY_TAG_VFS);
 }

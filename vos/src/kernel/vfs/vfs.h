@@ -108,13 +108,12 @@ b8 fs_initialize(Path root);
  * @param path The path to get the node from. Path can be absolute or relative to the current working directory, this is
  * determined by the first character of the path. If the path starts with a '/', it is absolute. Otherwise,
  * it is relative to the current working directory.
- *
  * @param action The action that was performed on the node. This is used to determine how to update the node.
- *
+ * @param caller The node that performed the action. This is used to determine how to update the node.
  * Windows paths will be converted to Unix paths, with /c/ being the root of the C drive.
  * @return The node at the given path or NULL if the path is invalid.
  */
-Node *fs_sync_node(Path path, NodeAction action);
+Node *fs_sync_node(Path path, NodeAction action, Node* caller);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.

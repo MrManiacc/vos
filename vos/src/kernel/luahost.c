@@ -100,10 +100,13 @@ int lua_listen_for_event(lua_State *L) {
     //Find free slot
     u64 index = 0;
     for (u64 i = 0; i < MAX_LUA_PAYLOADS; ++i) {
-        if (lua_context.payloads[i].process == null) {
+        if (lua_context.payloads[i].process == NULL) {
             index = i;
             break;
         }
+    }
+    if (index > MAX_LUA_PAYLOADS - 25) {
+        vwarn("Lua payload context is getting full, consider increasing MAX_LUA_PAYLOADS");
     }
 
     LuaPayload *payload = &lua_context.payloads[index];
@@ -447,7 +450,7 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
 
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
-        if (payload->process == null)continue;
+        if (payload->process == NULL)continue;
         if (strcmp(payload->event_name, event_name) == 0) {
             lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
 
@@ -483,28 +486,28 @@ void load_lua_asset(Node *node, Asset *asset) {
 void unload_lua_asset(Node *node) {
 //    asset->data = fs_read_file(asset->path, &asset->size);
     Process *process = kernel_locate_process(node->path);
-    vdebug("Unloaded lua asset %s", process->process_name);
+//    vdebug("Unloaded lua asset %s", process->process_name);
     //Check if the process is running and stop it
     //find and free any payloads with our process
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
         if (payload->process == process) {
-//            luaL_unref(process->lua_state, LUA_REGISTRYINDEX, payload->callback_ref);
+            luaL_unref(process->lua_state, LUA_REGISTRYINDEX, payload->callback_ref);
             kfree(payload->event_name, string_length(payload->event_name), MEMORY_TAG_STRING);
             payload->event_name = null;
             payload->callback_ref = LUA_NOREF;
-            payload->process = null;
+            payload->process = NULL;
             lua_context.count--;
         }
     }
 //    free the asset resources
-    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
     if (process->state == PROCESS_STATE_RUNNING) {
         process_stop(process, true, true);
     }
     kernel_destroy_process(process->pid);
-
 }
+
+
 b8 initialize_syscalls() {
     event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
     lua_loader = kallocate(sizeof(asset_loader), MEMORY_TAG_KERNEL);

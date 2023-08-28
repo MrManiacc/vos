@@ -192,6 +192,7 @@ void debounced_file_event(const char *id) {
             break;
     }
     kfree(event->path, string_length(path) + 1, MEMORY_TAG_STRING);
+    //free the event_content data
     kfree(event, sizeof(FileEvent), MEMORY_TAG_VFS);
 //    vdebug("File event after debounce: %s", path);
 }
