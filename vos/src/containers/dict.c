@@ -46,6 +46,16 @@ dict *dict_create_default() {
 }
 
 void dict_destroy(dict *table) {
+    //Delete all keys
+    for (u32 i = 0; i < table->size; i++) {
+        entry *e = table->elements[i];
+        while (e != NULL) {
+            entry *next = e->next;
+            kfree(e->key, string_length(e->key) + 1, MEMORY_TAG_STRING);
+            kfree(e, sizeof(entry), MEMORY_TAG_DICT);
+            e = next;
+        }
+    }
     kfree(table->elements, sizeof(entry *) * table->size, MEMORY_TAG_DICT);
     kfree(table, sizeof(dict), MEMORY_TAG_DICT);
 }

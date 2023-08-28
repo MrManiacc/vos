@@ -19,19 +19,20 @@ static dict *loaded_nodes = NULL;
 static dict *asset_loaders = NULL;
 
 b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context data);
+
 void fs_node_destroy(Node *node);
 
 typedef struct Fs {
-  //The root directory of the file system.
-  Node *root;
-  //The current working directory of the file system.
-  Path cwd;
-  //The current user of the file system.
-  User *user;
-  //The current group of the file systems.
-  Group *group;
-  //Whether the file system is running.
-  b8 running;
+    //The root directory of the file system.
+    Node *root;
+    //The current working directory of the file system.
+    Path cwd;
+    //The current user of the file system.
+    User *user;
+    //The current group of the file systems.
+    Group *group;
+    //Whether the file system is running.
+    b8 running;
 } Fs;
 
 b8 fs_initialize(Path root) {
@@ -49,12 +50,6 @@ b8 fs_initialize(Path root) {
     event_register(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
     event_register(EVENT_FILE_DELETED, 0, fs_on_file_event);
     watcher_initialize(root, &fs->running);
-//    vwarn(fs_to_string());
-    char *test = fs_node_to_string(fs->root);
-    if (test == NULL) {
-        verror("Could not convert node to string");
-        return false;
-    }
     vdebug("Initialized VFS");
     return true;
 }
@@ -79,6 +74,7 @@ void fs_shutdown() {
     watcher_shutdown();
     fs_node_destroy(fs->root);
     dict_destroy(loaded_nodes);
+    dict_destroy(asset_loaders);
     kfree(fs, sizeof(Fs), MEMORY_TAG_VFS);
 }
 
@@ -88,14 +84,13 @@ b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context d
         case EVENT_FILE_CREATED: {
             vdebug("File was created: %s\n\tloading from path...", path)
             Node *node = fs_sync_node(path, NODE_CREATED);
-            char *parent_path = string_format("%s", path);
-            char *last_slash = strrchr(parent_path, '/');
+            char *last_slash = strrchr(path, '/');
             if (last_slash != NULL) {
                 *last_slash = '\0';
             }
-            Node *parent = fs_sync_node(parent_path, NODE_MODIFIED);
+            Node *parent = fs_sync_node(path, NODE_MODIFIED);
             if (parent == NULL) {
-                verror("Could not sync parent node: %s", parent_path);
+                verror("Could not sync parent node: %s", path);
                 return false;
             }
             if (node->parent == NULL) {
@@ -295,6 +290,7 @@ Node *load_file_node(Path path, NodeAction action) {
     }
     return NULL;
 }
+
 char *fs_to_string() {
     return dict_to_string(loaded_nodes);
 }
@@ -387,7 +383,7 @@ Node *fs_sync_node(Path path, NodeAction action) {
             asset_loader *loader = dict_lookup(asset_loaders, extension);
             if (loader == NULL) {
                 verror("Could not find asset loader for extension: %s", extension);
-                vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
+//                vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
                 return NULL;
             }
             //load the asset
@@ -438,13 +434,7 @@ Node *fs_sync_node(Path path, NodeAction action) {
 
         //remove the node from the loaded nodes dictionary
         dict_remove(loaded_nodes, path);
-
         fs_sync_node(parent->path, NODE_MODIFIED);
-
-
-//
-//        //destroy the node
-//        fs_node_destroy(node);
         return NULL;
     }
     return NULL;
@@ -458,18 +448,19 @@ void fs_node_destroy(Node *node) {
     if (node->type == NODE_DIRECTORY) {
         vwarn("Destroying node directory at path: %s", node->path);
         //TODO implement this
-        node->data.directory.child_count = 0;
         //recursively destroy all children
         for (u32 i = 0; i < node->data.directory.child_count; i++) {
-            Node _node;
-            fs_node_destroy(&_node);
+            Node *_node = node->data.directory.children[i];
+            if (_node != NULL)
+                fs_node_destroy(_node);
         }
+        node->data.directory.child_count = 0;
         kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
     } else {
         //TODO implement this
         kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
     }
-    kfree(node->path, string_length(node->path) + 1, MEMORY_TAG_VFS);
+    kfree((void *) node->path, string_length(node->path) + 1, MEMORY_TAG_STRING);
     //destroy the node
     kfree(node, sizeof(Node), MEMORY_TAG_VFS);
 }

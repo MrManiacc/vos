@@ -1,15 +1,3 @@
---
---sys.listen("update", function()
---    local size = sys.window.size()
---    sys.gui.draw_rect(0, 0, size.width, size.height, sys.gui.color("71ab80FA"))
---    --sys.gui.draw_text("Hello World", 20, 20, 20)
---
---    local str = sys.fs_str()
---    local width = sys.gui.text_width(str, 8)
---    sys.gui.draw_text(str, 60, 80, 8)
---end)
---
---
 sys.import("sys/libgui")
 
 function main()
@@ -22,11 +10,13 @@ function on_click()
     sys.log("click count: " .. click_count)
 end
 
+
 -- This is the update function that is called every frame
 sys.listen("update", function()
     local size = sys.window.size()
     --sys.gui.draw_text("Hello World", 20, 20, 20)
-    local str = sys.fs_str()
+    local str = "temp str"
+    --local str = sys.fs_str()
     local width = sys.gui.text_width(str, 20)
     sys.gui.draw_text(str, size.width / 2 - width / 2, 80, 20)
     button({
