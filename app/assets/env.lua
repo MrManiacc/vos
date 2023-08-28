@@ -10,7 +10,6 @@ function on_click()
     sys.log("click count: " .. click_count)
 end
 
-
 -- This is the update function that is called every frame
 sys.listen("update", function()
     local size = sys.window.size()
@@ -28,6 +27,7 @@ sys.listen("update", function()
     render_stats(size.width - 300, 0)
 
     sys.gui.draw_text("Click count: " .. click_count, 100, 20, 20)
+
 
 end)
 

@@ -4,8 +4,6 @@
 #include "lua.h"
 #include "defines.h"
 #include "kernel/vfs/vfs.h"
-// The maximum number of nested processes allowed.
-#define INITIAL_NESTED_PROCESSES 4
 // Unique identifiers for processes and groups.
 typedef u32 ProcessID;
 // Process State, used to determine if a process is running, paused, stopped, or dead.

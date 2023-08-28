@@ -297,6 +297,7 @@ int lua_mouse(lua_State *L) {
         return luaL_error(L, "Expected 0 argument to mouse");
     }
     Vector2 mouse = GetMousePosition();
+
     lua_newtable(L);
     lua_pushinteger(L, mouse.x);
     lua_setfield(L, -2, "x");
@@ -437,8 +438,6 @@ b8 initialize_syscalls_for(Process *process) {
     configure_lua_window(process);
 
     lua_setglobal(process->lua_state, "sys"); // Set the sys table as a global variable
-
-
 }
 
 b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {
