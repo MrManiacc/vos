@@ -70,15 +70,6 @@ Process *kernel_create_process(Asset *script_asset);
 b8 kernel_poll_update();
 
 /**
- * Attaches a process to a parent process. This will add the child process to the parent's child process array.
- *
- * @param pid the process id to attach
- * @param parent_pid  the parent process id to attach to
- * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
- */
-KernelResult kernel_attach_process(ProcessID pid, ProcessID parent_pid);
-
-/**
  * Looks up a process by id. The KernelResult will contain a pointer to the process if it was found.
  * @param pid The process id.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process, else an error code.

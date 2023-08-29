@@ -85,26 +85,7 @@ b8 kernel_poll_update() {
     timer_poll();
 }
 
-KernelResult kernel_attach_process(ProcessID pid, ProcessID parent_pid) {
-    if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
-        return result;
-    }
-    Process *process = kernel_context->processes[pid];
-    if (process == null) {
-        KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
-        return result;
-    }
-    Process *parent_process = kernel_context->processes[parent_pid];
-    if (parent_process == null) {
-        KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) parent_pid};
-        return result;
-    }
-    process_add_child(parent_process, process);
-    vdebug("Attached process 0x%04x to process 0x%04x", pid, parent_pid)
-    KernelResult result = {KERNEL_SUCCESS, null};
-    return result;
-}
+
 
 KernelResult kernel_lookup_process(ProcessID pid) {
     if (!kernel_initialized) {

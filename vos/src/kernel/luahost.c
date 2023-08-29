@@ -249,22 +249,25 @@ int lua_import(lua_State *L) {
     lua_getglobal(L, "sys");
     lua_getfield(L, -1, "path");
     const char *path = lua_tostring(L, -1);
-//    lua_getfield(L, -2, "name");
-//    const char *process_name = lua_tostring(L, -1);
-    //get the parent dir of the path by removing everything after the last slash
     char *parent_dir = strdup(path);
     char *last_slash = strrchr(parent_dir, '/');
     if (last_slash != NULL) {
         *last_slash = '\0';
     }
     char *full_path = string_format("%s/%s.lua", parent_dir, module_name);
+    //lookup the process, if it exists then we mark it as a dependency on the process
+
+
+
     vdebug("Importing module %s from %s", module_name, full_path);
     if (luaL_dofile(L, full_path) != LUA_OK) {
         verror("Failed to run script %s", full_path);
         //print the error
         verror("Error: %s", lua_tostring(L, -1));
     }
-//    char *full_path = malloc(strlen(path) + strlen(module_name) + 1);
+    kfree(full_path, string_length(full_path), MEMORY_TAG_STRING);
+    //TODO build a list of dependencies that can be used for hot reloading
+
 
 }
 
@@ -524,7 +527,7 @@ void load_lua_asset(Node *node, Asset *asset) {
 void unload_lua_asset(Node *node) {
 //    asset->data = fs_read_file(asset->path, &asset->size);
     Process *process = kernel_locate_process(node->path);
-//    vdebug("Unloaded lua asset %s", process->process_name);
+//    vdebug("Unloaded lua asset %s at %s", process->process_name, node->path);
     //Check if the process is running and stop it
     //find and free any payloads with our process
     for (int i = 0; i < lua_context.count; ++i) {

@@ -115,3 +115,20 @@ inline char* string_format(const char* str, ...){
     va_end(args);
     return result;
 }
+
+char *string_to_lower(const char *input) {
+    if (input == NULL) {
+        return NULL;
+    }
+    u32 len = strlen(input);
+    char *lowercase_str = kallocate(len + 1, MEMORY_TAG_STRING);
+    for (u32 i = 0; i < len; ++i) {
+        if (input[i] >= 'A' && input[i] <= 'Z') {
+            lowercase_str[i] = input[i] + ('a' - 'A');
+        } else {
+            lowercase_str[i] = input[i];
+        }
+    }
+    lowercase_str[len] = '\0';  // Null-terminate the string
+    return lowercase_str;
+}

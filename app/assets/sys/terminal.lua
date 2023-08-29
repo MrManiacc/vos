@@ -159,6 +159,17 @@ local function _handleKeyInput(self)
             self.cursor_position = self.cursor_position + 1
         end
     end
+    -- Handle Enter key
+    handleKeyRepeat(keys.KEY_ENTER, function()
+        if #self.internal.input > 0 then
+            local command = self.internal.input
+            self:execute_command(command)
+            self.text.value = self.text.value .. "\n" .. command
+            self.internal.input = ""
+            self.cursor_position = 0
+        end
+    end)
+
     -- Handle left arrow (move cursor left)
     handleKeyRepeat(keys.KEY_LEFT, function()
         if self.cursor_position > 0 then
@@ -202,7 +213,7 @@ local function _handleKeyInput(self)
         self.cursor_position = #self.internal.input + 1
     end)
 
-    -- Handle page up
+    -- Handle page up+
     handleKeyRepeat(keys.KEY_PAGE_UP, function()
     end)
 
@@ -255,10 +266,23 @@ end
 --- Renders the text buffer of the Terminal.
 -- This is a local function and is not meant to be called externally.
 local function _renderBuffer(self)
---    draws the input on the first line,
---    draws the text.valu on all other lines split by \n
-end
+    local size = sys.window.size()
+    local x = 0
+    local y = math.floor(size.height - (size.height / 3))
+    local height = size.height / 3
+    local text_x = x + 20
+    local text_y = y + height - 60  -- Adjust this as needed
+    local text_size = 20
 
+    local lines = {}
+    for line in self.text.value:gmatch("([^\n]*)\n?") do
+        table.insert(lines, line)
+    end
+
+    for i, line in ipairs(lines) do
+        sys.gui.draw_text(line, text_x, text_y - (i * text_size), text_size, sys.gui.color("FFFFFFFF"))
+    end
+end
 
 
 --- Handles cursor blinking for the Terminal.

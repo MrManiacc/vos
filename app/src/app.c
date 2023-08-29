@@ -8,11 +8,15 @@
 #include "kernel/kernel.h"
 #include "core/logger.h"
 #include "core/event.h"
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
 
+#include "kernel/paths.h"
+
 #include "raylib.h"
 #include "core/str.h"
+
 int main(int argc, char **argv) {
 
     //If no arguments are passed, then we are running in the runtime and use the current working directory.
@@ -23,6 +27,7 @@ int main(int argc, char **argv) {
     } else if (argc == 2) {
         root_path = argv[1];
     }
+    path_move(root_path);
     KernelResult result = kernel_initialize(root_path);
     if (!is_kernel_success(result.code)) {
         verror("Failed to initialize kernel: %s", get_kernel_result_message(result))
@@ -56,4 +61,5 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
+
 #pragma clang diagnostic pop
