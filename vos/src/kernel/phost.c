@@ -71,7 +71,6 @@ void process_destroy(Process *process) {
  * Starts a process. This will start the process and all child processes.
  */
 b8 process_start(Process *process) {
-    vinfo("Process %d started", process->pid);
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
     //    process->process_name =

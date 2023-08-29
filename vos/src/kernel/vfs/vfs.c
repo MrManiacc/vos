@@ -163,7 +163,7 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
             }
             char *child_path = string_format("%s/%s", path, entry->d_name);
             if (caller != NULL && strings_equal(child_path, caller->path)) {
-                vdebug("Skipping caller node: %s", child_path);
+//                vdebug("Skipping caller node: %s", child_path);
                 continue;
             }
             Node *child = fs_sync_node(child_path, NODE_CREATED, caller);
@@ -205,7 +205,7 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
             Node *child;
             if (dict_lookup(loaded_nodes, child_path) != NULL) {
                 if (caller != NULL && strings_equal(child_path, caller->path)) {
-                    vdebug("Skipping caller node: %s", child_path);
+//                    vdebug("Skipping caller node: %s", child_path);
                     kfree(child_path, string_length(child_path) + 1, MEMORY_TAG_STRING);
                     continue;
                 }
@@ -341,7 +341,6 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
             } else if (action == NODE_MODIFIED) {
                 loader->unload(node);
                 loader->load(node, asset);
-                printf("Loaded asset: %s\n", path);
             }
             return node;
         } else if (S_ISFIFO(file_stat.st_mode)) {

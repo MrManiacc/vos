@@ -1,51 +1,41 @@
-sys.import("sys/libgui")
+-- sys.import("sys/libgui")
 
-function main()
-    sys.log("Hello World")
-    print("Hello World")
-end
+-- function main()
+--     sys.log("Hello World")
+--     print("Hello World")
+-- end
 
-local click_count = 0
+-- local click_count = 0
 
-function on_click()
-    click_count = click_count + 1
-end
+-- function on_click()
+--     click_count = click_count + 1
+-- end
 
-print("This is a test")
--- This is the update function that is called every frame
-sys.listen("update", function()
-    local size = sys.window.size()
-    --sys.gui.draw_text("Hello World", 20, 20, 20)
-    local str = "temp str"
-    --local str = sys.fs_str()
-    local width = sys.gui.text_width(str, 20)
-    sys.gui.draw_text(str, size.width / 2 - width / 2, 80, 20)
-    button({
-        x = 100,
-        y = 100,
-        text = "Hello World",
-        text_size = 20
-    }, on_click)
-    render_stats(size.width - 300, 0)
-    sys.gui.draw_text("Click count: " .. click_count, 100, 20, 20)
-end)
-
-print("Testing")
-
-sys.import("sys/libterm")
+-- print("This is a test")
+-- -- This is the update function that is called every frame
+-- sys.listen("update", function()
+--     local size = sys.window.size()
+--     --sys.gui.draw_text("Hello World", 20, 20, 20)
+--     local str = "temp str"
+--     --local str = sys.fs_str()
+--     local width = sys.gui.text_width(str, 20)
+--     sys.gui.draw_text(str, size.width / 2 - width / 2, 80, 20)
+--     button({
+--         x = 100,
+--         y = 100,
+--         text = "Hello World",
+--         text_size = 20
+--     }, on_click)
+--     render_stats(size.width - 300, 0)
+--     sys.gui.draw_text("Click count: " .. click_count, 100, 20, 20)
+-- end)
+-- print("Testing")
+sys.import("sys/term")
 local term = Terminal:new()
-
 term:register_command("test", function()
     sys.log("test command")
 end)
 
-term:register_command("test", function()
-    sys.log("test command2")
+sys.listen("update", function()
+    term:redraw()
 end)
-
-sys.log(term:dump());
-
-
-
--- This is the update function that is called every frame
-

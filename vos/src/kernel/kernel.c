@@ -73,7 +73,7 @@ Process *kernel_create_process(Asset *script_asset) {
     initialize_syscalls_for(process);
     dict_insert(processes_by_name, process->script_asset->path, process);
     kernel_context->processes[pid] = process;
-    vinfo("Created process 0x%04x named %s", pid, process->process_name)
+    vdebug("Created process 0x%04x named %s", pid, process->process_name)
     return process;
 }
 

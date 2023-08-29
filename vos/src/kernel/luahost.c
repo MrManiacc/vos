@@ -320,6 +320,27 @@ int lua_mouse(lua_State *L) {
     return 1;
 }
 
+int lua_key(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 1) {
+        return luaL_error(L, "Expected 1 argument to keyboard");
+    }
+    int key = lua_tointeger(L, 1);
+    lua_newtable(L);
+    //TODO: assign key codes to lua
+    lua_pushboolean(L, IsKeyDown(key));
+    lua_setfield(L, -2, "is_down");
+    lua_pushboolean(L, IsKeyUp(key));
+    lua_setfield(L, -2, "is_up");
+    lua_pushboolean(L, IsKeyPressed(key));
+    lua_setfield(L, -2, "is_pressed");
+    lua_pushboolean(L, IsKeyReleased(key));
+    lua_setfield(L, -2, "is_released");
+    return 1;
+}
+
+
+
 void configure_lua_input(Process *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
@@ -328,6 +349,9 @@ void configure_lua_input(Process *process) {
     lua_pushcfunction(process->lua_state, lua_mouse);
     lua_setfield(process->lua_state, -2, "mouse");
 
+    // Add a color function to the gui table
+    lua_pushcfunction(process->lua_state, lua_key);
+    lua_setfield(process->lua_state, -2, "key");
 
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "input");
@@ -506,7 +530,6 @@ void unload_lua_asset(Node *node) {
     }
     kernel_destroy_process(process->pid);
 }
-
 
 b8 initialize_syscalls() {
     event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
