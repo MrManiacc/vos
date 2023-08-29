@@ -2,7 +2,11 @@
  * Created by jraynor on 8/24/2023.
  */
 #include <string.h>
+#ifdef _WIN32
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include "defines.h"
 #include "kernel/phost.h"
 #include "kernel/kernel.h"

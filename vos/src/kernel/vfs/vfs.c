@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <dirent.h>
+#include <string.h>
 #include "vfs.h"
 #include "core/str.h"
 
@@ -256,7 +257,7 @@ Node *load_file_node(Path path, NodeAction action) {
             data[index++] = ch;
         }
         node->data.file.size = index;
-        node->data.file.data = kallocate(index, MEMORY_TAG_VFS);
+        node->data.file.data = kallocate(index + 1, MEMORY_TAG_VFS);
         kcopy_memory(node->data.file.data, data, index);
         //make sure it's null terminated
         node->data.file.data[index] = '\0';

@@ -33,7 +33,7 @@ b8 platform_startup(
     i32 width,
     i32 height) {
 
-    return TRUE;
+    return true;
 }
 
 void platform_shutdown(platform_state* plat_state) {
@@ -41,7 +41,7 @@ void platform_shutdown(platform_state* plat_state) {
 }
 
 b8 platform_pump_messages(platform_state* plat_state) {
-   return TRUE;
+   return true;
 }
 
 void* platform_allocate(u64 size, b8 aligned) {

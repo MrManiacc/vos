@@ -11,7 +11,8 @@
 static pthread_t watcher_thread;
 static b8 *watcher_running;
 static dict *watched_events;
-
+#define MAX_PATH 1024
+#if _WIN32
 //TODO: we need to implement a multi threaded file watcher and implement a way to manage files easily
 #include <windows.h>
 
@@ -196,3 +197,43 @@ void debounced_file_event(const char *id) {
     kfree(event, sizeof(FileEvent), MEMORY_TAG_VFS);
 //    vdebug("File event after debounce: %s", path);
 }
+
+#endif
+
+//Check if mac
+#if __APPLE__
+#include <CoreServices/CoreServices.h>
+
+#define DEBOUNCE_DURATION 500 // 500 millisecond delay
+
+typedef enum {
+  FILE_CREATED,
+  FILE_MODIFIED,
+  FILE_DELETED,
+} FileEventType;
+
+typedef struct {
+  FileEventType type;
+  char *path; // Path to the changed file.
+} FileEvent;
+
+
+typedef struct FileWatcher {
+  FSEventStreamRef stream;
+  char path[MAX_PATH];
+} FileWatcher;
+
+// Callback function for the timer to call after debounce.
+
+void debounced_file_event(const char *id);
+
+
+void watcher_initialize(const char *path, b8 *running){
+    vwarn("noop")
+}
+
+void watcher_shutdown(){
+    vwarn("noop")
+}
+
+#endif
