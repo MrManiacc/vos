@@ -144,7 +144,7 @@ int lua_log_message(lua_State *L) {
 }
 
 int lua_draw_string(lua_State *L) {
-    if (lua_gettop(L) != 4) {
+    if (lua_gettop(L) != 5) {
         return luaL_error(L, "Expected 1 argument to log_message");
     }
     const char *message = lua_tostring(L, 1);
@@ -153,7 +153,20 @@ int lua_draw_string(lua_State *L) {
     int y = lua_tointeger(L, 3);
     // Get the font size
     int size = lua_tointeger(L, 4);
-    DrawText(message, x, y, size, DARKGRAY);
+
+    //check if we have a color at the top of the stack in a table
+    if (lua_istable(L, 5)) {
+        lua_getfield(L, 5, "r");
+        int r = lua_tointeger(L, -1);
+        lua_getfield(L, 5, "g");
+        int g = lua_tointeger(L, -1);
+        lua_getfield(L, 5, "b");
+        int b = lua_tointeger(L, -1);
+        lua_getfield(L, 5, "a");
+        int a = lua_tointeger(L, -1);
+        DrawText(message, x, y, size, (Color) {r, g, b, a});
+        return 0;
+    }
     return 0;
 }
 
@@ -162,12 +175,13 @@ int lua_draw_rect(lua_State *L) {
         return luaL_error(L, "Expected 4 argument to log_message");
     }
     // Get the x and y coordinates
-    int x = lua_tointeger(L, 1);
-    int y = lua_tointeger(L, 2);
-    // Get the font size
-    int width = lua_tointeger(L, 3);
-    int height = lua_tointeger(L, 4);
+    int x = (int)lua_tonumber(L, 1);
+    int y = (int)lua_tonumber(L, 2);
 
+    // Get width and height as integers
+    int width = (int)lua_tonumber(L, 3);
+    int height = (int)lua_tonumber(L, 4);
+//    vdebug("Got: %d, %d, %d, %d", x, y, width, height);
     //check if we have a color at the top of the stack in a table
     if (lua_istable(L, 5)) {
         lua_getfield(L, 5, "r");
