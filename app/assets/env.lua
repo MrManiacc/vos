@@ -9,3 +9,7 @@ end)
 sys.listen("update", function()
     term:redraw()
 end)
+
+
+--print("Hello world at " .. sys.path)
+--print("Hello world at " .. sys.path)

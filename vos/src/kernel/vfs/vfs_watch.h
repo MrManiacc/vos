@@ -4,8 +4,8 @@
 #pragma once
 #include "defines.h"
 
-
-void watcher_initialize(const char *path, b8 *running);
-
-void watcher_shutdown();
-
+//
+//void watcher_initialize(const char *path, b8 *running);
+//
+//void watcher_shutdown();
+//

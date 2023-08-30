@@ -6,7 +6,7 @@ file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT
 
 
 add_library(vos STATIC ${SOURCES}
-        src/kernel/paths.h)
+        src/kernel/vfs/paths.h)
 # Set c standard target
 set_property(TARGET vos PROPERTY C_STANDARD 17)
 target_include_directories(vos PUBLIC src)

@@ -75,4 +75,9 @@ char *path_file_extension(char *path);
  */
 char *path_file_name_without_extension(char *path);
 
-
+/**
+ * Gets the platform specific path from a path.
+ * @param path The path to get the platform specific path from.
+ * @return The platform specific path from the path. This is the reverse of path_normalize.
+ */
+char *path_to_platform(char *path);

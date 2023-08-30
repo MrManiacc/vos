@@ -25,7 +25,7 @@ static const char *memory_tag_strings[MEMORY_TAG_MAX_TAGS] = {
     "PROCESS    ",
     "STRING     ",
     "APPLICATION",
-    "JOB        ",
+    "ASSET      ",
     "TEXTURE    ",
     "MAT_INST   ",
     "RENDERER   ",

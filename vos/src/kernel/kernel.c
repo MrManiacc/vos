@@ -1,15 +1,12 @@
-#include <stdio.h>
-#include <string.h>
 #include "kernel.h"
 #include "containers/darray.h"
 #include "core/mem.h"
 #include "core/logger.h"
-#include "pthread.h"
-#include "core/str.h"
 #include "luahost.h"
 #include "core/event.h"
 #include "core/timer.h"
-#include "containers/dict.h"
+#include "containers/Map.h"
+#include "kernel/asset/asset.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
@@ -18,21 +15,18 @@ ProcessID id_pool_next_id();
 
 void id_pool_release_id(ProcessID id);
 b8 id_exists_in_stack(IDPool *pool, ProcessID id);
-char *id_to_string(ProcessID id);
 
 static KernelContext *kernel_context = null;
 static b8 kernel_initialized = false;
-static dict *processes_by_name = null;
+static Map *processes_by_name = null;
 
 KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
-//    KernelResult create_vfs_result = vfs_initialize(root_path);
-//    if (!is_kernel_success(create_vfs_result.code)) {
-//        return create_vfs_result;
-//    }
+//    path_move(root_path);
+    asset_manager_initialize(root_path);
     vdebug("Root path: %s", root_path)
     initialize_memory();
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
@@ -43,14 +37,14 @@ KernelResult kernel_initialize(char *root_path) {
     kernel_context->id_pool->top_index = 0;
     kernel_context->id_pool->max_id = 0;
     timer_initialize();
-    vdebug("Kernel initialized")
     kernel_initialized = true;
     processes_by_name = dict_create_default();
-//    fs_register_asset_loader()
     event_initialize();
     initialize_syscalls();
     fs_initialize(root_path);
+    vdebug("Kernel initialized")
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
+    asset_manager_sync();
     return result;
 }
 
@@ -58,7 +52,7 @@ Process *kernel_create_process(Asset *script_asset) {
     if (!kernel_initialized) {
         return NULL;
     }
-    if(dict_lookup(processes_by_name, script_asset->path) != null){
+    if (dict_get(processes_by_name, script_asset->path) != null) {
         vwarn("Process already exists with name %s", script_asset->path)
         return null;
     }
@@ -71,7 +65,7 @@ Process *kernel_create_process(Asset *script_asset) {
     }
     process->pid = pid;
     initialize_syscalls_for(process);
-    dict_insert(processes_by_name, process->script_asset->path, process);
+    dict_set(processes_by_name, process->script_asset->path, process);
     kernel_context->processes[pid] = process;
     vdebug("Created process 0x%04x named %s", pid, process->process_name)
     return process;
@@ -84,8 +78,6 @@ b8 kernel_poll_update() {
     }
     timer_poll();
 }
-
-
 
 KernelResult kernel_lookup_process(ProcessID pid) {
     if (!kernel_initialized) {
@@ -127,7 +119,7 @@ Process *kernel_locate_process(const char *name) {
     if (!kernel_initialized) {
         return null;
     }
-    Process *process = dict_lookup(processes_by_name, name);
+    Process *process = dict_get(processes_by_name, name);
     if (process == null) {
         return null;
     }
@@ -148,6 +140,7 @@ KernelResult kernel_shutdown() {
             if (!is_kernel_success(process_destroy_result.code))return process_destroy_result;
         }
     }
+    asset_manager_shutdown();
     dict_destroy(processes_by_name);
     fs_shutdown();
     kfree(kernel_context->processes, sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);

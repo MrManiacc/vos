@@ -1,4 +1,4 @@
-#include "dict.h"
+#include "Map.h"
 #include "core/mem.h"
 #include "core/logger.h"
 #include "core/str.h"
@@ -19,15 +19,15 @@ static u64 dict_default_hash(const char *key) {
     return hash;
 }
 
-static u64 has_table_index(dict *dict, const char *key);
+static u64 has_table_index(Map *dict, const char *key);
 
-static u64 has_table_index(dict *dict, const char *key) {
+static u64 has_table_index(Map *dict, const char *key) {
     u64 result = dict->hash_func(key) % dict->size;
     return result;
 }
 
-dict *dict_create(u64 size, hash_function *hash_func) {
-    dict *table = kallocate(sizeof(dict), MEMORY_TAG_DICT);
+Map *dict_create(u64 size, hash_function *hash_func) {
+    Map *table = kallocate(sizeof(Map), MEMORY_TAG_DICT);
     table->size = size;
     table->hash_func = hash_func;
     table->elements = kallocate(sizeof(entry *) * size, MEMORY_TAG_DICT);
@@ -41,11 +41,11 @@ dict *dict_create(u64 size, hash_function *hash_func) {
  * Creates a new dictionary table with the default size and hash function
  * @return a new dictionary table
  */
-dict *dict_create_default() {
+Map *dict_create_default() {
     return dict_create(DEFAULT_DICT_SIZE, dict_default_hash);
 }
 
-void dict_destroy(dict *table) {
+void dict_destroy(Map *table) {
     //Delete all keys
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
@@ -57,10 +57,10 @@ void dict_destroy(dict *table) {
         }
     }
     kfree(table->elements, sizeof(entry *) * table->size, MEMORY_TAG_DICT);
-    kfree(table, sizeof(dict), MEMORY_TAG_DICT);
+    kfree(table, sizeof(Map), MEMORY_TAG_DICT);
 }
 
-char *dict_to_string(dict *table) {
+char *dict_to_string(Map *table) {
     char *result = string_duplicate("{");
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
@@ -81,12 +81,12 @@ char *dict_to_string(dict *table) {
     return result;
 }
 
-b8 dict_insert(dict *table, const char *key, void *value) {
+b8 dict_set(Map *table, const char *key, void *value) {
     if (key == NULL || value == NULL)
         return false;
     u64 index = has_table_index(table, key);
 
-    if (dict_lookup(table, key) != NULL)
+    if (dict_get(table, key) != NULL)
         return false;
 
     entry *e = kallocate(sizeof(entry), MEMORY_TAG_DICT);
@@ -98,7 +98,7 @@ b8 dict_insert(dict *table, const char *key, void *value) {
     return true;
 }
 
-void *dict_lookup(dict *table, const char *key) {
+void *dict_get(Map *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
@@ -112,7 +112,7 @@ void *dict_lookup(dict *table, const char *key) {
     return temp->object;
 }
 
-void *dict_remove(dict *table, const char *key) {
+void *dict_remove(Map *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
@@ -137,7 +137,7 @@ void *dict_remove(dict *table, const char *key) {
     return result;
 }
 
-void dict_clear(dict *table) {
+void dict_clear(Map *table) {
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
         while (e != NULL) {
@@ -153,7 +153,7 @@ void dict_clear(dict *table) {
 /**
  * @brief creates a new iterator for the given table
  */
-idict dict_iterator(dict *table) {
+idict dict_iterator(Map *table) {
     if (table == NULL)
         return (idict) {0};
     idict it;

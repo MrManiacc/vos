@@ -1,5 +1,5 @@
 #include "timer.h"
-#include "containers/dict.h"
+#include "containers/Map.h"
 #include <time.h>
 #include <pthread.h>
 #include "core/mem.h"
@@ -8,9 +8,10 @@
 typedef struct {
   time_t expiration_time;
   TimerCallback callback;
+  void *data;
 } TimerData;
 
-static dict *timers = NULL;
+static Map *timers = NULL;
 
 void timer_initialize() {
     if (timers != NULL) {
@@ -21,7 +22,7 @@ void timer_initialize() {
     timers = dict_create_default();
 }
 
-void timer_set(const char *id, u32 delay, TimerCallback callback) {
+void timer_set(const char *id, u32 delay, TimerCallback callback, void *raw_data) {
     if (!timers) return;
     time_t current_time;
     time(&current_time);
@@ -31,12 +32,13 @@ void timer_set(const char *id, u32 delay, TimerCallback callback) {
     delay /= 1000;
     data->expiration_time = current_time + delay;
     data->callback = callback;
-    dict_insert(timers, id, data);
+    data->data = raw_data;
+    dict_set(timers, id, data);
 }
 
 b8 timer_exists(const char *id) {
     if (!timers) return false;
-    return NULL != dict_lookup(timers, id);
+    return NULL != dict_get(timers, id);
 }
 
 void timer_poll() {
@@ -49,7 +51,7 @@ void timer_poll() {
         time(&current_time);
         TimerData *data = (TimerData *) it.entry->object;
         if (current_time >= data->expiration_time) {
-            data->callback(it.entry->key);
+            data->callback(data->data);
             dict_remove(timers, it.entry->key);
         }
     }

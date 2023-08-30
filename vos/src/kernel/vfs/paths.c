@@ -5,15 +5,14 @@
 #include "core/str.h"
 
 typedef struct PathContext {
-    // The root directory.
-    char *root_directory;
-    // The current working directory.
-    char *current_directory;
+  // The root directory.
+  char *root_directory;
+  // The current working directory.
+  char *current_directory;
 } PathContext;
 
 //Static pointer to the path context.
 static PathContext *path_context = null;
-
 
 char *path_normalize(char *path) {
     if (path == NULL) {
@@ -45,10 +44,30 @@ char *path_normalize(char *path) {
 
     // Free the passed path
     kfree(path, len + 1, MEMORY_TAG_VFS);
+    return normalized_path;
+}
 
-    char *lower = string_to_lower(normalized_path);
-    kfree(normalized_path, j + 1, MEMORY_TAG_VFS);
-    return lower;
+/**
+ *Removes the root directory from the path. If the path is not relative to the root directory, then the path is returned as is.
+ * Expects the path to be absolute when passed in as well as being within the root file tree.
+ * @param path The path to normalize.
+ * @return The normalized path.
+ */
+char *path_relative(char *path) {
+    if (path == null) {
+        return null;
+    }
+
+    char* input_path = path_normalize(path);
+    char* root_path = path_normalize(path_root_directory());
+    if (string_starts_with(input_path, root_path)) {
+        char* relative_path = string_duplicate(input_path + string_length(root_path) + 1);
+        kfree(input_path, string_length(input_path) + 1, MEMORY_TAG_VFS);
+        kfree(root_path, string_length(root_path) + 1, MEMORY_TAG_VFS);
+        vdebug("relative path: %s", relative_path)
+        return relative_path;
+    }
+    return input_path;
 }
 
 /**
@@ -68,6 +87,7 @@ void path_move(char *path) {
         path_context->root_directory = null;
         path_context->current_directory = null;
     }
+
     if (path_context->root_directory == null) {
         path_context->root_directory = normalized;
         path_context->current_directory = path_context->root_directory;
@@ -96,6 +116,37 @@ char *path_absolute(char *path) {
 }
 
 /**
+ * Gets the parent directory of a path.
+ * @param path The path to get the parent directory from.
+ * @return The parent directory of the path.
+ */
+char *path_parent_directory(char *path) {
+    if (path == null) {
+        return null;
+    }
+    char *absolute_path = path_absolute(path);
+    char *parent_directory = string_split_at(absolute_path, "/", string_split_count(absolute_path, "/") - 1);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    return parent_directory;
+}
+
+/**
+ * Gets the file name from a path.
+ * @param path The path to get the file name from.
+ * @return The file name from the path.
+ */
+
+char *path_file_name(char *path) {
+    if (path == null) {
+        return null;
+    }
+    char *absolute_path = path_absolute(path);
+    char *file_name = string_split_at(absolute_path, "/", string_split_count(absolute_path, "/") - 1);
+    file_name = string_split_at(file_name, ".", 0);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    return file_name;
+}
+/**
  * Gets the current working directory.
  * @return The current working directory.
  */
@@ -117,4 +168,37 @@ char *path_current_directory() {
         return null;
     }
     return path_context->current_directory;
+}
+
+/**
+ * Gets the platform specific path from a path.
+ * @param path The path to get the platform specific path from.
+ * @return The platform specific path from the path. This is the reverse of path_normalize.
+ */
+char *path_to_platform(char *path) {
+#ifndef __WIN32
+    return string_duplicate(path);  // Return a copy
+#else
+    if (path == NULL) {
+        return NULL; // Added NULL check
+    }
+    u32 len = strlen(path);
+    char *platform_path = kallocate(len + 2, MEMORY_TAG_VFS);  // Allocate new memory
+    strcpy(platform_path, path);  // Copy the original path
+
+    // Transform '/' to '\\'
+    for (u32 i = 0; i < len; ++i) {
+        if (platform_path[i] == '/') {
+            platform_path[i] = '\\';
+        }
+    }
+
+    // Handle drive letter
+    if (len > 1 && platform_path[0] == '\\' && platform_path[1] != '\\') {
+        platform_path[0] = platform_path[1];
+        platform_path[1] = ':';
+    }
+
+    return platform_path;
+#endif
 }

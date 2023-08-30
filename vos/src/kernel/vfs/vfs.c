@@ -1,7 +1,7 @@
 #include <sys/stat.h>
 
 #include "core/mem.h"
-#include "containers/dict.h"
+#include "containers/Map.h"
 #include "core/logger.h"
 #include "vfs_watch.h"
 #include "core/timer.h"
@@ -14,9 +14,9 @@
 #include "core/str.h"
 
 static Fs *fs = NULL;
-static dict *loaded_nodes = NULL;
+static Map *loaded_nodes = NULL;
 //Loaders by extension
-static dict *asset_loaders = NULL;
+static Map *asset_loaders = NULL;
 
 b8 fs_on_file_event(u16 code, void *sender, void *listener_inst, event_context data);
 
@@ -49,7 +49,7 @@ b8 fs_initialize(Path root) {
     event_register(EVENT_FILE_CREATED, 0, fs_on_file_event);
     event_register(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
     event_register(EVENT_FILE_DELETED, 0, fs_on_file_event);
-    watcher_initialize(root, &fs->running);
+//    watcher_initialize(root, &fs->running);
     vdebug("Initialized VFS");
     return true;
 }
@@ -59,11 +59,11 @@ void fs_register_asset_loader(asset_loader *loader) {
         asset_loaders = dict_create_default();
         //TODO: add default asset loaders here
     }
-    if (dict_lookup(asset_loaders, loader->extension) != NULL) {
+    if (dict_get(asset_loaders, loader->extension) != NULL) {
         vwarn("Asset loader for extension: %s already exists!", loader->extension);
         return;
     }
-    dict_insert(asset_loaders, loader->extension, loader);
+    dict_set(asset_loaders, loader->extension, loader);
 }
 
 void fs_shutdown() {
@@ -71,7 +71,7 @@ void fs_shutdown() {
     event_unregister(EVENT_FILE_MODIFIED, 0, fs_on_file_event);
     event_unregister(EVENT_FILE_DELETED, 0, fs_on_file_event);
     fs->running = false;
-    watcher_shutdown();
+//    watcher_shutdown();
     fs_node_destroy(fs->root);
     dict_destroy(loaded_nodes);
     dict_destroy(asset_loaders);
@@ -177,11 +177,11 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
         }
         closedir(handle);
         //We need to add the node to the loaded nodes dictionary
-        dict_insert(loaded_nodes, path, node);
+        dict_set(loaded_nodes, path, node);
         return node;
     } else if (action == NODE_MODIFIED) {
         //TODO implement this
-        Node *node = dict_lookup(loaded_nodes, path);
+        Node *node = dict_get(loaded_nodes, path);
         if (node == NULL) {
             verror("Could not find node for path: %s", path);
             return NULL;
@@ -203,7 +203,7 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
             }
             char *child_path = string_format("%s/%s", path, entry->d_name);
             Node *child;
-            if (dict_lookup(loaded_nodes, child_path) != NULL) {
+            if (dict_get(loaded_nodes, child_path) != NULL) {
                 if (caller != NULL && strings_equal(child_path, caller->path)) {
 //                    vdebug("Skipping caller node: %s", child_path);
                     kfree(child_path, string_length(child_path) + 1, MEMORY_TAG_STRING);
@@ -225,7 +225,7 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
         }
         closedir(handle);
         //We need to add the node to the loaded nodes dictionary
-        dict_insert(loaded_nodes, path, node);
+        dict_set(loaded_nodes, path, node);
         return node;
     }
 
@@ -234,13 +234,11 @@ Node *load_directory_node(Path path, NodeAction action, Node *caller) {
 
 Node *load_file_node(Path path, NodeAction action) {
     if (action == NODE_CREATED) {
-        //TODO implement this
         FILE *handle = fopen(path, "r");
         if (handle == NULL) {
             verror("Could not open file: %s", path);
             return NULL;
         }
-
         Node *node = kallocate(sizeof(Node), MEMORY_TAG_VFS);
         node->type = NODE_FILE;
         node->path = path;
@@ -261,12 +259,12 @@ Node *load_file_node(Path path, NodeAction action) {
         //make sure it's null terminated
         node->data.file.data[index] = '\0';
         kfree(data, 10 * 1024 * 1024, MEMORY_TAG_VFS);
-        dict_insert(loaded_nodes, path, node);
+        dict_set(loaded_nodes, path, node);
         fclose(handle);
         return node;
     } else if (action == NODE_MODIFIED) {
         //TODO implement this
-        Node *node = dict_lookup(loaded_nodes, path);
+        Node *node = dict_get(loaded_nodes, path);
         if (node == NULL) {
             verror("Could not find node for path: %s", path);
             return NULL;
@@ -328,7 +326,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
             //remove the '.' from the extension
             extension++;
             //get the asset loader for the extension
-            asset_loader *loader = dict_lookup(asset_loaders, extension);
+            asset_loader *loader = dict_get(asset_loaders, extension);
             if (loader == NULL) {
                 verror("Could not find asset loader for extension: %s", extension);
 //                vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
@@ -348,7 +346,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
         }
     } else {
         //We're only deleting the node in memory.
-        Node *node = dict_lookup(loaded_nodes, path);
+        Node *node = dict_get(loaded_nodes, path);
         if (node == NULL) {
             verror("Could not find node for path: %s", path);
             return NULL;
@@ -363,7 +361,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
         extension++;
 
         //get the asset loader for the extension
-        asset_loader *loader = dict_lookup(asset_loaders, extension);
+        asset_loader *loader = dict_get(asset_loaders, extension);
         if (loader == NULL) {
             verror("Could not find asset loader for extension: %s", extension);
             vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
@@ -387,7 +385,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
 }
 
 Node *fs_get_node(Path path) {
-    return dict_lookup(loaded_nodes, path);
+    return dict_get(loaded_nodes, path);
 }
 
 void fs_node_destroy(Node *node) {

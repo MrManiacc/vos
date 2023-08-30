@@ -12,7 +12,8 @@
 #include "core/str.h"
 #include "core/mem.h"
 #include "kernel/vfs/vfs.h"
-#include "containers/dict.h"
+#include "containers/Map.h"
+#include "kernel/vfs/paths.h"
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
   Process *process;
@@ -509,6 +510,9 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
 static asset_loader *lua_loader;
 
 void load_lua_asset(Node *node, Asset *asset) {
+//    asset->path = path_relative((char *) node->path);
+
+
     asset->path = node->path;
     asset->data = node->data.file.data;
     asset->size = node->data.file.size;

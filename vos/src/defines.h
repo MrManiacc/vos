@@ -28,7 +28,7 @@ typedef char b8;
 
 #define true 1
 #define false 0
-#define null 0
+#define null ((void*) 0)
 // Platform detection
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
 #define KPLATFORM_WINDOWS 1
