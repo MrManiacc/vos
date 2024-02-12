@@ -49,6 +49,7 @@ char *string_concat(const char *str0, const char *str1) {
     result[str0_len + str1_len] = '\0';
     return result;
 }
+
 b8 string_ends_with(const char *str, const char *substr) {
     u64 str_len = string_length(str);
     u64 substr_len = string_length(substr);
@@ -85,6 +86,7 @@ inline i32 string_split_count(const char *str, const char *delimiter) {
     kfree(copy, string_length(str) + 1, MEMORY_TAG_STRING);
     return count;
 }
+
 // Returns the index of the first occurrence of the given character in the given string.
 // Returns -1 if the character is not found.
 inline i64 string_index_of(const char *str, char c) {
@@ -94,6 +96,7 @@ inline i64 string_index_of(const char *str, char c) {
     }
     return ptr - str;
 }
+
 char *string_replace(const char *str, const char *substr, const char *replacement) {
     char *copy = string_duplicate(str);
     char *token = strtok(copy, substr);
@@ -107,10 +110,11 @@ char *string_replace(const char *str, const char *substr, const char *replacemen
     kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
     return result;
 }
-inline char* string_format(const char* str, ...){
+
+inline char *string_format(const char *str, ...) {
     va_list args;
     va_start(args, str);
-    char* result = kallocate(1024, MEMORY_TAG_STRING);
+    char *result = kallocate(1024, MEMORY_TAG_STRING);
     vsprintf(result, str, args);
     va_end(args);
     return result;
@@ -131,4 +135,14 @@ char *string_to_lower(const char *input) {
     }
     lowercase_str[len] = '\0';  // Null-terminate the string
     return lowercase_str;
+}
+
+char *string_append(const char *str, const char *append) {
+    u64 str_len = string_length(str);
+    u64 append_len = string_length(append);
+    char *result = kallocate(str_len + append_len + 1, MEMORY_TAG_STRING);
+    kcopy_memory(result, str, str_len);
+    kcopy_memory(result + str_len, append, append_len);
+    result[str_len + append_len] = '\0';
+    return result;
 }

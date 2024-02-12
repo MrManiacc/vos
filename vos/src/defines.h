@@ -77,7 +77,7 @@ typedef char b8;
 #else
 // Imports
 #ifdef _MSC_VER
-#define KAPI __declspec(dllimport)
+#define VAPI __declspec(dllimport)
 #else
 #define VAPI
 #endif

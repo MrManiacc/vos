@@ -40,3 +40,5 @@ VAPI char *string_trim(const char *str);
 VAPI char *string_format(const char *str, ...);
 
 VAPI char *string_to_lower(const char *input);
+
+VAPI char *string_append(const char *str, const char *append);

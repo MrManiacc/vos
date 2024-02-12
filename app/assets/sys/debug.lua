@@ -6,7 +6,7 @@
 local frame_count = 0
 
 local ui = sys.gui;
-local green_color = ui.color("71ab80FA")
+local green_color = ui.color("1b1c1bff")
 local purple_color = ui.color("bc30d1FA")
 local red_color = ui.color("f58142FA")
 local start_time = sys.time()
@@ -24,15 +24,16 @@ function render_stats(startX, startY)
     else
         color = ui.color("a1ab80FA")
     end
+
     ui.draw_rect(startX, startY, 300, 200, color)
     local y = startY + 10
-    ui.draw_text("Frame count: " .. frame_count, startX + 10, y, 20)
+    ui.draw_text("Frame count: " .. frame_count, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Frame time: " .. time, startX + 10, y, 20)
+    ui.draw_text("Frame time: " .. time, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Frame delta: " .. fps, startX + 10, y, 20)
+    ui.draw_text("Frame delta: " .. fps, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Mouse: " .. mouse.x .. ", " .. mouse.y, startX + 10, y, 20)
+    ui.draw_text("Mouse: " .. mouse.x .. ", " .. mouse.y, startX + 10, y, 20, green_color)
 
     frame_count = frame_count + 1
 end
@@ -45,7 +46,7 @@ function button(config, on_click)
     local mouse = sys.input.mouse()
     local x = config.x
     local y = config.y
-    local width  = sys.gui.text_width(config.text, config.text_size) + 20
+    local width = sys.gui.text_width(config.text, config.text_size) + 20
     local height = config.text_size + 20
     local text = config.text
     local text_width = ui.text_width(text, config.text_size)

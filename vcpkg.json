@@ -6,10 +6,10 @@
     "name" : "tree-sitter",
     "version>=" : "0.20.6"
   }, {
-    "name" : "raylib",
-    "version>=" : "4.5.0#1"
-  }, {
     "name" : "lua",
     "version>=" : "5.4.6"
+  }, {
+    "name" : "raylib",
+    "version>=" : "4.5.0#1"
   } ]
 }

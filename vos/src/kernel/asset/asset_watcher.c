@@ -1,6 +1,6 @@
 #include "asset_watcher.h"
 
-#include <pthread.h>
+//#include <pthread.h>
 #include "core/logger.h"
 #include "core/timer.h"
 #include "containers/Map.h"
@@ -9,7 +9,7 @@
 #include "core/event.h"
 
 typedef struct AssetWatcher {
-  pthread_t thread;
+//  pthread_t thread;
   b8 *running;
   Map *watched_events;
   struct FileWatcher *watcher;
@@ -162,7 +162,7 @@ void *watcher_thread_func(void *arg) {
     }
     vdebug("Shutting down watcher")
     file_watcher_destroy(watcher->watcher);
-    pthread_join(watcher->thread, NULL);
+//    pthread_join(watcher->thread, NULL);
     free(watcher);
 }
 
@@ -174,7 +174,7 @@ AssetWatcher *asset_watcher_initialize(const char *path, b8 *running) {
     watcher->running = running; //allow for the thread to be stopped
     watcher->watcher = file_watcher_create(path);
     watcher->watched_events = dict_create_default();
-    pthread_create(&watcher->thread, NULL, watcher_thread_func, watcher);
+//    pthread_create(&watcher->thread, NULL, watcher_thread_func, watcher);
 }
 
 void asset_watcher_shutdown(AssetWatcher *watcher) {

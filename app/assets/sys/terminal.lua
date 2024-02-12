@@ -11,7 +11,7 @@ Terminal = {}
 local function _initializeProperties(self, config)
 
     self.internal = {
-        version = "0.1.0",
+        version = "0.1.3b",
         commands = {},
         history = {},
         history_index = 0,
@@ -90,6 +90,12 @@ local function _resetCommandState(self)
     self.cursor_position = 2
 end
 
+function Terminal:clear()
+    self.text.value = ""
+end
+
+
+
 --- Executes a command in the Terminal.
 -- @param command The command to be executed.
 function Terminal:execute_command(command)
@@ -102,10 +108,15 @@ function Terminal:execute_command(command)
 
     if self.internal.commands[cmd] then
         for _, callback in ipairs(self.internal.commands[cmd]) do
-            callback(unpack(args))
+            if #args == 0 then
+                callback()
+            else
+                callback(unpack(args))
+            end
         end
     else
         self.text.value = self.text.value .. "\nUnknown command: " .. cmd
+
     end
 
     _resetCommandState(self)
@@ -126,6 +137,9 @@ function Terminal:dump()
     return str
 end
 
+function Terminal:print(text)
+    self.text.value = self.text.value .. "\n" .. text
+end
 
 --- Handles key input for the Terminal.
 -- This is a local function and is not meant to be called externally.
@@ -153,6 +167,12 @@ local function _handleKeyInput(self)
     for i = 32, 126 do
         if (sys.input.key(i).is_pressed) then
             local char = string.char(i)
+            -- Check for Shift key state; assume sys.input.key() can check it
+            -- You might need to adjust this based on your actual input handling system
+            local isShiftPressed = sys.input.key(keys.KEY_LEFT_SHIFT).is_down or sys.input.key(keys.KEY_SHIFT_RIGHT).is_down
+            if not isShiftPressed then
+                char = string.lower(char)
+            end
             local beforeCursor = string.sub(self.internal.input, 1, self.cursor_position)
             local afterCursor = string.sub(self.internal.input, self.cursor_position + 1)
             self.internal.input = beforeCursor .. char .. afterCursor
@@ -164,7 +184,7 @@ local function _handleKeyInput(self)
         if #self.internal.input > 0 then
             local command = self.internal.input
             self:execute_command(command)
-            self.text.value = self.text.value .. "\n" .. command
+            --self.text.value = self.text.value .. "\n" .. command
             self.internal.input = ""
             self.cursor_position = 0
         end
@@ -196,7 +216,8 @@ local function _handleKeyInput(self)
 
     -- Handle delete
     handleKeyRepeat(keys.KEY_DELETE, function()
-        if self.cursor_position < #self.internal.input then  -- Modified this line to ensure we're not at the end
+        if self.cursor_position < #self.internal.input then
+            -- Modified this line to ensure we're not at the end
             local start = string.sub(self.internal.input, 1, self.cursor_position)
             local finish = string.sub(self.internal.input, self.cursor_position + 2)  -- Skip the character to the right of the cursor
             self.internal.input = start .. finish
@@ -229,8 +250,6 @@ local function _renderHeader(self)
     local height = size.height / 3
     sys.gui.draw_rect(x, y + 1, width, height, sys.gui.color("474747FF"))
     sys.gui.draw_rect(x + 10, y + 10, width - 20, height - 20, sys.gui.color("363534ff"))
-    sys.gui.draw_text("Terminus", x + 20, y + 15, 20, sys.gui.color("FFFFFFFF"))
-    sys.gui.draw_text("v" .. self.internal.version, sys.gui.text_width("Terminus", 20) + 25, y + 20, 15, sys.gui.color("03a83aff"))
     sys.gui.draw_rect(x + 10, y + 40, width - 20, height - 50, sys.gui.color("1b1c1bff"))
 end
 
@@ -246,7 +265,7 @@ local function _renderCursor(self)
     local text_size = 20
 
     -- Calculate the width of the text up to the cursor's position
-    local input_upto_cursor = string.sub(self.internal.input, 1, self.cursor_position )
+    local input_upto_cursor = string.sub(self.internal.input, 1, self.cursor_position)
     local width_upto_cursor = sys.gui.text_width(input_upto_cursor, text_size)
 
     local cursor_x = text_x + width_upto_cursor
@@ -262,16 +281,12 @@ local function _renderCursor(self)
     end
 end
 
-
---- Renders the text buffer of the Terminal.
--- This is a local function and is not meant to be called externally.
 local function _renderBuffer(self)
-    local size = sys.window.size()
+    local size = sys.window.size()  -- Get the current window size
     local x = 0
     local y = math.floor(size.height - (size.height / 3))
-    local height = size.height / 3
     local text_x = x + 20
-    local text_y = y + height - 60  -- Adjust this as needed
+    local cursor_base_y = y + size.height / 3 - 40  -- Calculate based on the cursor's relative position
     local text_size = 20
 
     local lines = {}
@@ -279,9 +294,25 @@ local function _renderBuffer(self)
         table.insert(lines, line)
     end
 
+    -- Ensure the text buffer starts right above the cursor and moves up
+    local buffer_start_y = cursor_base_y - #lines * text_size
     for i, line in ipairs(lines) do
-        sys.gui.draw_text(line, text_x, text_y - (i * text_size), text_size, sys.gui.color("FFFFFFFF"))
+        -- Calculate Y position for each line, starting from buffer_start_y
+        local line_y = buffer_start_y + (i - 1) * text_size
+        -- Don't render if the line is outside the visible area
+        if line_y > y then
+            sys.gui.draw_text(line, text_x, line_y, text_size, sys.gui.color("FaFaFaFF"))
+        end
+        -- Adjust drawing to ensure it's within the visible area
     end
+
+    local width = size.width
+    -- draws shadow for the header
+    sys.gui.draw_rect(x + 15, y + 5, width - 25, 40, sys.gui.color("000000ff"))
+    -- draw the overlay
+    sys.gui.draw_rect(x + 10, y + 5, width - 25, 35, sys.gui.color("1b1c1bff"))
+    sys.gui.draw_text("Terminus", x + 20, y + 15, 20, sys.gui.color("FFFFFFFF"))
+    sys.gui.draw_text("v" .. self.internal.version, sys.gui.text_width("Terminus", 20) + 25, y + 20, 15, sys.gui.color("03a83aff"))
 end
 
 

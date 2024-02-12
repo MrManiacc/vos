@@ -19,12 +19,14 @@
 #include "kernel/asset/asset.h"
 
 int main(int argc, char **argv) {
-
+    
     //If no arguments are passed, then we are running in the runtime and use the current working directory.
     //Otherwise, we are running in the editor and use the first argument as the root path.
     char *root_path = null;
     if (argc == 1) {
         root_path = getcwd(null, 0);
+        // Append /assets to the root path.
+        root_path = string_append(root_path, "/assets");
     } else if (argc == 2) {
         root_path = argv[1];
     }
@@ -45,7 +47,7 @@ int main(int argc, char **argv) {
         kernel_poll_update();
         EndDrawing();
     }
-
+    
     CloseWindow();
     KernelResult shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
