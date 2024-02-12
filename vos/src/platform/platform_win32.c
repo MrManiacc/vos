@@ -40,7 +40,7 @@ b8 platform_startup(
 void platform_shutdown(platform_state *plat_state) {
     // Simply cold-cast to the known type.
     internal_state *state = (internal_state *)plat_state->internal_state;
-
+    
 
 }
 

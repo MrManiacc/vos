@@ -11,12 +11,12 @@
 #define MAX_ASSET_LOADERS 142
 
 typedef struct AssetContext {
-  // The asset map.
-  Map *asset_map;
-  // The asset loaders.
-  AssetLoader *asset_loaders[MAX_ASSET_LOADERS];
-  //the number of asset loaders.
-  u32 asset_loader_count;
+    // The asset map.
+    Map *asset_map;
+    // The asset loaders.
+    AssetLoader *asset_loaders[MAX_ASSET_LOADERS];
+    //the number of asset loaders.
+    u32 asset_loader_count;
 } AssetContext;
 
 static AssetContext *asset_context;
@@ -79,7 +79,7 @@ AssetHandle *asset_load(AssetPath path) {
         if (loader->is_supported(&path)) {
             AssetHandle *asset = kallocate(sizeof(AssetHandle), MEMORY_TAG_ASSET);
             asset->path = kallocate(sizeof(AssetPath), MEMORY_TAG_ASSET);
-            kcopy_memory(asset->path, path.path, sizeof(AssetPath));
+            kcopy_memory(asset->path, &path, sizeof(AssetPath));
             asset->state = ASSET_STATE_LOADING;
             asset->data = loader->load(&path);
             if (asset->data == null) {
@@ -90,7 +90,7 @@ AssetHandle *asset_load(AssetPath path) {
             char *sys_path = path_to_platform((char *) path.path);
             dict_set(asset_context->asset_map, sys_path, asset);
             vdebug("Asset [%s] loaded at path %s", loader->name, sys_path)
-            kfree(sys_path, string_length(sys_path), MEMORY_TAG_ASSET);
+            kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
             return asset;
         }
     }
@@ -117,7 +117,7 @@ AssetHandle *asset_reload(AssetPath path) {
             loader->unload(asset);
             asset->state = ASSET_STATE_LOADING;
             asset->data = loader->load(&path);
-
+            
             if (asset->data == null) {
                 vwarn("Asset [%s] failed to load at path %s", loader->name, path.path)
                 return null;
@@ -130,6 +130,7 @@ AssetHandle *asset_reload(AssetPath path) {
     vwarn("Asset [%] not supported", path_file_name((char *) path.path));
     return null;
 }
+
 /**
  * Unloads an asset. This will use the asset loaders to unload the asset.
  * @param path The path to the asset.
@@ -141,23 +142,19 @@ b8 asset_unload(AssetPath path) {
     if (asset == null) {
         return false;
     }
-    // Check if the asset is supported.
+    // Unload the asset using the appropriate loader.
     for (u32 i = 0; i < asset_context->asset_loader_count; i++) {
         AssetLoader *loader = asset_context->asset_loaders[i];
         if (loader->is_supported(&path)) {
-            asset->state = ASSET_STATE_UNLOADING;
-            //TODO: Unload the asset
-            //            loader->unload(asset);
-//
-//            // Remove the asset from the asset map
-//            dict_remove(asset_context->asset_map, path.path);
-//            // Free the memory associated with the asset data and path
-////            kfree(asset->data, sizeof(AssetData), MEMORY_TAG_VFS);
-//            kfree(asset->path, sizeof(AssetPath), MEMORY_TAG_ASSET);
-//            kfree(asset, sizeof(AssetHandle), MEMORY_TAG_ASSET);
-
-
             vdebug("Asset [%s] unloaded at path %s", path_file_name((char *) path.path), path.path);
+            asset->state = ASSET_STATE_UNLOADING;
+            if (loader->unload) {
+                loader->unload(asset); // Assuming unload function takes care of asset data.
+            }
+            
+            // Remove the asset from the asset map
+            dict_remove(asset_context->asset_map, path.path);
+            kfree(asset, sizeof(AssetHandle), MEMORY_TAG_ASSET);
             return true;
         }
     }
@@ -187,7 +184,8 @@ b8 asset_manager_shutdown() {
     for (u32 i = 0; i < asset_context->asset_loader_count; ++i) {
         kfree(asset_context->asset_loaders[i], sizeof(AssetLoader), MEMORY_TAG_ASSET);
     }
-
+    
+    
     kfree(asset_context, sizeof(AssetContext), MEMORY_TAG_ASSET);
     vdebug("Asset manager destroyed.");
     return true;

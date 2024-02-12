@@ -10,10 +10,12 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
+
 // Get the next available ID from the pool.
 ProcessID id_pool_next_id();
 
 void id_pool_release_id(ProcessID id);
+
 b8 id_exists_in_stack(IDPool *pool, ProcessID id);
 
 static KernelContext *kernel_context = null;
@@ -56,11 +58,12 @@ Process *kernel_create_process(Asset *script_asset) {
         vwarn("Process already exists with name %s", script_asset->path)
         return null;
     }
-
+    
     // Get the name of the script by removing the path and extension.
     Process *process = process_create(script_asset);
     ProcessID pid = id_pool_next_id();
     if (pid == MAX_PROCESSES) {
+        vwarn("Maximum number of processes reached")
         return NULL;
     }
     process->pid = pid;
@@ -132,7 +135,7 @@ KernelResult kernel_shutdown() {
         return result;
     }
     //TODO: do we need to destroy the processes?
-
+    
     IDPool *pool = kernel_context->id_pool;
     for (ProcessID i = 1; i <= pool->max_id; i++) {
         if (!id_exists_in_stack(pool, i)) {
@@ -169,7 +172,7 @@ ProcessID id_pool_next_id() {
         // If the pool is empty, generate a new ID.
         return ++pool->max_id;
     }
-
+    
 }
 
 void id_pool_release_id(ProcessID id) {
@@ -190,4 +193,5 @@ b8 id_exists_in_stack(IDPool *pool, ProcessID id) {
     }
     return false;
 }
+
 #pragma clang diagnostic pop

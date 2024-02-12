@@ -5,10 +5,10 @@
 #include "core/str.h"
 
 typedef struct PathContext {
-  // The root directory.
-  char *root_directory;
-  // The current working directory.
-  char *current_directory;
+    // The root directory.
+    char *root_directory;
+    // The current working directory.
+    char *current_directory;
 } PathContext;
 
 //Static pointer to the path context.
@@ -32,7 +32,7 @@ char *path_normalize(char *path) {
         j++;
     }
     normalized_path[j] = '\0';  // Null-terminate the string
-
+    
     // Make sure it starts with a slash
     if (normalized_path[0] != '/') {
         char *new_path = kallocate(j + 2, MEMORY_TAG_VFS);
@@ -41,9 +41,8 @@ char *path_normalize(char *path) {
         kfree(normalized_path, j + 1, MEMORY_TAG_VFS);
         normalized_path = new_path;
     }
-
-    // Free the passed path
-    kfree(path, len + 1, MEMORY_TAG_VFS);
+    
+    // Removed kfree(path, len + 1, MEMORY_TAG_VFS);
     return normalized_path;
 }
 
@@ -57,11 +56,11 @@ char *path_relative(char *path) {
     if (path == null) {
         return null;
     }
-
-    char* input_path = path_normalize(path);
-    char* root_path = path_normalize(path_root_directory());
+    
+    char *input_path = path_normalize(path);
+    char *root_path = path_normalize(path_root_directory());
     if (string_starts_with(input_path, root_path)) {
-        char* relative_path = string_duplicate(input_path + string_length(root_path) + 1);
+        char *relative_path = string_duplicate(input_path + string_length(root_path) + 1);
         kfree(input_path, string_length(input_path) + 1, MEMORY_TAG_VFS);
         kfree(root_path, string_length(root_path) + 1, MEMORY_TAG_VFS);
         vdebug("relative path: %s", relative_path)
@@ -87,30 +86,38 @@ void path_move(char *path) {
         path_context->root_directory = null;
         path_context->current_directory = null;
     }
-
+    
     if (path_context->root_directory == null) {
-        path_context->root_directory = normalized;
-        path_context->current_directory = path_context->root_directory;
+        path_context->root_directory = normalized; // Set both root and current to normalized
+        path_context->current_directory = normalized;
     } else {
+        if (path_context->current_directory != path_context->root_directory) {
+            kfree(path_context->current_directory, strlen(path_context->current_directory) + 1, MEMORY_TAG_VFS);
+        }
         path_context->current_directory = normalized;
     }
 }
 
-/**
- * Gets the absolute path from a relative path.
- * @param path The relative path.
- * @return The absolute path.
- */
 char *path_absolute(char *path) {
-    if (path == null) {
-        return null;
+    if (path == NULL || path_context == NULL || path_context->current_directory == NULL) {
+        verror("Path, path context, or current directory is null.");
+        return NULL;
     }
     if (path[0] == '/') {
-        return path_normalize(path);
+        return path_normalize(path); // Assuming path_normalize handles NULL correctly
     }
-    char *absolute_path = kallocate(string_length(path_context->current_directory) + string_length(path) + 1,
-                                    MEMORY_TAG_VFS);
+    size_t total_length =
+            strlen(path_context->current_directory) + strlen(path) + 1; // +1 for the separator or terminator
+    char *absolute_path = kallocate(total_length, MEMORY_TAG_VFS);
+    
+    if (absolute_path == NULL) {
+        verror("Failed to allocate memory for absolute path.");
+        return NULL;
+    }
+    vdebug("current directory: %s", path_context->current_directory)
+    vdebug("path: %s", path)
     strcpy(absolute_path, path_context->current_directory);
+    strcat(absolute_path, "/"); // Ensure there's a separator
     strcat(absolute_path, path);
     return path_normalize(absolute_path);
 }
@@ -146,6 +153,7 @@ char *path_file_name(char *path) {
     kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
     return file_name;
 }
+
 /**
  * Gets the current working directory.
  * @return The current working directory.
@@ -176,7 +184,7 @@ char *path_current_directory() {
  * @return The platform specific path from the path. This is the reverse of path_normalize.
  */
 char *path_to_platform(char *path) {
-#ifndef __WIN32
+#ifndef KPLATFORM_WINDOWS
     return string_duplicate(path);  // Return a copy
 #else
     if (path == NULL) {
@@ -185,20 +193,20 @@ char *path_to_platform(char *path) {
     u32 len = strlen(path);
     char *platform_path = kallocate(len + 2, MEMORY_TAG_VFS);  // Allocate new memory
     strcpy(platform_path, path);  // Copy the original path
-
+    
     // Transform '/' to '\\'
     for (u32 i = 0; i < len; ++i) {
         if (platform_path[i] == '/') {
             platform_path[i] = '\\';
         }
     }
-
+    
     // Handle drive letter
     if (len > 1 && platform_path[0] == '\\' && platform_path[1] != '\\') {
         platform_path[0] = platform_path[1];
         platform_path[1] = ':';
     }
-
+    
     return platform_path;
 #endif
 }

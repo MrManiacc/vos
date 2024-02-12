@@ -6,6 +6,7 @@
 #include "kernel/vfs/paths.h"
 #include "core/str.h"
 #include "asset_watcher.h"
+#include "core/logger.h"
 
 b8 directory_is_supported(AssetPath *path) {
     // check if the directory is a file or a directory.
@@ -17,13 +18,13 @@ b8 directory_is_supported(AssetPath *path) {
         }
     }
     kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
-
+    
     return false;
 }
 
 typedef struct DirectoryAssetData {
-  AssetPath *path;
-  AssetWatcher *watcher;
+    AssetPath *path;
+    AssetWatcher *watcher;
 } DirectoryAssetData;
 
 // Loads a directory from the disk. The asset data will be a darray of the files in the directory.
@@ -39,8 +40,8 @@ AssetData *directory_load(AssetPath *path) {
     AssetData *asset_data = kallocate(sizeof(AssetData), MEMORY_TAG_VFS);
     asset_data->data = data;
     asset_data->size = sizeof(DirectoryAssetData);
-
-
+    
+    
     //recursive load
     //list all the files in the directory
     //for each file, check if it is a directory or a file
@@ -66,14 +67,29 @@ AssetData *directory_load(AssetPath *path) {
     }
     closedir(handle);
     kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
+    
+    return asset_data;
 }
-// Unloads a directory from the disk. This will free the asset data.
+
 void directory_unload(AssetHandle *asset) {
-    DirectoryAssetData *data = (DirectoryAssetData *) asset->data;
-    asset_watcher_shutdown(data->watcher);
-    kfree(data->path, sizeof(AssetPath), MEMORY_TAG_VFS);
-    kfree(data, sizeof(DirectoryAssetData), MEMORY_TAG_VFS);
-    //TODO probably some memory leaks here
+//    if (!asset || !asset->data) return; // Safety check
+//
+//    DirectoryAssetData *data = (DirectoryAssetData *) asset->data->data;
+////
+////    // Ensure the watcher is properly shutdown and freed.
+////    if (data->watcher) {
+////        asset_watcher_shutdown(data->watcher); // Properly handle the watcher's cleanup.
+////        kfree(data->watcher, sizeof(AssetWatcher), MEMORY_TAG_VFS);
+////        data->watcher = NULL; // Avoid dangling pointer.
+////    }
+//
+//    // Log the path being unloaded, if available.
+//    if (data->path && data->path->path) {
+//        vdebug("Unloading directory asset at path %s", data->path->path);
+//    }
+//
+//    // Free the DirectoryAssetData itself.
+//    kfree(data, sizeof(DirectoryAssetData), MEMORY_TAG_VFS);
 }
 
 // The asset manager context.

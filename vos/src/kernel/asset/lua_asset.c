@@ -9,7 +9,7 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#define SAVE_COMPILED_LUA 1
+//#define SAVE_COMPILED_LUA 1
 
 b8 lua_file_is_supported(AssetPath *path) {
     // check if the directory is a file or a directory.
@@ -28,10 +28,10 @@ b8 lua_file_is_supported(AssetPath *path) {
 
 //A compile representation of a lua file.
 struct LuaSource {
-  // The compiled lua source code, if the read file is not a binary, we will compile it.
-  char *compiled_program;
-  // The size of the compiled program.
-  AssetPath *path;
+    // The compiled lua source code, if the read file is not a binary, we will compile it.
+    char *compiled_program;
+    // The size of the compiled program.
+    AssetPath *path;
 };
 
 // Check to see if a given path is a binary lua file or a text lua file.
@@ -65,7 +65,7 @@ static int dump_writer(lua_State *L, const void *p, size_t sz, void *ud) {
 
 AssetData *lua_file_load(AssetPath *path) {
     char *sys_path = path_to_platform((char *) path->path);
-
+    
     if (is_binary_lua_file(sys_path)) {
         FILE *file = fopen(sys_path, "rb");
         if (file == NULL) {
@@ -73,45 +73,45 @@ AssetData *lua_file_load(AssetPath *path) {
             kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
             return NULL;
         }
-
+        
         fseek(file, 0, SEEK_END);
         u64 size = ftell(file);
         fseek(file, 0, SEEK_SET);
-
+        
         char *data = kallocate(size, MEMORY_TAG_VFS);
         fread(data, size, 1, file);
         fclose(file);
-
+        
         AssetData *asset_data = kallocate(sizeof(AssetData), MEMORY_TAG_VFS);
         asset_data->data = data;
         asset_data->size = size;
-
+        
         return asset_data;
     } else {
         // For Lua source code
         lua_State *L = luaL_newstate();
-
+        
         if (luaL_loadfile(L, sys_path) != 0) {
             verror("Failed to compile Lua source: %s", luaL_checkstring(L, -1));
             lua_close(L);
             kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
             return NULL;
         }
-
+        
         luaL_Buffer bytecode_buff;
         luaL_buffinit(L, &bytecode_buff);
         lua_dump(L, dump_writer, &bytecode_buff, 0);
-
+        
         // Extract the buffer to our asset data structure
         char *bytecode;
         size_t bytecode_size = luaL_bufflen(&bytecode_buff);
         bytecode = kallocate(bytecode_size, MEMORY_TAG_VFS);
         memcpy(bytecode, luaL_buffaddr(&bytecode_buff), bytecode_size);
-
+        
         AssetData *asset_data = kallocate(sizeof(AssetData), MEMORY_TAG_VFS);
         asset_data->data = bytecode;
         asset_data->size = bytecode_size;
-
+        
         lua_close(L);
         vinfo("compiled lua file: %s", path->path);
         return asset_data;
@@ -146,7 +146,11 @@ void lua_file_unload(AssetHandle *asset) {
     }
     kfree(path, string_length(path), MEMORY_TAG_VFS);
 #endif
-
+    
+//    vdebug("Asset [%s] unloaded at path %s", path_file_name((char *) asset->path->path), asset->path->path);
+    
+    
+//    vdebug("Unloaded lua file: %s", asset->path->path);
     // Free the memory associated with the asset
     kfree(asset->data->data, asset->data->size, MEMORY_TAG_VFS);
     kfree(asset->data, sizeof(AssetData), MEMORY_TAG_VFS);
