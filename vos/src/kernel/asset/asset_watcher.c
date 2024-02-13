@@ -1,17 +1,17 @@
 #include "asset_watcher.h"
 
 //#include <pthread.h>
-#include "core/logger.h"
-#include "core/timer.h"
-#include "containers/Map.h"
-#include "core/str.h"
-#include "core/mem.h"
-#include "core/event.h"
+#include "core/vlogger.h"
+#include "core/vtimer.h"
+#include "containers/dict.h"
+#include "core/vstring.h"
+#include "core/vmem.h"
+#include "core/vevent.h"
 
 typedef struct AssetWatcher {
 //  pthread_t thread;
   b8 *running;
-  Map *watched_events;
+  dict *watched_events;
   struct FileWatcher *watcher;
 } AssetWatcher;
 
@@ -23,7 +23,6 @@ typedef struct AssetWatcher {
 #include <windows.h>
 
 #define DEBOUNCE_DURATION 500 // 500 millisecond delay
-
 typedef enum {
   FILE_CREATED = 10,
   FILE_MODIFIED = 11,
@@ -169,11 +168,11 @@ void *watcher_thread_func(void *arg) {
 //static FileWatcher *watcher;
 
 AssetWatcher *asset_watcher_initialize(const char *path, b8 *running) {
-    vdebug("Initializing watcher at %s", path)
-    AssetWatcher *watcher = kallocate(sizeof(AssetWatcher), MEMORY_TAG_VFS);
-    watcher->running = running; //allow for the thread to be stopped
-    watcher->watcher = file_watcher_create(path);
-    watcher->watched_events = dict_create_default();
+//    vdebug("Initializing watcher at %s", path)
+//    AssetWatcher *watcher = kallocate(sizeof(AssetWatcher), MEMORY_TAG_VFS);
+//    watcher->running = running; //allow for the thread to be stopped
+//    watcher->watcher = file_watcher_create(path);
+//    watcher->watched_events = dict_create_default();
 //    pthread_create(&watcher->thread, NULL, watcher_thread_func, watcher);
 }
 
@@ -183,34 +182,34 @@ void asset_watcher_shutdown(AssetWatcher *watcher) {
 }
 
 void debounced_file_event(void *raw_watcher) {
-    //Wait for a second
-    timer_data *data = (timer_data *) raw_watcher;
-    AssetWatcher *watcher = data->watcher;
-    FileEvent *event = data->event;
-    if (!*watcher->running)
-        return;
-    if (!event)
-        return;
-    //build path to file
-    char *pathed = string_concat("/", event->path);
-    char *path = string_concat(watcher->watcher->path, string_replace(pathed, "\\", "/"));
-    kfree(pathed, string_length(pathed) + 1, MEMORY_TAG_STRING);
-    //check if the file still exists
-    event_context event_context;
-    memcpy(event_context.data.c, path, strlen(path));
-    //null terminate the string
-    event_context.data.c[strlen(path)] = '\0';
-    vdebug("File event after debounce: %s", path)
-    switch (event->type) {
-        case FILE_CREATED:event_fire(EVENT_FILE_CREATED, NULL, event_context);
-            break;
-        case FILE_MODIFIED:event_fire(EVENT_FILE_MODIFIED, NULL, event_context);
-            break;
-        case FILE_DELETED:event_fire(EVENT_FILE_DELETED, NULL, event_context);
-            break;
-    }
-    kfree(event->path, string_length(path) + 1, MEMORY_TAG_STRING);
-    //free the event_content data
-    kfree(event, sizeof(FileEvent), MEMORY_TAG_VFS);
-//    vdebug("File event after debounce: %s", path);
+//    //Wait for a second
+//    timer_data *data = (timer_data *) raw_watcher;
+//    AssetWatcher *watcher = data->watcher;
+//    FileEvent *event = data->event;
+//    if (!*watcher->running)
+//        return;
+//    if (!event)
+//        return;
+//    //build path to file
+//    char *pathed = string_concat("/", event->path);
+//    char *path = string_concat(watcher->watcher->path, string_replace(pathed, "\\", "/"));
+//    kfree(pathed, string_length(pathed) + 1, MEMORY_TAG_STRING);
+//    //check if the file still exists
+//    event_context event_context;
+//    memcpy(event_context.data.c, path, strlen(path));
+//    //null terminate the string
+//    event_context.data.c[strlen(path)] = '\0';
+//    vdebug("File event after debounce: %s", path)
+//    switch (event->type) {
+//        case FILE_CREATED:event_fire(EVENT_FILE_CREATED, NULL, event_context);
+//            break;
+//        case FILE_MODIFIED:event_fire(EVENT_FILE_MODIFIED, NULL, event_context);
+//            break;
+//        case FILE_DELETED:event_fire(EVENT_FILE_DELETED, NULL, event_context);
+//            break;
+//    }
+//    kfree(event->path, string_length(path) + 1, MEMORY_TAG_STRING);
+//    //free the event_content data
+//    kfree(event, sizeof(FileEvent), MEMORY_TAG_VFS);
+////    vdebug("File event after debounce: %s", path);
 }

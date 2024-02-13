@@ -83,21 +83,25 @@ typedef struct Asset {
   Path path;
   // The data of the asset.
   void *data;
-  // The size of the asset.
-  u64 size;
+    // The size of the asset.
+    u64 size;
 } Asset;
 
 
 typedef struct asset_loader {
-  // The extension that this loader will handle.
-  const char *extension;
-  // The function that will be called to load the asset.
-  void (*load)(Node * node, Asset * out_asset);
-  // The function that will be called to unload the asset.
-  void (*unload)(Node * node);
+    // The extension that this loader will handle.
+    const char *extension;
+    
+    // The function that will be called to load the asset.
+    void (*load)(Node *node, Asset *out_asset);
+    
+    // The function that will be called to unload the asset.
+    void (*unload)(Node *node);
 } asset_loader;
 
 b8 fs_initialize(Path root);
+
+
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.

@@ -14,14 +14,14 @@ typedef struct entry {
   struct entry *next;
 } entry;
 
-typedef struct Map {
+typedef struct dict {
   u32 size;
   hash_function *hash_func;
   entry **elements;
-} Map;
+} dict;
 
-typedef struct _dict_iterator {
-  Map *table;
+typedef struct idict {
+  dict *table;
   entry *entry;
   u32 index;
 } idict;
@@ -32,19 +32,19 @@ typedef struct _dict_iterator {
  * @param hash_func the hash function to use
  * @return a new dictionary table
  */
-Map *dict_create(u64 size, hash_function *hash_func);
+dict *dict_create(u64 size, hash_function *hash_func);
 
 /**
  * Creates a new dictionary table with the default size and hash function
  * @return a new dictionary table
  */
-Map *dict_create_default();
+dict *dict_create_default();
 
 /**
  * @brief destroys the given dictionary table
  * @param table  the table to destroy
  */
-void dict_destroy(Map *table);
+void dict_destroy(dict *table);
 /**
  * @brief inserts the given key and value into the table
  * @param table the table to insert into
@@ -52,38 +52,38 @@ void dict_destroy(Map *table);
  * @param value the value to insert
  * @return true if the key was inserted, false if the key already exists
  */
-b8 dict_set(Map *table, const char *key, void *value);
+b8 dict_set(dict *table, const char *key, void *value);
 /**
  * @brief looks up the given key in the table
  * @param table the table to look in
  * @param key the key to look for
  * @return the value associated with the key, or null if the key does not exist
  */
-void *dict_get(Map *table, const char *key);
+void *dict_get(dict *table, const char *key);
 /**
  * @brief removes the given key from the table
  * @param table the table to remove from
  * @param key the key to remove
  */
-void *dict_remove(Map *table, const char *key);
+void *dict_remove(dict *table, const char *key);
 
 /**
  * @brief converts the given table to a string
  * @param table
  * @return
  */
-char *dict_to_string(Map *table);
+char *dict_to_string(dict *table);
 
 /**
  * @brief clears the given table
  * @param table  the table to check
  */
-void dict_clear(Map *table);
+void dict_clear(dict *table);
 
 /**
  * @brief creates a new iterator for the given table
  */
-idict dict_iterator(Map *table);
+idict dict_iterator(dict *table);
 
 /**
  * @brief moves the iterator to the next element

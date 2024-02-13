@@ -1,6 +1,6 @@
-#include "core/str.h"
-#include "core/mem.h"
-#include "logger.h"
+#include "core/vstring.h"
+#include "vmem.h"
+#include "vlogger.h"
 
 #include <string.h>
 #include <stdarg.h>

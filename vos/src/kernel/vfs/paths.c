@@ -1,8 +1,8 @@
 #include <string.h>
 #include "paths.h"
-#include "core/logger.h"
-#include "core/mem.h"
-#include "core/str.h"
+#include "core/vlogger.h"
+#include "core/vmem.h"
+#include "core/vstring.h"
 
 typedef struct PathContext {
     // The root directory.
@@ -41,7 +41,8 @@ char *path_normalize(char *path) {
         kfree(normalized_path, j + 1, MEMORY_TAG_VFS);
         normalized_path = new_path;
     }
-    
+    //free the passed path
+//    kfree(path, len + 1, MEMORY_TAG_VFS);
     // Removed kfree(path, len + 1, MEMORY_TAG_VFS);
     return normalized_path;
 }
@@ -109,17 +110,14 @@ char *path_absolute(char *path) {
     size_t total_length =
             strlen(path_context->current_directory) + strlen(path) + 1; // +1 for the separator or terminator
     char *absolute_path = kallocate(total_length, MEMORY_TAG_VFS);
-    
-    if (absolute_path == NULL) {
-        verror("Failed to allocate memory for absolute path.");
-        return NULL;
-    }
     vdebug("current directory: %s", path_context->current_directory)
     vdebug("path: %s", path)
     strcpy(absolute_path, path_context->current_directory);
     strcat(absolute_path, "/"); // Ensure there's a separator
     strcat(absolute_path, path);
-    return path_normalize(absolute_path);
+    char *result = path_normalize(absolute_path);
+    //free the absolute path
+    return result;
 }
 
 /**

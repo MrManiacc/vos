@@ -1,18 +1,18 @@
 #include "asset.h"
-#include "containers/Map.h"
-#include "core/mem.h"
-#include "core/logger.h"
+#include "containers/dict.h"
+#include "core/vmem.h"
+#include "core/vlogger.h"
 #include "containers/darray.h"
 #include "kernel/vfs/paths.h"
 #include "lua_asset.h"
 #include "dir_asset.h"
-#include "core/str.h"
+#include "core/vstring.h"
 
 #define MAX_ASSET_LOADERS 142
 
 typedef struct AssetContext {
     // The asset map.
-    Map *asset_map;
+    dict *asset_map;
     // The asset loaders.
     AssetLoader *asset_loaders[MAX_ASSET_LOADERS];
     //the number of asset loaders.
@@ -142,24 +142,24 @@ b8 asset_unload(AssetPath path) {
     if (asset == null) {
         return false;
     }
+    b8 unloaded = false;
     // Unload the asset using the appropriate loader.
     for (u32 i = 0; i < asset_context->asset_loader_count; i++) {
         AssetLoader *loader = asset_context->asset_loaders[i];
         if (loader->is_supported(&path)) {
-            vdebug("Asset [%s] unloaded at path %s", path_file_name((char *) path.path), path.path);
+//            vdebug("Asset [%s] unloaded at path %s", path_file_name((char *) path.path), path.path);
             asset->state = ASSET_STATE_UNLOADING;
             if (loader->unload) {
                 loader->unload(asset); // Assuming unload function takes care of asset data.
+                unloaded = true;
             }
-            
-            // Remove the asset from the asset map
-            dict_remove(asset_context->asset_map, path.path);
-            kfree(asset, sizeof(AssetHandle), MEMORY_TAG_ASSET);
-            return true;
         }
     }
-    vwarn("Asset [%s] not supported", path_file_name((char *) path.path));
-    return false;
+    // Remove the asset from the asset map
+    dict_remove(asset_context->asset_map, path.path);
+    kfree(asset->path, sizeof(AssetPath), MEMORY_TAG_ASSET);
+    kfree(asset, sizeof(AssetHandle), MEMORY_TAG_ASSET);
+    return unloaded;
 }
 
 /**
@@ -178,14 +178,16 @@ b8 asset_manager_shutdown() {
         path.path = it.entry->key;
         if (!asset_unload(path)) {
             vwarn("Failed to unload asset at path %s", path.path);
+        } else {
+            vinfo("Asset at path %s unloaded.", path.path);
         }
     }
-    dict_destroy(asset_context->asset_map);
-    for (u32 i = 0; i < asset_context->asset_loader_count; ++i) {
+    
+    //iterate our assets loaders and free them
+    for (u32 i = 0; i < asset_context->asset_loader_count; i++) {
         kfree(asset_context->asset_loaders[i], sizeof(AssetLoader), MEMORY_TAG_ASSET);
     }
-    
-    
+    dict_destroy(asset_context->asset_map);
     kfree(asset_context, sizeof(AssetContext), MEMORY_TAG_ASSET);
     vdebug("Asset manager destroyed.");
     return true;

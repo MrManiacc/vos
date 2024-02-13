@@ -6,8 +6,8 @@
 #include "defines.h"
 #include "kernel/phost.h"
 #include "kernel/kernel.h"
-#include "core/logger.h"
-#include "core/event.h"
+#include "core/vlogger.h"
+#include "core/vevent.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
@@ -15,11 +15,10 @@
 #include "kernel/vfs/paths.h"
 
 #include "raylib.h"
-#include "core/str.h"
+#include "core/vstring.h"
 #include "kernel/asset/asset.h"
 
 int main(int argc, char **argv) {
-    
     //If no arguments are passed, then we are running in the runtime and use the current working directory.
     //Otherwise, we are running in the editor and use the first argument as the root path.
     char *root_path = null;
@@ -38,7 +37,7 @@ int main(int argc, char **argv) {
     lua_ctx(update)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     SetTraceLogLevel(LOG_ERROR);
-    InitWindow(800, 600, "VOS");
+    InitWindow(1280, 720, "VOS");
     SetTargetFPS(270);
     while (!WindowShouldClose()) {
         BeginDrawing();
@@ -47,7 +46,6 @@ int main(int argc, char **argv) {
         kernel_poll_update();
         EndDrawing();
     }
-    
     CloseWindow();
     KernelResult shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {

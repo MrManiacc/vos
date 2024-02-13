@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "kresult.h"
-#include "core/mem.h"
+#include "core/vmem.h"
 #include "phost.h"
 
 /**

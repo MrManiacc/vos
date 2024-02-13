@@ -2,18 +2,19 @@
  * Created by jraynor on 8/26/2023.
  */
 #include "luahost.h"
-#include "core/logger.h"
+#include "core/vlogger.h"
 #include <lauxlib.h>
 #include <lualib.h>
 #include <string.h>
 #include <raylib.h>
 #include "luahost.h"
-#include "core/event.h"
-#include "core/str.h"
-#include "core/mem.h"
+#include "core/vevent.h"
+#include "core/vstring.h"
+#include "core/vmem.h"
 #include "kernel/vfs/vfs.h"
-#include "containers/Map.h"
+#include "containers/dict.h"
 #include "kernel/vfs/paths.h"
+#include "kernel/asset/asset.h"
 
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
@@ -39,13 +40,13 @@ int lua_execute_process(lua_State *L) {
     Process *process;
     // Get the process name
     if (arg_type == LUA_TSTRING) {
-        const char *process_name = lua_tostring(L, 1);
-        
-        //        vdebug("Executing process at: %s", process_name);
-        //TODO: create process by looking up asset
+//        const char *process_name = lua_tostring(L, 1);
+//
+//        vdebug("Executing process at: %s", process_name);
+//        Asset *asset = fs_load_asset(process_name);
 //        Process *process = kernel_create_process(process_name);
-//        if (!is_kernel_success(result.code)) {
-//            verror("Failed to create process: %s", get_kernel_result_message(result));
+//        if (process == null) {
+//            verror("Failed to create process: %s", process_name);
 //            return 1;
 //        }
 //
@@ -55,16 +56,23 @@ int lua_execute_process(lua_State *L) {
 //            return 1;
 //        }
 //        process = lookup_result.data;
-//        process_start(process);
+//        if (!process_start(process)) {
+//            verror("Failed to start process: %s", process_name);
+//            return 1;
+//        } else {
+//            vinfo("Process %s started, pid %d", process_name, process->pid);
+//            //push the process id to the stack
+//            lua_pushinteger(L, process->pid);
+//        }
     } else {
-        int process_id = lua_tointeger(L, 1);
-        vdebug("Executing process main function with id: %d", process_id);
-        KernelResult result = kernel_lookup_process((ProcessID) process_id);
+        ProcessID process_id = (ProcessID) lua_tointeger(L, 1);
+        KernelResult result = kernel_lookup_process(process_id);
         if (!is_kernel_success(result.code)) {
             verror("Failed to lookup process: %s", get_kernel_result_message(result));
             return 1;
         }
         process = result.data;
+        vdebug("Executing process %s's main function with pid: %d", process->process_name, process_id);
     }
     if (process == null) {
         verror("Failed to execute process, process is null");
@@ -74,9 +82,12 @@ int lua_execute_process(lua_State *L) {
         verror("Failed to execute process, lua state is null");
         return 1;
     }
+    // TODO: check if it exists, if it doesn't we treat it like a library
+    // Execute the main function
     lua_getglobal(process->lua_state, "main");
-    if (lua_pcall(process->lua_state, 0, 0, 0) != 0) {
-        verror("Failed to execute process: %s", lua_tostring(L, -1));
+    if (lua_pcall(process->lua_state, 0, 0, 0) != LUA_OK) {
+        verror("Error executing Lua main function: %s", lua_tostring(process->lua_state, -1));
+        lua_pop(process->lua_state, 1); // Remove error message
     }
     return 0;
 }
@@ -515,8 +526,6 @@ static asset_loader *lua_loader;
 
 void load_lua_asset(Node *node, Asset *asset) {
 //    asset->path = path_relative((char *) node->path);
-    
-    
     asset->path = node->path;
     asset->data = node->data.file.data;
     asset->size = node->data.file.size;
@@ -528,7 +537,7 @@ void load_lua_asset(Node *node, Asset *asset) {
     if (strings_equal(process->process_name, "init")) {
         process_start(process);
     }
-//    process_start(process);
+    
 }
 
 void unload_lua_asset(Node *node) {
@@ -566,6 +575,8 @@ b8 initialize_syscalls() {
 }
 
 b8 shutdown_syscalls() {
-    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
+//TODO: probably need to do some more cleanup here
+//    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
     kfree(lua_loader, sizeof(asset_loader), MEMORY_TAG_KERNEL);
+    return true;
 }

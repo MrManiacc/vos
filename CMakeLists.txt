@@ -5,7 +5,7 @@ find_package(raylib CONFIG REQUIRED)
 find_package(Lua REQUIRED)
 find_package(unofficial-tree-sitter CONFIG REQUIRED)
 #-static-libgcc -static-libstdc++ to g++
-set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,--as-needed -lkernel32")
 
 add_subdirectory(vos)
 add_subdirectory(app)

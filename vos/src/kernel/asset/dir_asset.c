@@ -1,12 +1,12 @@
 #include "lua_asset.h"
-#include "core/mem.h"
-#include "core/logger.h"
+#include "core/vmem.h"
+#include "core/vlogger.h"
 #include <sys/stat.h>
 #include <dirent.h>
 #include "kernel/vfs/paths.h"
-#include "core/str.h"
+#include "core/vstring.h"
 #include "asset_watcher.h"
-#include "core/logger.h"
+#include "core/vlogger.h"
 
 b8 directory_is_supported(AssetPath *path) {
     // check if the directory is a file or a directory.
@@ -30,6 +30,7 @@ typedef struct DirectoryAssetData {
 // Loads a directory from the disk. The asset data will be a darray of the files in the directory.
 // This WILL load subdirectories recursively.
 AssetData *directory_load(AssetPath *path) {
+    vdebug("Loading directory: %s", path->path);
     //get the directory path
     char *sys_path = path_to_platform((char *) path->path);
     DirectoryAssetData *data = kallocate(sizeof(DirectoryAssetData), MEMORY_TAG_VFS);
@@ -40,7 +41,6 @@ AssetData *directory_load(AssetPath *path) {
     AssetData *asset_data = kallocate(sizeof(AssetData), MEMORY_TAG_VFS);
     asset_data->data = data;
     asset_data->size = sizeof(DirectoryAssetData);
-    
     
     //recursive load
     //list all the files in the directory
@@ -72,16 +72,18 @@ AssetData *directory_load(AssetPath *path) {
 }
 
 void directory_unload(AssetHandle *asset) {
+    AssetPath *path = asset->path;
+    vdebug("Unloading directory: %s", path->path);
 //    if (!asset || !asset->data) return; // Safety check
 //
 //    DirectoryAssetData *data = (DirectoryAssetData *) asset->data->data;
 ////
 ////    // Ensure the watcher is properly shutdown and freed.
-////    if (data->watcher) {
-////        asset_watcher_shutdown(data->watcher); // Properly handle the watcher's cleanup.
-////        kfree(data->watcher, sizeof(AssetWatcher), MEMORY_TAG_VFS);
-////        data->watcher = NULL; // Avoid dangling pointer.
-////    }
+//    if (data->watcher) {
+//        asset_watcher_shutdown(data->watcher); // Properly handle the watcher's cleanup.
+//        kfree(data->watcher, sizeof(AssetWatcher), MEMORY_TAG_VFS);
+//        data->watcher = NULL; // Avoid dangling pointer.
+//    }
 //
 //    // Log the path being unloaded, if available.
 //    if (data->path && data->path->path) {
@@ -89,12 +91,17 @@ void directory_unload(AssetHandle *asset) {
 //    }
 //
 //    // Free the DirectoryAssetData itself.
-//    kfree(data, sizeof(DirectoryAssetData), MEMORY_TAG_VFS);
+    kfree(asset->data->data, sizeof(DirectoryAssetData), MEMORY_TAG_VFS);
+    // Delete the handle
+//    kfree(asset->data->data, asset->data->size, MEMORY_TAG_VFS);
+    kfree(asset->data, sizeof(AssetData), MEMORY_TAG_VFS);
+    asset->data = NULL;
+    asset->state = ASSET_STATE_UNLOADED;
 }
 
 // The asset manager context.
 AssetLoader *system_directory_asset_loader() {
-    AssetLoader *loader = kallocate(sizeof(AssetLoader), MEMORY_TAG_ASSET);
+    AssetLoader *loader = kallocate(sizeof(AssetLoader), MEMORY_TAG_VFS);
     loader->is_supported = directory_is_supported;
     loader->load = directory_load;
     loader->unload = directory_unload;

@@ -1,15 +1,13 @@
 #include "kernel.h"
 #include "containers/darray.h"
-#include "core/mem.h"
-#include "core/logger.h"
+#include "core/vmem.h"
+#include "core/vlogger.h"
 #include "luahost.h"
-#include "core/event.h"
-#include "core/timer.h"
-#include "containers/Map.h"
+#include "core/vevent.h"
+#include "core/vtimer.h"
+#include "containers/dict.h"
 #include "kernel/asset/asset.h"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
 
 // Get the next available ID from the pool.
 ProcessID id_pool_next_id();
@@ -20,17 +18,25 @@ b8 id_exists_in_stack(IDPool *pool, ProcessID id);
 
 static KernelContext *kernel_context = null;
 static b8 kernel_initialized = false;
-static Map *processes_by_name = null;
+static dict *processes_by_name = null;
 
 KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
-//    path_move(root_path);
+    // Memory system must be the first thing to be stood up.
+    memory_system_configuration memory_system_config = {};
+    memory_system_config.total_alloc_size = GIBIBYTES(2);
+    if (!memory_system_initialize(memory_system_config)) {
+        verror("Failed to initialize memory system; shutting down.");
+        return (KernelResult) {KERNEL_ERROR_OUT_OF_MEMORY, null};
+    }
+    
+    initialize_logging();
     asset_manager_initialize(root_path);
     vdebug("Root path: %s", root_path)
-    initialize_memory();
+    
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(Process *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     //make sure the processes array is zeroed out
@@ -51,9 +57,9 @@ KernelResult kernel_initialize(char *root_path) {
 }
 
 Process *kernel_create_process(Asset *script_asset) {
-    if (!kernel_initialized) {
-        return NULL;
-    }
+    if (!kernel_initialized) return null;
+    
+    // Check if a process with the same name already exists.
     if (dict_get(processes_by_name, script_asset->path) != null) {
         vwarn("Process already exists with name %s", script_asset->path)
         return null;
@@ -64,7 +70,7 @@ Process *kernel_create_process(Asset *script_asset) {
     ProcessID pid = id_pool_next_id();
     if (pid == MAX_PROCESSES) {
         vwarn("Maximum number of processes reached")
-        return NULL;
+        return null;
     }
     process->pid = pid;
     initialize_syscalls_for(process);
@@ -108,7 +114,7 @@ KernelResult kernel_destroy_process(ProcessID pid) {
     }
     dict_remove(processes_by_name, process->script_asset->path);
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
-//    kfree(process->script_asset->data, string_length(process->script_asset->data), MEMORY_TAG_VFS);
+    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
     kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_VFS);
     process_destroy(process);
     id_pool_release_id(pid);
@@ -118,8 +124,10 @@ KernelResult kernel_destroy_process(ProcessID pid) {
     return result;
 }
 
+//TODO more advanced process lookup with wildcards and such
 Process *kernel_locate_process(const char *name) {
     if (!kernel_initialized) {
+        vtrace("Attempted to locate process before initialization")
         return null;
     }
     Process *process = dict_get(processes_by_name, name);
@@ -134,6 +142,8 @@ KernelResult kernel_shutdown() {
         KernelResult result = {KERNEL_ALREADY_SHUTDOWN, null};
         return result;
     }
+    shutdown_logging();
+    
     //TODO: do we need to destroy the processes?
     
     IDPool *pool = kernel_context->id_pool;
@@ -152,10 +162,10 @@ KernelResult kernel_shutdown() {
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};
     timer_cleanup();
-    shutdown_memory();
-    shutdown_syscalls();
     event_shutdown();
-    vinfo("Mem usuage: %s", get_memory_usage_str())
+    shutdown_syscalls();
+    vinfo("Mem usage: %s", get_memory_usage_str())
+    memory_system_shutdown();
     return result;
 }
 
@@ -193,5 +203,3 @@ b8 id_exists_in_stack(IDPool *pool, ProcessID id) {
     }
     return false;
 }
-
-#pragma clang diagnostic pop

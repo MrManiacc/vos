@@ -3,9 +3,9 @@
 #include <string.h>
 #include "phost.h"
 
-#include "core/mem.h"
-#include "core/logger.h"
-#include "core/str.h"
+#include "core/vmem.h"
+#include "core/vlogger.h"
+#include "core/vstring.h"
 
 #include "platform/platform.h"
 #include "containers/darray.h"
@@ -44,7 +44,7 @@ b8 process_remove_child(Process *parent, ProcessID child_id) {
             return true;
         }
     }
-
+    
     return false;
 }
 
@@ -59,11 +59,11 @@ void process_destroy(Process *process) {
     // Free the process
     lua_close(process->lua_state);
     process->pid = 0;
-    //destroy the asset
-//    Asset *asset = process->script_asset;
-//    if (asset != NULL) {
-//        kfree(asset->data, string_length(asset->data), MEMORY_TAG_VFS);
-//    }
+    //free the proc name
+    kfree(process->process_name, string_length(process->process_name), MEMORY_TAG_STRING);
+    
+    
+    process->process_name = NULL;
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
 }
 

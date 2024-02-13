@@ -1,9 +1,9 @@
-#include "timer.h"
-#include "containers/Map.h"
+#include "vtimer.h"
+#include "containers/dict.h"
 #include <time.h>
 #include <pthread.h>
-#include "core/mem.h"
-#include "logger.h"
+#include "vmem.h"
+#include "vlogger.h"
 
 typedef struct {
   time_t expiration_time;
@@ -11,7 +11,7 @@ typedef struct {
   void *data;
 } TimerData;
 
-static Map *timers = NULL;
+static dict *timers = NULL;
 
 void timer_initialize() {
     if (timers != NULL) {

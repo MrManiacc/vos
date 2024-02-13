@@ -1,15 +1,15 @@
-#include "core/event.h"
+#include "core/vevent.h"
 
-#include "core/mem.h"
+#include "vmem.h"
 #include "containers/darray.h"
 
 typedef struct registered_event {
-  void *listener;
-  PFN_on_event callback;
+    void *listener;
+    PFN_on_event callback;
 } registered_event;
 
 typedef struct event_code_entry {
-  registered_event *events;
+    registered_event *events;
 } event_code_entry;
 
 // This should be more than enough codes...
@@ -17,8 +17,8 @@ typedef struct event_code_entry {
 
 // State structure.
 typedef struct event_system_state {
-  // Lookup table for event codes.
-  event_code_entry registered[MAX_MESSAGE_CODES];
+    // Lookup table for event codes.
+    event_code_entry registered[MAX_MESSAGE_CODES];
 } event_system_state;
 
 /**
@@ -33,9 +33,9 @@ b8 event_initialize() {
     }
     is_initialized = false;
     kzero_memory(&state, sizeof(state));
-
+    
     is_initialized = true;
-
+    
     return true;
 }
 
@@ -53,11 +53,11 @@ b8 event_register(u16 code, void *listener, PFN_on_event on_event) {
     if (is_initialized == false) {
         return false;
     }
-
+    
     if (state.registered[code].events == 0) {
         state.registered[code].events = darray_create(registered_event);
     }
-
+    
     u64 registered_count = darray_length(state.registered[code].events);
     for (u64 i = 0; i < registered_count; ++i) {
         if (state.registered[code].events[i].listener == listener) {
@@ -65,30 +65,29 @@ b8 event_register(u16 code, void *listener, PFN_on_event on_event) {
             return false;
         }
     }
-
-
+    
+    
     // If at this point, no duplicate was found. Proceed with registration.
     registered_event event;
     event.listener = listener;
     event.callback = on_event;
     darray_push(state.registered[code].events, event);
-
+    
     return true;
 }
-
 
 
 b8 event_unregister(u16 code, void *listener, PFN_on_event on_event) {
     if (is_initialized == false) {
         return false;
     }
-
+    
     // On nothing is registered for the code, boot out.
     if (state.registered[code].events == 0) {
         // TODO: warn
         return false;
     }
-
+    
     u64 registered_count = darray_length(state.registered[code].events);
     for (u64 i = 0; i < registered_count; ++i) {
         registered_event e = state.registered[code].events[i];
@@ -99,7 +98,7 @@ b8 event_unregister(u16 code, void *listener, PFN_on_event on_event) {
             return true;
         }
     }
-
+    
     // Not found.
     return false;
 }
@@ -108,12 +107,12 @@ b8 event_fire(u16 code, void *sender, event_context context) {
     if (is_initialized == false) {
         return false;
     }
-
+    
     // If nothing is registered for the code, boot out.
     if (state.registered[code].events == 0) {
         return false;
     }
-
+    
     u64 registered_count = darray_length(state.registered[code].events);
     for (u64 i = 0; i < registered_count; ++i) {
         registered_event e = state.registered[code].events[i];
@@ -122,7 +121,7 @@ b8 event_fire(u16 code, void *sender, event_context context) {
             return true;
         }
     }
-
+    
     // Not found.
     return false;
 }
