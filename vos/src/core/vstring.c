@@ -1,20 +1,102 @@
 #include "core/vstring.h"
 #include "vmem.h"
 #include "vlogger.h"
+#include "containers/dict.h"
+#include "containers/ptrhash.h"
+#include "containers/darray.h"
 
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+
+
+// a tracked allocation of a string
+typedef struct StringAllocation {
+    char *string;
+    u64 length;
+    u64 tag;
+} StringAllocation;
+
+static void **string_allocations = NULL;
+
+void initialize_string_module() {
+    string_allocations = darray_create(StringAllocation*);
+}
+
+void shutdown_string_module() {
+    if (!string_allocations) return;
+    
+    for (u64 i = 0; i < darray_length(string_allocations); ++i) {
+        StringAllocation *allocation = *(StringAllocation **) darray_get(string_allocations, i);
+        if (allocation) {
+            // free the string and the allocation
+//            vdebug("Freeing string: %s", allocation->string)
+            kfree(allocation->string, allocation->length + 1, allocation->tag); // Free the string
+            kfree(allocation, sizeof(StringAllocation), MEMORY_TAG_STRING); // Free the allocation struct
+            //remove from the hash table
+        }
+    }
+    
+    darray_destroy(string_allocations);
+    string_allocations = NULL;
+}
+
+// Allocate a string with tracking
+char *string_allocate_empty(u64 length) {
+    char *copiedString = kallocate(length + 1, MEMORY_TAG_STRING);
+    kzero_memory(copiedString, length + 1);
+    
+    StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
+    allocation->string = copiedString;
+    allocation->length = length;
+    allocation->tag = MEMORY_TAG_STRING;
+    
+    darray_push(string_allocations, allocation);
+    return copiedString;
+}
+
+
+char *string_allocate_sized(const char *input, u64 length) {
+    
+    char *copiedString = kallocate(length + 1, MEMORY_TAG_STRING);
+    kcopy_memory(copiedString, input, length + 1);
+    
+    StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
+    allocation->string = copiedString;
+    allocation->length = length;
+    allocation->tag = MEMORY_TAG_STRING;
+    
+    darray_push(string_allocations, allocation);
+    return copiedString;
+}
+
+char *string_allocate(const char *input) {
+    if (!input) return null;
+    return string_allocate_sized(input, string_length(input));
+}
+
+void string_deallocate(char *str) {
+    if (!str) return;
+    //Finds the allocation and removes it from the darray
+    for (u64 i = 0; i < darray_length(string_allocations); ++i) {
+        StringAllocation *allocation = *(StringAllocation **) darray_get(string_allocations, i);
+        if (strings_equal(allocation->string, str)) {
+            kfree(allocation->string, allocation->length + 1, allocation->tag); // Free the string
+            kfree(allocation, sizeof(StringAllocation), MEMORY_TAG_STRING); // Free the allocation struct
+            darray_remove(string_allocations, allocation);
+            return;
+        }
+    }
+}
+
 
 inline u64 string_length(const char *str) {
     return strlen(str);
 }
 
 inline char *string_duplicate(const char *str) {
-    u64 length = string_length(str);
-    char *copy = kallocate(length + 1, MEMORY_TAG_STRING);
-    kcopy_memory(copy, str, length + 1);
-    return copy;
+    if (!str) return null;
+    return string_allocate(str);;
 }
 
 // Case-sensitive string comparison. True if the same, otherwise false.
@@ -41,13 +123,35 @@ b8 string_starts_with(const char *str, const char *substr) {
 }
 
 char *string_concat(const char *str0, const char *str1) {
+    if (!str0 || !str1) return null;
     u64 str0_len = string_length(str0);
     u64 str1_len = string_length(str1);
-    char *result = kallocate(str0_len + str1_len + 1, MEMORY_TAG_STRING);
+    char *result = kallocate(str0_len + str1_len + 1, MEMORY_TAG_STRING); // Allocate once
     kcopy_memory(result, str0, str0_len);
-    kcopy_memory(result + str0_len, str1, str1_len);
+    kcopy_memory(result + str0_len, str1, str1_len + 1); // Include null terminator
     result[str0_len + str1_len] = '\0';
+    
+    // Track the allocation right after creating it
+    StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
+    allocation->string = result;
+    allocation->length = str0_len + str1_len;
+    allocation->tag = MEMORY_TAG_STRING;
+    ptr_hash_table_set(string_allocations, result, allocation);
+    
     return result;
+}
+
+// Lowercase conversion with tracking
+char *string_to_lower(const char *input) {
+    if (input == NULL) return NULL;
+    u32 len = strlen(input);
+    char *lowercase_str = kallocate(len + 1, MEMORY_TAG_STRING);
+    for (u32 i = 0; i < len; ++i) {
+        lowercase_str[i] = input[i] >= 'A' && input[i] <= 'Z' ? input[i] + 32 : input[i];
+    }
+    lowercase_str[len] = '\0';
+    string_allocate_sized(lowercase_str, len);
+    return lowercase_str;
 }
 
 b8 string_ends_with(const char *str, const char *substr) {
@@ -111,38 +215,22 @@ char *string_replace(const char *str, const char *substr, const char *replacemen
     return result;
 }
 
-inline char *string_format(const char *str, ...) {
+// Format string with tracking
+char *string_format(const char *str, ...) {
     va_list args;
     va_start(args, str);
-    char *result = kallocate(1024, MEMORY_TAG_STRING);
-    vsprintf(result, str, args);
+    char formatted[1024]; // Assuming 1024 is enough; adjust as needed
+    vsprintf(formatted, str, args);
     va_end(args);
-    return result;
+    return string_allocate(formatted);;
 }
 
-char *string_to_lower(const char *input) {
-    if (input == NULL) {
-        return NULL;
-    }
-    u32 len = strlen(input);
-    char *lowercase_str = kallocate(len + 1, MEMORY_TAG_STRING);
-    for (u32 i = 0; i < len; ++i) {
-        if (input[i] >= 'A' && input[i] <= 'Z') {
-            lowercase_str[i] = input[i] + ('a' - 'A');
-        } else {
-            lowercase_str[i] = input[i];
-        }
-    }
-    lowercase_str[len] = '\0';  // Null-terminate the string
-    return lowercase_str;
-}
 
+// Append strings with tracking
 char *string_append(const char *str, const char *append) {
-    u64 str_len = string_length(str);
-    u64 append_len = string_length(append);
-    char *result = kallocate(str_len + append_len + 1, MEMORY_TAG_STRING);
-    kcopy_memory(result, str, str_len);
-    kcopy_memory(result + str_len, append, append_len);
-    result[str_len + append_len] = '\0';
-    return result;
+    if (!str || !append) return null;
+    return string_concat(str, append); // Reuse string_concat for efficiency and tracking
 }
+
+
+

@@ -8,6 +8,7 @@
 #include "containers/dict.h"
 #include "kernel/asset/asset.h"
 #include "resource/resource.h"
+#include "core/vstring.h"
 
 // Get the next available ID from the pool.
 ProcessID id_pool_next_id();
@@ -32,7 +33,7 @@ KernelResult kernel_initialize(char *root_path) {
         verror("Failed to initialize memory system; shutting down.");
         return (KernelResult) {KERNEL_ERROR_OUT_OF_MEMORY, null};
     }
-    
+    initialize_string_module();
     initialize_logging();
     asset_manager_initialize(root_path);
     resource_init(root_path);
@@ -57,7 +58,7 @@ KernelResult kernel_initialize(char *root_path) {
     return result;
 }
 
-Process *kernel_create_process(Asset *script_asset) {
+Process *kernel_create_process(NodeData *script_asset) {
     if (!kernel_initialized) return null;
     
     // Check if a process with the same name already exists.
@@ -115,8 +116,8 @@ KernelResult kernel_destroy_process(ProcessID pid) {
     }
     dict_remove(processes_by_name, process->script_asset->path);
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
-    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
-    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_VFS);
+//    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
+//    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_ASSET);
     process_destroy(process);
     id_pool_release_id(pid);
 
@@ -163,6 +164,7 @@ KernelResult kernel_shutdown() {
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     KernelResult result = {KERNEL_SUCCESS, null};
+    shutdown_string_module();
     timer_cleanup();
     event_shutdown();
     shutdown_syscalls();

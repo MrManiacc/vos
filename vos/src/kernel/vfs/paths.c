@@ -18,32 +18,31 @@ char *path_normalize(char *path) {
     if (path == NULL) {
         return NULL;
     }
-    u32 len = strlen(path);
-    char *normalized_path = kallocate(len + 1, MEMORY_TAG_VFS);
+    // Allocate enough space for the normalized path
+    char *normalized_path = string_allocate_empty(
+            string_length(path) + 1); // Use string_allocate for initial allocation
     u32 j = 0;
-    for (u32 i = 0; i < len; ++i) {
+    for (u32 i = 0; i < strlen(path); ++i) {
         if (path[i] == '\\') {
             normalized_path[j] = '/';
         } else if (path[i] == ':') {
             continue;  // Skip the colon
         } else {
-            normalized_path[j] = path[i];  // Convert to lowercase
+            normalized_path[j] = path[i];
         }
         j++;
     }
     normalized_path[j] = '\0';  // Null-terminate the string
     
-    // Make sure it starts with a slash
+    // Ensure it starts with a slash
     if (normalized_path[0] != '/') {
-        char *new_path = kallocate(j + 2, MEMORY_TAG_VFS);
-        strcpy(new_path + 1, normalized_path);
+        char *new_path = string_allocate_empty(j + 2); // Use string_allocate for the new path
         new_path[0] = '/';
-        kfree(normalized_path, j + 1, MEMORY_TAG_VFS);
+        strcpy(new_path + 1, normalized_path);
+        string_deallocate(normalized_path); // Use string_deallocate to free the original normalized path
         normalized_path = new_path;
     }
-    //free the passed path
-//    kfree(path, len + 1, MEMORY_TAG_VFS);
-    // Removed kfree(path, len + 1, MEMORY_TAG_VFS);
+    
     return normalized_path;
 }
 
@@ -78,12 +77,12 @@ char *path_relative(char *path) {
  *
  * ‼️This must be called at least once before any other path functions are called.‼️
  */
-void path_move(char *path) {
-    char *normalized = path_normalize(string_duplicate(path));
-    vdebug("normalized path: %s", normalized)
+
+// Example modification for path_move to demonstrate the pattern:
+void path_init(char *path) {
+    char *normalized = path_normalize(string_duplicate(path)); // Use string_duplicate for tracking
     if (path_context == null) {
-        //Initialize the path context.
-        path_context = kallocate(sizeof(PathContext), MEMORY_TAG_VFS);
+        path_context = kallocate(sizeof(PathContext), MEMORY_TAG_VFS); // Keep as is; non-string allocation
         path_context->root_directory = null;
         path_context->current_directory = null;
     }
@@ -93,11 +92,20 @@ void path_move(char *path) {
         path_context->current_directory = normalized;
     } else {
         if (path_context->current_directory != path_context->root_directory) {
-            kfree(path_context->current_directory, strlen(path_context->current_directory) + 1, MEMORY_TAG_VFS);
+            string_deallocate(path_context->current_directory); // Use string_deallocate to free the current directory
         }
         path_context->current_directory = normalized;
     }
 }
+
+void path_shutdown() {
+    if (path_context == null) {
+        return;
+    }
+    kfree(path_context, sizeof(PathContext), MEMORY_TAG_VFS); // Keep as is; non-string allocation
+    path_context = null;
+}
+
 
 char *path_absolute(char *path) {
     if (path == NULL || path_context == NULL || path_context->current_directory == NULL) {
@@ -205,8 +213,10 @@ char *path_to_platform(char *path) {
         return NULL; // Added NULL check
     }
     u32 len = strlen(path);
-    char *platform_path = kallocate(len + 2, MEMORY_TAG_VFS);  // Allocate new memory
+    char *platform_path = string_allocate_sized(path, len + 2);
     strcpy(platform_path, path);  // Copy the original path
+    
+    
     
     // Transform '/' to '\\'
     for (u32 i = 0; i < len; ++i) {

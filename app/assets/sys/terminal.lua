@@ -14,7 +14,7 @@ local function _initializeProperties(self, config)
         version = "0.1.3b",
         commands = {},
         history = {},
-        history_index = 0,
+        history_index = 1,
         input = " "
     }
     self.text = {
@@ -84,8 +84,6 @@ end
 --- Resets the command state after execution.
 -- This is a local function and is not meant to be called externally.
 local function _resetCommandState(self)
-    table.insert(self.internal.history, command)
-    self.internal.history_index = #self.internal.history + 1
     self.internal.input = ">"
     self.cursor_position = 2
 end
@@ -111,14 +109,17 @@ function Terminal:execute_command(command)
             if #args == 0 then
                 callback()
             else
-                callback(unpack(args))
+                callback(table.unpack(args))
             end
         end
+
     else
         self.text.value = self.text.value .. "\nUnknown command: " .. cmd
 
     end
-
+    -- store the command in the history
+    self.internal.history[self.internal.history_index] = cmd
+    self.internal.history_index = self.internal.history_index + 1
     _resetCommandState(self)
 end
 
@@ -234,9 +235,25 @@ local function _handleKeyInput(self)
         self.cursor_position = #self.internal.input + 1
     end)
 
-    -- Handle page up+
-    handleKeyRepeat(keys.KEY_PAGE_UP, function()
+    -- Handle up arrow (previous command in history)
+    handleKeyRepeat(keys.KEY_UP, function()
+        print(self.internal.history_index)
+        if self.internal.history_index > 1 then
+            self.internal.history_index = self.internal.history_index - 1
+            self.internal.input = self.internal.history[self.internal.history_index]
+            self.cursor_position = #self.internal.input
+        end
     end)
+
+    -- Handle down arrow (next command in history)
+    handleKeyRepeat(keys.KEY_DOWN, function()
+        if self.internal.history_index < #self.internal.history then
+            self.internal.history_index = self.internal.history_index + 1
+            self.internal.input = self.internal.history[self.internal.history_index]
+            self.cursor_position = #self.internal.input
+        end
+    end)
+
 
 end
 

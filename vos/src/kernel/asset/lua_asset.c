@@ -26,6 +26,7 @@ b8 lua_file_is_supported(AssetPath *path) {
 }
 
 
+
 AssetData *lua_file_load(AssetPath *path) {
     char *sys_path = path_to_platform((char *) path->path);
 //
@@ -42,9 +43,13 @@ AssetData *lua_file_load(AssetPath *path) {
     fseek(file, 0, SEEK_SET);
     if (size == 0) {
         fclose(file);
-        verror("File is empty: %s", sys_path);
+        vwarn("File is empty: %s, loading stub data", sys_path);
         kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);
-        return NULL;
+        // return a stub asset data
+        AssetData *asset_data = kallocate(sizeof(AssetData), MEMORY_TAG_VFS);
+        asset_data->data = kallocate(1, MEMORY_TAG_VFS);
+        asset_data->size = 1;
+        return asset_data;
     }
     char *data = kallocate(size, MEMORY_TAG_VFS);
     
@@ -69,6 +74,8 @@ void lua_file_unload(AssetHandle *asset) {
     // Free the memory associated with the asset
     kfree(asset->data->data, asset->data->size, MEMORY_TAG_VFS);
     kfree(asset->data, sizeof(AssetData), MEMORY_TAG_VFS);
+    //destroy the asset
+    
     asset->data = NULL;
     asset->state = ASSET_STATE_UNLOADED;
 }

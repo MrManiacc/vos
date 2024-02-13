@@ -30,7 +30,7 @@ b8 asset_manager_initialize(char *root_path) {
         verror("Asset manager already initialized.");
         return false;
     }
-    path_move(root_path);
+    path_init(root_path);
     asset_context = kallocate(sizeof(AssetContext), MEMORY_TAG_ASSET);
     asset_context->asset_map = dict_create_default();
     asset_loader_register(system_directory_asset_loader());
@@ -49,7 +49,10 @@ b8 asset_manager_sync() {
     root_path.path = path_root_directory();
     root_path.extension = "";
     vdebug("Syncing asset manager with root path %s", root_path.path)
-    return null != asset_load(root_path);
+    AssetHandle *root = asset_get(root_path); //check if the root path is already loaded
+    if (root == null) root = asset_load(root_path);
+    //unload the root pasth
+    return root != null;
 }
 
 /**
@@ -83,7 +86,7 @@ AssetHandle *asset_load(AssetPath path) {
             asset->state = ASSET_STATE_LOADING;
             asset->data = loader->load(&path);
             if (asset->data == null) {
-                vwarn("Asset [%s] failed to load at path %s", loader->name, path.path)
+                vwarn("Loading empty asset [%s] at path %s", loader->name, path.path)
                 return null;
             }
             asset->state = ASSET_STATE_LOADED;
@@ -133,15 +136,12 @@ AssetHandle *asset_reload(AssetPath path) {
 
 /**
  * Unloads an asset. This will use the asset loaders to unload the asset.
- * @param path The path to the asset.
+ * @param handle The path to the asset.
  * @return TRUE if the asset was successfully unloaded, else FALSE.
  */
-b8 asset_unload(AssetPath path) {
-    // Check if the asset is already loaded.
-    AssetHandle *asset = dict_get(asset_context->asset_map, path.path);
-    if (asset == null) {
-        return false;
-    }
+b8 asset_unload(AssetHandle *asset) {
+    AssetPath path = *asset->path;
+    
     b8 unloaded = false;
     // Unload the asset using the appropriate loader.
     for (u32 i = 0; i < asset_context->asset_loader_count; i++) {
@@ -155,8 +155,9 @@ b8 asset_unload(AssetPath path) {
             }
         }
     }
-    // Remove the asset from the asset map
-    dict_remove(asset_context->asset_map, path.path);
+    //delete the actual path
+//
+//    // Remove the asset from the asset map
     kfree(asset->path, sizeof(AssetPath), MEMORY_TAG_ASSET);
     kfree(asset, sizeof(AssetHandle), MEMORY_TAG_ASSET);
     return unloaded;
@@ -174,13 +175,15 @@ b8 asset_manager_shutdown() {
     // Iterate over the asset map and unload all the assets.
     idict it = dict_iterator(asset_context->asset_map);
     while (dict_next(&it)) {
-        AssetPath path;
-        path.path = it.entry->key;
-        if (!asset_unload(path)) {
+        //the handle is the value
+        AssetHandle *handle = it.entry->object;
+        AssetPath path = *handle->path;
+        if (!asset_unload(handle)) {
             vwarn("Failed to unload asset at path %s", path.path);
         } else {
             vinfo("Asset at path %s unloaded.", path.path);
         }
+        
     }
     
     //iterate our assets loaders and free them
@@ -190,6 +193,7 @@ b8 asset_manager_shutdown() {
     dict_destroy(asset_context->asset_map);
     kfree(asset_context, sizeof(AssetContext), MEMORY_TAG_ASSET);
     vdebug("Asset manager destroyed.");
+    path_shutdown();
     return true;
 }
 

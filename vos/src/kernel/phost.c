@@ -13,7 +13,7 @@
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
-Process *process_create(Asset *script_asset) {
+Process *process_create(NodeData *script_asset) {
     Process *process = kallocate(sizeof(Process), MEMORY_TAG_PROCESS);
     process->script_asset = script_asset;
     process->state = PROCESS_STATE_STOPPED;
@@ -59,11 +59,6 @@ void process_destroy(Process *process) {
     // Free the process
     lua_close(process->lua_state);
     process->pid = 0;
-    //free the proc name
-    kfree(process->process_name, string_length(process->process_name), MEMORY_TAG_STRING);
-    
-    
-    process->process_name = NULL;
     kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
 }
 
@@ -74,7 +69,7 @@ b8 process_start(Process *process) {
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
     //    process->process_name =
-    Asset *asset = process->script_asset;
+    NodeData *asset = process->script_asset;
     if (asset == NULL) {
         verror("Failed to load script %s", process->pid);
         process->state = PROCESS_STATE_STOPPED;

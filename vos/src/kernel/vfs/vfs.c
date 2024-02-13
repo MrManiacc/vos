@@ -54,7 +54,8 @@ b8 fs_initialize(Path root) {
     return true;
 }
 
-void fs_register_asset_loader(asset_loader *loader) {
+
+void fs_register_asset_loader(NodeLoader *loader) {
     if (asset_loaders == NULL) {
         asset_loaders = dict_create_default();
         //TODO: add default asset loaders here
@@ -82,7 +83,7 @@ void fs_shutdown() {
             //remove the '.' from the extension
             extension++;
             //get the asset loader for the extension
-            asset_loader *loader = dict_get(asset_loaders, extension);
+            NodeLoader *loader = dict_get(asset_loaders, extension);
             if (loader == NULL) {
                 verror("Could not find asset loader for extension: %s", extension);
                 continue;
@@ -327,13 +328,13 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
             //remove the '.' from the extension
             extension++;
             //get the asset loader for the extension
-            asset_loader *loader = dict_get(asset_loaders, extension);
+            NodeLoader *loader = dict_get(asset_loaders, extension);
             if (loader == NULL) {
                 verror("Could not find asset loader for extension: %s", extension);
                 return NULL;
             }
             //load the asset
-            Asset *asset = kallocate(sizeof(Asset), MEMORY_TAG_VFS);
+            NodeData *asset = kallocate(sizeof(NodeData), MEMORY_TAG_VFS);
             if (action == NODE_CREATED) {
                 loader->load(node, asset);
             } else if (action == NODE_MODIFIED) {
@@ -361,7 +362,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller) {
         extension++;
         
         //get the asset loader for the extension
-        asset_loader *loader = dict_get(asset_loaders, extension);
+        NodeLoader *loader = dict_get(asset_loaders, extension);
         if (loader == NULL) {
             verror("Could not find asset loader for extension: %s", extension);
             vdebug("Available asset loaders: %s", dict_to_string(asset_loaders));
@@ -400,13 +401,9 @@ void fs_node_destroy(Node *node) {
         }
         node->data.directory.child_count = 0;
         kfree(node->data.directory.children, sizeof(Node *) * NODE_CAPACITY, MEMORY_TAG_VFS);
-    } else {
-        //TODO implement this
-//        kfree((void *) node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
-        
-        kfree((void *) node->path, string_length(node->path) + 1, MEMORY_TAG_STRING);
     }
-//    kfree((void *) node->path, string_length(node->path), MEMORY_TAG_STRING);
+    //TODO implement this
+    kfree((void *) node->data.file.data, node->data.file.size, MEMORY_TAG_VFS);
     //destroy the node
     kfree(node, sizeof(Node), MEMORY_TAG_VFS);
 }

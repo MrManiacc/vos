@@ -61,7 +61,7 @@ KernelResult kernel_initialize(char *root_path);
  * @param script_path The path to the lua script.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process id, else an error code.
  */
-Process *kernel_create_process(Asset *script_asset);
+Process *kernel_create_process(NodeData *script_asset);
 
 /**
  * This is called once per frame. This will update the kernel and all processes.

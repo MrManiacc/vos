@@ -522,9 +522,9 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
     return true;
 }
 
-static asset_loader *lua_loader;
+static NodeLoader *lua_loader;
 
-void load_lua_asset(Node *node, Asset *asset) {
+void load_lua_asset(Node *node, NodeData *asset) {
 //    asset->path = path_relative((char *) node->path);
     asset->path = node->path;
     asset->data = node->data.file.data;
@@ -566,7 +566,7 @@ void unload_lua_asset(Node *node) {
 
 b8 initialize_syscalls() {
     event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
-    lua_loader = kallocate(sizeof(asset_loader), MEMORY_TAG_KERNEL);
+    lua_loader = kallocate(sizeof(NodeLoader), MEMORY_TAG_KERNEL);
     lua_loader->extension = "lua";
     lua_loader->load = load_lua_asset;
     lua_loader->unload = unload_lua_asset;
@@ -577,6 +577,6 @@ b8 initialize_syscalls() {
 b8 shutdown_syscalls() {
 //TODO: probably need to do some more cleanup here
 //    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
-    kfree(lua_loader, sizeof(asset_loader), MEMORY_TAG_KERNEL);
+    kfree(lua_loader, sizeof(NodeLoader), MEMORY_TAG_KERNEL);
     return true;
 }

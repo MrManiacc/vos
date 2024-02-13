@@ -150,23 +150,22 @@ typedef struct AllocationMetadata {
     const char *file;
     int line;
     u64 size;
+    memory_tag tag;
 } AllocationMetadata;
 
-// Modify the hash function for dict to handle void* keys.
-static u64 pointer_hash(const void *ptr) {
-    return (u64) (uintptr_t) ptr;
-}
+
 
 // Modify dict to support void* keys
 // This requires adjustments in dict's implementation to directly handle void* keys without converting them to strings.
 
-void kallocate_record(void *ptr, u64 size, const char *file, int line) {
+void kallocate_record(void *ptr, u64 size, const char *file, int line, memory_tag tag) {
     if (!ptr) return;
 //    vdebug("%s:%d kallocate_aligned successfully allocated %llu bytes.", file, line, size);
     AllocationMetadata *metadata = (AllocationMetadata *) platform_allocate(sizeof(AllocationMetadata), false);
     metadata->file = file;
     metadata->line = line;
     metadata->size = size;
+    metadata->tag = tag;
     
     // Lock the mutex before modifying the dictionary
     kmutex_lock(&state_ptr->allocation_mutex);
@@ -217,7 +216,6 @@ void *_kallocate_aligned(u64 size, u16 alignment, memory_tag tag, int line, cons
         state_ptr->stats.tagged_allocations[tag] += size;
         state_ptr->alloc_count++;
         block = dynamic_allocator_allocate_aligned(&state_ptr->allocator, size, alignment);
-        kallocate_record(block, size, file, line);
         kmutex_unlock(&state_ptr->allocation_mutex);
     } else {
         block = platform_allocate(size, false);
@@ -226,7 +224,7 @@ void *_kallocate_aligned(u64 size, u16 alignment, memory_tag tag, int line, cons
     if (block) {
         platform_zero_memory(block, size);
         // Add the allocation to the dict.
-        kallocate_record(block, size, file, line);
+        kallocate_record(block, size, file, line, tag);
         return block;
     }
     
@@ -255,11 +253,22 @@ void _kfree_aligned(void *block, u64 size, u16 alignment, memory_tag tag, int li
     if (tag == MEMORY_TAG_UNKNOWN) {
         vwarn("%s:%d kfree_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation.", file, line);
     }
+    //If we already have freed the block, we should not free it again.
+    if (_kis_free(block, line, file)) {
+//        vdebug("%s:%d Attempted to free a block that has already been freed. This is likely a double free.", file, line);
+        kfree_record(block);
+        block = null;
+        return;
+    }
+    
     if (state_ptr) {
+        
         if (!kmutex_lock(&state_ptr->allocation_mutex)) {
             vfatal("%s:%d Unable to obtain mutex lock for free operation. Heap corruption is likely.", file, line);
             return;
         }
+        //Check if the block has already been freed
+        
         
         state_ptr->stats.total_allocated -= size;
         state_ptr->stats.tagged_allocations[tag] -= size;
@@ -275,7 +284,7 @@ void _kfree_aligned(void *block, u64 size, u16 alignment, memory_tag tag, int li
         platform_free(block, false);
     }
     kfree_record(block);
-    
+    block = null;// Set the block to null to prevent double frees.
 }
 
 void _kfree_report(u64 size, memory_tag tag, int line, const char *file) {
@@ -374,8 +383,23 @@ char *_get_memory_usage_str(int line, const char *file) {
         offset += length;
     }
     
-    char *out_string = string_duplicate(buffer);
+    char *out_string = strdup(buffer);
     return out_string;
+}
+
+b8 _kis_free(void *block, int line, const char *file) {
+    if (state_ptr) {
+        if (!kmutex_lock(&state_ptr->allocation_mutex)) {
+            vfatal("%s:%d Error obtaining mutex lock during kis_free.", file, line);
+            return false;
+        }
+        // Check if the block is free.
+        b8 result = ptr_hash_table_contains(state_ptr->stats.allocations, block);
+        
+        kmutex_unlock(&state_ptr->allocation_mutex);
+        return !result;
+    }
+    return false;
 }
 
 
@@ -402,87 +426,122 @@ static void report_memory_leaks() {
     if (!state_ptr) {
         return;
     }
-    u64 totalLeakedSize = 0;
-    int totalLeaksCount = 0;
-    char formattedSize[32];
+    
     kmutex_lock(&state_ptr->allocation_mutex);
     
-    // Temporary storage for aggregation
-    PtrHashTable *reportTable = ptr_hash_table_create(state_ptr->stats.allocations->capacity);
+    printf("Memory Leak Report:\n");
+    printf("%-50s %-10s %-15s\n", "Location", "Tag", "Size");
     
-    PtrHashTable *allocations = state_ptr->stats.allocations;
-    for (u32 i = 0; i < allocations->capacity; ++i) {
-        PtrHashTableEntry *entry = allocations->buckets[i];
-        while (entry) {
-            AllocationMetadata *metadata = (AllocationMetadata *) entry->value;
-            u64 key = point_hash(metadata->file) ^ (u64) metadata->line; // Unique key for file-line combination
-            
-            AllocationReport *report = (AllocationReport *) ptr_hash_table_get(reportTable, (void *) key);
-            if (!report) {
-                report = (AllocationReport *) platform_allocate(sizeof(AllocationReport), false);
-                report->file = metadata->file;
-                report->line = metadata->line;
-                report->totalSize = 0;
-                report->sizes = darray_create(sizeof(u64));
-                ptr_hash_table_set(reportTable, (void *) key, report);
-            }
-            
-            darray_push(report->sizes, metadata->size);
-            report->totalSize += metadata->size;
-            
-            entry = entry->next;
-        }
-    }
-    
-    
-    
-    // Print table header
-    printf("%-50s %-15s %s\n", "Location", "Total Size", "Allocations");
-    
-    // Iterate through reports and print each row
-    for (u32 i = 0; i < reportTable->capacity; ++i) {
-        PtrHashTableEntry *entry = reportTable->buckets[i];
-        while (entry) {
-            AllocationReport *report = (AllocationReport *) entry->value;
-            format_size(report->totalSize, formattedSize, sizeof(formattedSize));
-            
-            // Combine file name and line number into a single string
+    PtrHashTableIterator it = ptr_hash_table_iterator_create(state_ptr->stats.allocations);
+    void *key = NULL;
+    AllocationMetadata *metadata = NULL;
+    while (ptr_hash_table_iterator_has_next(&it)) {
+        ptr_hash_table_iterator_next(&it, &key, (void **) &metadata);
+        if (metadata) {
+            char formattedSize[32];
+            format_size(metadata->size, formattedSize, sizeof(formattedSize));
             char location[1024]; // Ensure this is large enough for your paths
-            snprintf(location, sizeof(location), "%s:%d", report->file, report->line);
+            snprintf(location, sizeof(location), "%s:%d", metadata->file, metadata->line);
+//
+            printf("%-50s %-10s %-15s\n",
+                   location,
+                   memory_tag_strings[metadata->tag],
+                   formattedSize);
             
-            // Print the location and total size with proper alignment
-            printf("%-50s %-14s", location, formattedSize);
-            
-            // Rest of the logic for printing allocations remains unchanged
-            
-            u64 remainderSize = 0;
-            printf("[");
-            for (int j = 0; j < darray_length(report->sizes); ++j) {
-                if (j < 4) { // Print the first four allocations
-                    u64 *size = (u64 *) darray_get(report->sizes, j);
-                    char sizeStr[32];
-                    format_size(*size, sizeStr, sizeof(sizeStr));
-                    printf("%s%s", j > 0 ? ", " : "", sizeStr);
-                } else { // Sum up the remaining allocations
-                    remainderSize += *(u64 *) darray_get(report->sizes, j);
-                }
-            }
-            
-            // If there are more than four allocations, print the sum of the remainder
-            if (darray_length(report->sizes) > 4) {
-                char remainderSizeStr[32];
-                format_size(remainderSize, remainderSizeStr, sizeof(remainderSizeStr));
-                printf(", + %s more", remainderSizeStr);
-            }
-            
-            printf("]\n");
-            
-            // Cleanup and stats update remains unchanged
-            entry = entry->next;
+            // Free the metadata if needed
+            platform_free(metadata, sizeof(AllocationMetadata));
         }
     }
-    format_size(totalLeakedSize, formattedSize, sizeof(formattedSize));
-    printf("\nSummary: %d leaks detected, totaling %s.\n", totalLeaksCount, formattedSize);
-    ptr_hash_table_destroy(reportTable);
+    
+    ptr_hash_table_destroy(state_ptr->stats.allocations);
     kmutex_unlock(&state_ptr->allocation_mutex);
 }
+//static void report_memory_leaks() {
+//    if (!state_ptr) {
+//        return;
+//    }
+//    u64 totalLeakedSize = 0;
+//    int totalLeaksCount = 0;
+//    char formattedSize[32];
+//    kmutex_lock(&state_ptr->allocation_mutex);
+//
+//    // Temporary storage for aggregation
+//    PtrHashTable *reportTable = ptr_hash_table_create(state_ptr->stats.allocations->capacity);
+//
+//    PtrHashTable *allocations = state_ptr->stats.allocations;
+//    for (u32 i = 0; i < allocations->capacity; ++i) {
+//        PtrHashTableEntry *entry = allocations->buckets[i];
+//        while (entry) {
+//            AllocationMetadata *metadata = (AllocationMetadata *) entry->value;
+//            u64 key = point_hash(metadata->file) ^ (u64) metadata->line; // Unique key for file-line combination
+//
+//            AllocationReport *report = (AllocationReport *) ptr_hash_table_get(reportTable, (void *) key);
+//            if (!report) {
+//                report = (AllocationReport *) platform_allocate(sizeof(AllocationReport), false);
+//                report->file = metadata->file;
+//                report->line = metadata->line;
+//                report->totalSize = 0;
+//                report->sizes = darray_create(sizeof(u64));
+//                ptr_hash_table_set(reportTable, (void *) key, report);
+//            }
+//
+//            darray_push(report->sizes, metadata->size);
+//            report->totalSize += metadata->size;
+//
+//            entry = entry->next;
+//        }
+//    }
+//
+//
+//
+//    // Print table header
+//    printf("%-50s %-15s %s\n", "Location", "Total Size", "Allocations");
+//
+//    // Iterate through reports and print each row
+//    for (u32 i = 0; i < reportTable->capacity; ++i) {
+//        PtrHashTableEntry *entry = reportTable->buckets[i];
+//        while (entry) {
+//            AllocationReport *report = (AllocationReport *) entry->value;
+//            format_size(report->totalSize, formattedSize, sizeof(formattedSize));
+//
+//            // Combine file name and line number into a single string
+//            char location[1024]; // Ensure this is large enough for your paths
+//            snprintf(location, sizeof(location), "%s:%d", report->file, report->line);
+//
+//            // Print the location and total size with proper alignment
+//            printf("%-50s %-14s", location, formattedSize);
+//
+//            // Rest of the logic for printing allocations remains unchanged
+//
+//            u64 remainderSize = 0;
+//            printf("[");
+//            for (int j = 0; j < darray_length(report->sizes); ++j) {
+//                if (j < 4) { // Print the first four allocations
+//                    u64 *size = (u64 *) darray_get(report->sizes, j);
+//                    char sizeStr[32];
+//                    format_size(*size, sizeStr, sizeof(sizeStr));
+//                    printf("%s%s", j > 0 ? ", " : "", sizeStr);
+//                } else { // Sum up the remaining allocations
+//                    remainderSize += *(u64 *) darray_get(report->sizes, j);
+//                }
+//            }
+//
+//            // If there are more than four allocations, print the sum of the remainder
+//            if (darray_length(report->sizes) > 4) {
+//                char remainderSizeStr[32];
+//                format_size(remainderSize, remainderSizeStr, sizeof(remainderSizeStr));
+//                printf(", + %s more", remainderSizeStr);
+//            }
+//
+//            printf("]\n");
+//
+//            // Cleanup and stats update remains unchanged
+//            entry = entry->next;
+//        }
+//    }
+//
+//    format_size(totalLeakedSize, formattedSize, sizeof(formattedSize));
+//    printf("\nSummary: %d leaks detected, totaling %s.\n", totalLeaksCount, formattedSize);
+//    ptr_hash_table_destroy(reportTable);
+//    kmutex_unlock(&state_ptr->allocation_mutex);
+//}

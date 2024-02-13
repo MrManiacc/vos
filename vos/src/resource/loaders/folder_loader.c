@@ -7,8 +7,6 @@
 #include "core/vstring.h"
 
 
-static resource_loader *loader = null;
-
 static b8 is_supported_folder(char *ext) {
     return strings_equal(ext, "dir");
 }
@@ -27,10 +25,11 @@ static void unload_folder(resource *data) {
  * @brief The folder loader is a special loader that will load a folder file as a resource.
  */
 resource_loader *folder_loader() {
+    static resource_loader *loader = null;
     if (loader == null) {
         loader = platform_allocate(sizeof(resource_loader), false);
         loader->name = "Folder Loader";
-        loader->loader_id = RESOURCE_TYPE_IMAGE;
+        loader->loader_id = RESOURCE_TYPE_FOLDER;
         loader->is_for = is_supported_folder;
         loader->load = load_folder;
         loader->unload = unload_folder;

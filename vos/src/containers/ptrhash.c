@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
+#include "core/vmem.h"
 
 
 // Simple hash function for pointers
@@ -49,7 +50,8 @@ void ptr_hash_table_set(PtrHashTable *table, void *key, void *value) {
 void *ptr_hash_table_get(PtrHashTable *table, void *key) {
     size_t index = ptr_hash(key, table->capacity);
     PtrHashTableEntry *entry = table->buckets[index];
-    
+    if (!entry)
+        return null;
     while (entry) {
         if (entry->key == key) {
             return entry->value; // Key found
@@ -57,7 +59,7 @@ void *ptr_hash_table_get(PtrHashTable *table, void *key) {
         entry = entry->next;
     }
     
-    return NULL; // Key not found
+    return null; // Key not found
 }
 
 // Remove an entry from the hash table
@@ -78,16 +80,17 @@ void ptr_hash_table_remove(PtrHashTable *table, void *key) {
 
 // Free the hash table
 void ptr_hash_table_destroy(PtrHashTable *table) {
-    for (size_t i = 0; i < table->capacity; ++i) {
-        PtrHashTableEntry *entry = table->buckets[i];
-        while (entry) {
-            PtrHashTableEntry *temp = entry;
-            entry = entry->next;
-            free(temp);
-        }
-    }
-    free(table->buckets);
-    free(table);
+    //I suppose we'll assume the user will free the values themselves
+    //    for (size_t i = 0; i < table->capacity; ++i) {
+//        PtrHashTableEntry *entry = table->buckets[i];
+//        while (entry) {
+//            PtrHashTableEntry *temp = entry;
+//            entry = entry->next;
+//            free(temp);
+//        }
+//    }
+    kfree(table->buckets, table->capacity * sizeof(PtrHashTableEntry *), MEMORY_TAG_HASHTABLE);
+    kfree(table, sizeof(PtrHashTable), MEMORY_TAG_HASHTABLE);
 }
 
 PtrHashTableIterator ptr_hash_table_iterator_create(PtrHashTable *table) {
@@ -135,4 +138,8 @@ void ptr_hash_table_iterator_next(PtrHashTableIterator *iterator, void **key, vo
         *key = iterator->entry->key;
         *value = iterator->entry->value;
     }
+}
+
+b8 ptr_hash_table_contains(PtrHashTable *table, void *key) {
+    return ptr_hash_table_get(table, key) != null;
 }

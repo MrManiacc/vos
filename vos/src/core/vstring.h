@@ -2,6 +2,19 @@
 
 #include "defines.h"
 
+void initialize_string_module();
+
+void shutdown_string_module();
+
+
+VAPI char *string_allocate_sized(const char *input, u64 length);
+
+VAPI char *string_allocate(const char *input);
+
+VAPI char *string_allocate_empty(u64 length);
+
+VAPI void string_deallocate(char *str);
+
 // Returns the length of the given string.
 VAPI u64 string_length(const char *str);
 

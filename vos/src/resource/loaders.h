@@ -25,13 +25,3 @@ resource_loader *binary_loader();
 * @brief The image loader is a special loader that will load an image file as a resource.
 */
 resource_loader *image_loader();
-
-/**
- * @brief The audio loader is a special loader that will load an audio file as a resource.
- */
-void register_loaders() {
-    resource_register_loader(folder_loader());
-    resource_register_loader(script_loader());
-    resource_register_loader(binary_loader());
-    resource_register_loader(image_loader());
-}

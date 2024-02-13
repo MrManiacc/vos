@@ -2,56 +2,60 @@
  * Created by jraynor on 8/29/2023.
  */
 #pragma once
+
 #include "defines.h"
 
 // The asset path is the path to the asset on the disk.
 typedef struct AssetPath {
-  // The path of the asset.
-  const char *path;
-  // The extension of the asset.
-  const char *extension;
-
+    // The path of the asset.
+    const char *path;
+    // The extension of the asset.
+    const char *extension;
+    
 } AssetPath;
 
 // The asset data is the raw data that is loaded from the disk.
 typedef struct AssetData {
-  // The size of the data.
-  u32 size;
-  // The data.
-  void *data;
+    // The size of the data.
+    u32 size;
+    // The data.
+    void *data;
 } AssetData;
 
 typedef enum AssetState {
-  // The asset is not loaded.
-  ASSET_STATE_UNLOADED,
-  // The asset is loaded.
-  ASSET_STATE_LOADED,
-  // The asset is being loaded.
-  ASSET_STATE_LOADING,
-  // The asset is being unloaded.
-  ASSET_STATE_UNLOADING,
+    // The asset is not loaded.
+    ASSET_STATE_UNLOADED,
+    // The asset is loaded.
+    ASSET_STATE_LOADED,
+    // The asset is being loaded.
+    ASSET_STATE_LOADING,
+    // The asset is being unloaded.
+    ASSET_STATE_UNLOADING,
 } AssetState;
 
 typedef struct AssetHandle {
-  // The data of the asset. Can be null if the asset is not loaded. Will be reloaded if the asset is dirty.
-  AssetData *data;
-  // The path of the asset. Can be used as a key for the asset map.
-  AssetPath *path;
-  // The state of the asset.
-  AssetState state;
+    // The data of the asset. Can be null if the asset is not loaded. Will be reloaded if the asset is dirty.
+    AssetData *data;
+    // The path of the asset. Can be used as a key for the asset map.
+    AssetPath *path;
+    // The state of the asset.
+    AssetState state;
 } AssetHandle;
 
 // The asset loader is used to load and unload assets.
 typedef struct AssetLoader {
-  // The function pointer to load the asset.
-  b8 (*is_supported)(AssetPath *path);
-  // The function pointer to load the asset.
-  AssetData *(*load)(AssetPath *path);
-  // The function pointer to unload the asset. Should only delete the data and update the state.
-  // Can also do any cleanup needed for the asset.
-  void (*unload)(AssetHandle *asset);
-  // The name of the asset loader. Used for debugging.
-  const char *name;
+    // The function pointer to load the asset.
+    b8 (*is_supported)(AssetPath *path);
+    
+    // The function pointer to load the asset.
+    AssetData *(*load)(AssetPath *path);
+    
+    // The function pointer to unload the asset. Should only delete the data and update the state.
+    // Can also do any cleanup needed for the asset.
+    void (*unload)(AssetHandle *asset);
+    
+    // The name of the asset loader. Used for debugging.
+    const char *name;
 } AssetLoader;
 
 /**
@@ -80,12 +84,14 @@ b8 asset_loader_register(AssetLoader *loader);
  * @return The asset if it was successfully loaded, else NULL.
  */
 AssetHandle *asset_load(AssetPath path);
+
 /**
  * Reloads an asset from the disk. This will use the asset loaders to reload the asset.
  * @param path The path to the asset.
  * @return The asset if the asset was successfully reloaded, else NULL.
  */
 AssetHandle *asset_reload(AssetPath path);
+
 /**
  * Gets an asset from the asset map. This will return null if the asset is not found.
  * @param path The path to the asset.
@@ -98,7 +104,7 @@ AssetHandle *asset_get(AssetPath path);
  * @param path The path to the asset.
  * @return TRUE if the asset was successfully unloaded, else FALSE.
  */
-b8 asset_unload(AssetPath asset);
+b8 asset_unload(AssetHandle *handle);
 
 /**
  * Destroys the asset manager. This will deallocate the asset manager context and destroy the asset map.

@@ -15,7 +15,6 @@ typedef enum resource_type {
     RESOURCE_TYPE_BINARY,
     /** @brief Image resource type. */
     RESOURCE_TYPE_IMAGE,
-    
     /** @brief The maximum number of resource types. */
     RESOURCE_TYPE_MAX
 } resource_type;
@@ -112,4 +111,6 @@ VAPI resource *resource_get(const char *name);
  * @brief Destroys the resource manager. Automatically unloads all resources that are still loaded.
  */
 VAPI void resource_destroy();
+
+
 

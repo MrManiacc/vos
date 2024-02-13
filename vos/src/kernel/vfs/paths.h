@@ -10,7 +10,24 @@
  *
  * ‼️This must be called at least once before any other path functions are called.‼️
  */
-void path_move(char *path);
+void path_init(char *path);
+
+/**
+ * @brief Shuts down the path module by deallocating memory and freeing resources.
+ *
+ * The `path_shutdown` function is responsible for shutting down the path module by deallocating
+ * memory and freeing resources. It releases the memory used by the root directory and the
+ * current working directory, and then frees the path context structure itself. If the path
+ * context is already null, the function does nothing.
+ *
+ * @note The path context structure is a static pointer, meaning it is shared across the entire program.
+ *
+ * @see string_deallocate
+ * @see PathContext
+ * @see MEMORY_TAG_VFS
+ * @see _kfree
+ */
+void path_shutdown();
 
 /**
  * Gets the current working directory.

@@ -45,6 +45,11 @@ dict *dict_create_default() {
     return dict_create(DEFAULT_DICT_SIZE, dict_default_hash);
 }
 
+
+dict *dict_create_sized(u64 size) {
+    return dict_create(size, dict_default_hash);
+}
+
 void dict_destroy(dict *table) {
     //Delete all keys
     for (u32 i = 0; i < table->size; i++) {
@@ -85,14 +90,14 @@ b8 dict_set(dict *table, const char *key, void *value) {
     if (key == NULL || value == NULL)
         return false;
     u64 index = has_table_index(table, key);
-
+    
     if (dict_get(table, key) != NULL)
         return false;
-
+    
     entry *e = kallocate(sizeof(entry), MEMORY_TAG_DICT);
     e->key = string_duplicate(key);
     e->object = value;
-
+    
     e->next = table->elements[index];
     table->elements[index] = e;
     return true;
@@ -102,7 +107,7 @@ void *dict_get(dict *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
-
+    
     entry *temp = table->elements[index];
     while (temp != NULL && !strings_equal(temp->key, key)) {
         temp = temp->next;
@@ -179,3 +184,4 @@ b8 dict_next(idict *it) {
     }
     return false; // No more entries left
 }
+

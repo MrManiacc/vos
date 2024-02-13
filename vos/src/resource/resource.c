@@ -6,6 +6,7 @@
 #include "containers/dict.h"
 #include "platform/platform.h"
 #include "kernel/vfs/paths.h"
+#include "loaders.h"
 
 // Define a static struct for storing resource loaders
 static struct {
@@ -17,6 +18,16 @@ static struct {
     char *mount_point;
 } resource_loaders;
 
+/**
+ * @brief The audio loader is a special loader that will load an audio file as a resource.
+ */
+void initialize_loaders() {
+    resource_register_loader(folder_loader());
+    resource_register_loader(script_loader());
+    resource_register_loader(binary_loader());
+    resource_register_loader(image_loader());
+}
+
 // Initialize the resource manager and the resource loaders
 void resource_init(char *mount_point) {
     //Initialize all of our resource loaders here.
@@ -25,7 +36,10 @@ void resource_init(char *mount_point) {
     resource_loaders.mount_point = mount_point;
     //zero out the loaders
     platform_zero_memory(resource_loaders.loaders, sizeof(resource_loader *) * RESOURCE_TYPE_MAX);
+    //Initialize all of our default loaders
+    initialize_loaders();
 }
+
 
 b8 resource_register_loader(resource_loader *loader) {
     if (loader == null) {
@@ -170,6 +184,16 @@ void resource_unload_all() {
     }
 }
 
+/**
+ * @brief The audio loader is a special loader that will load an audio file as a resource.
+ */
+void shutdown_loaders() {
+    resource_unregister_loader(folder_loader());
+    resource_unregister_loader(script_loader());
+    resource_unregister_loader(binary_loader());
+    resource_unregister_loader(image_loader());
+}
+
 void resource_destroy() {
     //Unload all resources
     resource_unload_all();
@@ -178,5 +202,7 @@ void resource_destroy() {
     //Zero out the loaders
     platform_zero_memory(resource_loaders.loaders, sizeof(resource_loader *) * RESOURCE_TYPE_MAX);
     vinfo("Resource manager destroyed.");
+    //Initialize all of our default loaders
+    shutdown_loaders();
 }
 

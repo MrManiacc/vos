@@ -91,3 +91,11 @@ void ptr_hash_table_remove(PtrHashTable *table, void *key);
  * @param table The hash table to destroy.
  */
 void ptr_hash_table_destroy(PtrHashTable *table);
+
+/**
+ * Checks if the hash table contains the given key.
+ * @param table The hash table to check.
+ * @param key The key to check for.
+ * @return True if the key is in the hash table, false otherwise.
+ */
+b8 ptr_hash_table_contains(PtrHashTable *table, void *key);

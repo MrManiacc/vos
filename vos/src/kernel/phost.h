@@ -22,7 +22,7 @@ typedef struct Process {
   // Name of the process
   const char *process_name;
   // Path to the Lua script (process)
-  Asset *script_asset;
+  NodeData *script_asset;
   // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
   lua_State *lua_state;
   // The context for accessing a process's child processes
@@ -34,7 +34,7 @@ typedef struct Process {
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
-Process *process_create(Asset *script_asset);
+Process *process_create(NodeData *script_asset);
 
 /**
  * Adds a child process to a parent process. This will add the child process to the parent's child process array.

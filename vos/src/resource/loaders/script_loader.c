@@ -7,7 +7,7 @@
 #include "core/vstring.h"
 
 
-static resource_loader *loader = null;
+
 
 static b8 is_supported_script(char *ext) {
     return strings_equal(ext, "lua"); //TODO: check if valid lua code
@@ -27,13 +27,14 @@ static void unload_script(resource *data) {
  * @brief The folder loader is a special loader that will load a script file as a resource.
  */
 resource_loader *script_loader() {
-    if (loader == null) {
-        loader = platform_allocate(sizeof(resource_loader), false);
-        loader->name = "Script Loader";
-        loader->loader_id = RESOURCE_TYPE_IMAGE;
-        loader->is_for = is_supported_script;
-        loader->load = load_script;
-        loader->unload = unload_script;
+    static resource_loader *script_loader = null;
+    if (script_loader == null) {
+        script_loader = platform_allocate(sizeof(resource_loader), false);
+        script_loader->name = "Script Loader";
+        script_loader->loader_id = RESOURCE_TYPE_SCRIPT;
+        script_loader->is_for = is_supported_script;
+        script_loader->load = load_script;
+        script_loader->unload = unload_script;
     }
-    return loader;
+    return script_loader;
 }

@@ -9,21 +9,21 @@ typedef u64 (hash_function)(const char *);
 
 
 typedef struct entry {
-  char *key;
-  void *object;
-  struct entry *next;
+    char *key;
+    void *object;
+    struct entry *next;
 } entry;
 
 typedef struct dict {
-  u32 size;
-  hash_function *hash_func;
-  entry **elements;
+    u32 size;
+    hash_function *hash_func;
+    entry **elements;
 } dict;
 
 typedef struct idict {
-  dict *table;
-  entry *entry;
-  u32 index;
+    dict *table;
+    entry *entry;
+    u32 index;
 } idict;
 
 /**
@@ -41,10 +41,23 @@ dict *dict_create(u64 size, hash_function *hash_func);
 dict *dict_create_default();
 
 /**
+ * @brief Creates a new dictionary with specified size.
+ *
+ * This function creates a new dictionary with the specified size. The dictionary
+ * uses a hashing function to compute the index of each element. The size parameter
+ * determines the number of elements the dictionary can hold.
+ *
+ * @param size The size of the dictionary.
+ * @return A pointer to the newly created dictionary.
+ */
+dict *dict_create_sized(u64 size);
+
+/**
  * @brief destroys the given dictionary table
  * @param table  the table to destroy
  */
 void dict_destroy(dict *table);
+
 /**
  * @brief inserts the given key and value into the table
  * @param table the table to insert into
@@ -53,6 +66,7 @@ void dict_destroy(dict *table);
  * @return true if the key was inserted, false if the key already exists
  */
 b8 dict_set(dict *table, const char *key, void *value);
+
 /**
  * @brief looks up the given key in the table
  * @param table the table to look in
@@ -60,6 +74,7 @@ b8 dict_set(dict *table, const char *key, void *value);
  * @return the value associated with the key, or null if the key does not exist
  */
 void *dict_get(dict *table, const char *key);
+
 /**
  * @brief removes the given key from the table
  * @param table the table to remove from
