@@ -177,6 +177,22 @@ char *path_current_directory() {
 }
 
 /**
+ * Gets the file extension from a path.
+ * @param path The path to get the file extension from.
+ * @return The file extension from the path.
+ */
+char *path_file_extension(char *path) {
+    if (path == null) {
+        return null;
+    }
+    char *absolute_path = path_absolute(path);
+    char *file_extension = string_split_at(absolute_path, ".", string_split_count(absolute_path, ".") - 1);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    return file_extension;
+}
+
+
+/**
  * Gets the platform specific path from a path.
  * @param path The path to get the platform specific path from.
  * @return The platform specific path from the path. This is the reverse of path_normalize.

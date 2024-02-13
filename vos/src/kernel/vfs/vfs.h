@@ -52,6 +52,8 @@ typedef enum NodeType {
   NODE_DIRECTORY,
   NODE_SYMLINK
 } NodeType;
+
+
 typedef struct Node {
   //The path of the node relative to the root.
   Path path;
@@ -126,6 +128,7 @@ Node *fs_sync_node(Path path, NodeAction action, Node* caller);
  * @return The node at the given path or NULL if the path is invalid.
  */
 b8 fs_node_exists(Path path);
+
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param path  The path to get the node from.

@@ -64,6 +64,7 @@ AssetData *directory_load(AssetPath *path) {
         child.path = path_to_platform(child_path);
         kfree(child_path, string_length(child_path), MEMORY_TAG_VFS);
         asset_load(child);
+        //TODO: add the child to the asset map
     }
     closedir(handle);
     kfree(sys_path, string_length(sys_path), MEMORY_TAG_VFS);

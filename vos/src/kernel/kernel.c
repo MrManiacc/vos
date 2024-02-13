@@ -7,7 +7,7 @@
 #include "core/vtimer.h"
 #include "containers/dict.h"
 #include "kernel/asset/asset.h"
-
+#include "resource/resource.h"
 
 // Get the next available ID from the pool.
 ProcessID id_pool_next_id();
@@ -35,6 +35,7 @@ KernelResult kernel_initialize(char *root_path) {
     
     initialize_logging();
     asset_manager_initialize(root_path);
+    resource_init(root_path);
     vdebug("Root path: %s", root_path)
     
     kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
@@ -153,6 +154,7 @@ KernelResult kernel_shutdown() {
             if (!is_kernel_success(process_destroy_result.code))return process_destroy_result;
         }
     }
+    resource_destroy();
     asset_manager_shutdown();
     dict_destroy(processes_by_name);
     fs_shutdown();
