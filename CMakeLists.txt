@@ -4,9 +4,8 @@ project(vlos C)
 find_package(raylib CONFIG REQUIRED)
 find_package(Lua REQUIRED)
 find_package(unofficial-tree-sitter CONFIG REQUIRED)
-#-static-libgcc -static-libstdc++ to g++
-set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,--as-needed -lkernel32")
-
-
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
 add_subdirectory(vos)
 add_subdirectory(app)

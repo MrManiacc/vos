@@ -3,6 +3,7 @@
  */
 #include "linear_allocator.h"
 #include "core/vmem.h"
+#include "core/vlogger.h"
 
 void linear_allocator_create(u64 total_size, void *memory, linear_allocator *out_allocator) {
     if (out_allocator) {
