@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include "kresult.h"
+#include "vresult.h"
 #include "core/vmem.h"
-#include "phost.h"
+#include "vproc.h"
 
 /**
  * Determines if the kernel operation was successful.
@@ -17,7 +17,7 @@ b8 is_kernel_success(KernelCode code) {
  * @param result The result of the kernel operation.
  * @return
  */
-const char *get_kernel_result_message(KernelResult result) {
+const char *get_kernel_result_message(kernel_result result) {
     char *message = kallocate(256, MEMORY_TAG_KERNEL);
     switch (result.code) {
         case KERNEL_SUCCESS:
@@ -37,7 +37,7 @@ const char *get_kernel_result_message(KernelResult result) {
         case KERNEL_PROCESS_NOT_FOUND:
             sprintf(message,
                     "The process with id %d was not found.",
-                    (procid) result.data);
+                    (proc_id) result.data);
             break;
         case KERNEL_ERROR:sprintf(message, "Kernel error: %s", (char *) result.data);
             break;

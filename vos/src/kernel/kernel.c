@@ -2,7 +2,7 @@
 #include "containers/darray.h"
 #include "core/vmem.h"
 #include "core/vlogger.h"
-#include "luahost.h"
+#include "vlua.h"
 #include "core/vevent.h"
 #include "core/vtimer.h"
 #include "containers/dict.h"
@@ -10,19 +10,19 @@
 #include "filesystem/paths.h"
 
 // Get the next available ID from the pool.
-procid id_pool_next_id();
+proc_id id_pool_next_id();
 
-void id_pool_release_id(procid id);
+void id_pool_release_id(proc_id id);
 
-b8 id_exists_in_stack(IDPool *pool, procid id);
+b8 id_exists_in_stack(proc_pool *pool, proc_id id);
 
-static KernelContext *kernel_context = null;
+static kernel_ctx *kernel_context = null;
 static b8 kernel_initialized = false;
 static dict *processes_by_name = null;
 
-KernelResult kernel_initialize(char *root_path) {
+kernel_result kernel_initialize(char *root_path) {
     if (kernel_initialized) {
-        KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
+        kernel_result result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
     // Memory system must be the first thing to be stood up.
@@ -30,7 +30,7 @@ KernelResult kernel_initialize(char *root_path) {
     memory_system_config.total_alloc_size = GIBIBYTES(2);
     if (!memory_system_initialize(memory_system_config)) {
         verror("Failed to initialize memory system; shutting down.");
-        return (KernelResult) {KERNEL_ERROR_OUT_OF_MEMORY, null};
+        return (kernel_result) {KERNEL_ERROR_OUT_OF_MEMORY, null};
     }
     strings_initialize();
     vfs_initialize(root_path);
@@ -38,11 +38,11 @@ KernelResult kernel_initialize(char *root_path) {
 //    initialize_asset_manager(root_path);
     vdebug("Root path: %s", root_path)
     
-    kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
+    kernel_context = kallocate(sizeof(kernel_ctx), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     //make sure the processes array is zeroed out
     kzero_memory(kernel_context->processes, sizeof(proc *) * MAX_PROCESSES);
-    kernel_context->id_pool = kallocate(sizeof(IDPool), MEMORY_TAG_KERNEL);
+    kernel_context->id_pool = kallocate(sizeof(proc_pool), MEMORY_TAG_KERNEL);
     kernel_context->id_pool->top_index = 0;
     kernel_context->id_pool->max_id = 0;
     initialize_timer();
@@ -51,30 +51,30 @@ KernelResult kernel_initialize(char *root_path) {
     event_initialize();
     intrinsics_initialize();
     vinfo("Kernel initialized")
-    KernelResult result = {KERNEL_SUCCESS, kernel_context};
+    kernel_result result = {KERNEL_SUCCESS, kernel_context};
     return result;
 }
 
-KernelResult kernel_shutdown() {
+kernel_result kernel_shutdown() {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_ALREADY_SHUTDOWN, null};
+        kernel_result result = {KERNEL_ALREADY_SHUTDOWN, null};
         return result;
     }
     shutdown_logging();
     
     //TODO: do we need to destroy the processes?
     
-    IDPool *pool = kernel_context->id_pool;
-    for (procid i = 1; i <= pool->max_id; i++) {
+    proc_pool *pool = kernel_context->id_pool;
+    for (proc_id i = 1; i <= pool->max_id; i++) {
         if (!id_exists_in_stack(pool, i)) {
-            KernelResult process_destroy_result = kernel_destroy_process(i);
+            kernel_result process_destroy_result = kernel_destroy_process(i);
             if (!is_kernel_success(process_destroy_result.code))return process_destroy_result;
         }
     }
     vfs_shutdown();
     kfree(kernel_context->processes, sizeof(proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
-    kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
-    kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
+    kfree(kernel_context->id_pool, sizeof(proc_pool), MEMORY_TAG_KERNEL);
+    kfree(kernel_context, sizeof(kernel_ctx), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
     timer_cleanup();
     intrinsics_shutdown();
@@ -83,7 +83,7 @@ KernelResult kernel_shutdown() {
     strings_shutdown();
 //    vtrace("Mem usage: %s", get_memory_usage_str())
     memory_system_shutdown();
-    KernelResult result = {KERNEL_SUCCESS, null};
+    kernel_result result = {KERNEL_SUCCESS, null};
     return result;
 }
 
@@ -101,7 +101,7 @@ proc *kernel_create_process(fs_node *script_node_file) {
     
     // Get the name of the script by removing the path and extension.
     proc *process = process_create(script_node_file);
-    procid pid = id_pool_next_id();
+    proc_id pid = id_pool_next_id();
     if (pid == MAX_PROCESSES) {
         vwarn("Maximum number of processes reached")
         return null;
@@ -122,28 +122,28 @@ b8 kernel_poll_update() {
     timer_poll();
 }
 
-KernelResult kernel_lookup_process(procid pid) {
+kernel_result kernel_lookup_process(proc_id pid) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
+        kernel_result result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
     proc *process = kernel_context->processes[pid];
     if (process == null) {
-        KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
+        kernel_result result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
-    KernelResult result = {KERNEL_PROCESS_CREATED, process};
+    kernel_result result = {KERNEL_PROCESS_CREATED, process};
     return result;
 }
 
-KernelResult kernel_destroy_process(procid pid) {
+kernel_result kernel_destroy_process(proc_id pid) {
     if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
+        kernel_result result = {KERNEL_CALL_BEFORE_INIT, null};
         return result;
     }
     proc *process = kernel_context->processes[pid];
     if (process == null) {
-        KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
+        kernel_result result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
     dict_remove(processes_by_name, process->script_file_node->path);
@@ -154,7 +154,7 @@ KernelResult kernel_destroy_process(procid pid) {
     id_pool_release_id(pid);
 
 //    kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
-    KernelResult result = {KERNEL_SUCCESS, null};
+    kernel_result result = {KERNEL_SUCCESS, null};
     return result;
 }
 
@@ -172,8 +172,8 @@ proc *kernel_locate_process(const char *name) {
 }
 
 
-procid id_pool_next_id() {
-    IDPool *pool = kernel_context->id_pool;
+proc_id id_pool_next_id() {
+    proc_pool *pool = kernel_context->id_pool;
     // Check if we are overflowing the pool.
     if (pool->max_id == MAX_PROCESSES) {
         // If we are overflowing the pool, return the top ID.
@@ -188,8 +188,8 @@ procid id_pool_next_id() {
     
 }
 
-void id_pool_release_id(procid id) {
-    IDPool *pool = kernel_context->id_pool;
+void id_pool_release_id(proc_id id) {
+    proc_pool *pool = kernel_context->id_pool;
     if (pool->top_index < MAX_PROCESSES) {
         // Push the ID back into the pool.
         pool->ids[pool->top_index++] = id;
@@ -198,7 +198,7 @@ void id_pool_release_id(procid id) {
 }
 
 // Helper function to check if an ID exists in the IDPool's stack.
-b8 id_exists_in_stack(IDPool *pool, procid id) {
+b8 id_exists_in_stack(proc_pool *pool, proc_id id) {
     for (u32 i = 0; i < pool->top_index; i++) {
         if (pool->ids[i] == id) {
             return true;

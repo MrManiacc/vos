@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 #include "defines.h"
-#include "kernel/phost.h"
+#include "kernel/vproc.h"
 #include "kernel/kernel.h"
 #include "core/vlogger.h"
 #include "core/vevent.h"
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     } else if (argc == 2) {
         root_path = argv[1];
     }
-    KernelResult result = kernel_initialize(root_path);
+    kernel_result result = kernel_initialize(root_path);
     if (!is_kernel_success(result.code)) {
         verror("Failed to initialize kernel: %s", get_kernel_result_message(result))
         return 1;
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
         EndDrawing();
     }
     CloseWindow();
-    KernelResult shutdown_result = kernel_shutdown();
+    kernel_result shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))
         return 1;

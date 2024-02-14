@@ -112,7 +112,7 @@ typedef struct KernelResult {
   KernelCode code;
   // Can be used to return data from a kernel operation, may be NULL depending on the operation.
   void *data;
-} KernelResult;
+} kernel_result;
 
 /**
  * Determines if the kernel operation was successful.
@@ -126,4 +126,4 @@ b8 is_kernel_success(KernelCode code);
  * @param result The result of the kernel operation.
  * @return
  */
-const char *get_kernel_result_message(KernelResult result);
+const char *get_kernel_result_message(kernel_result result);

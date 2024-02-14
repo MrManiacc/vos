@@ -1,7 +1,7 @@
 #include <lauxlib.h>
 #include <lualib.h>
 #include <string.h>
-#include "phost.h"
+#include "vproc.h"
 
 #include "core/vmem.h"
 #include "core/vlogger.h"
@@ -19,7 +19,7 @@ proc *process_create(fs_node *script_file_node) {
     proc *process = kallocate(sizeof(proc), MEMORY_TAG_PROCESS);
     process->script_file_node = script_file_node;
     process->state = PROCESS_STATE_STOPPED;
-    process->children_pids = darray_create(procid);
+    process->children_pids = darray_create(proc_id);
     Path path = process->script_file_node->path;
     //get the name by getting the last part of the path after the last slash
     char *name = string_split_at(path, "/", string_split_count(path, "/") - 1);
@@ -79,8 +79,8 @@ b8 process_stop(proc *process, b8 force, b8 kill_children) {
     if (kill_children) {
         u64 length = darray_length(process->children_pids);
         for (u64 i = 0; i < length; ++i) {
-            procid child_pid = process->children_pids[i];
-            KernelResult result = kernel_lookup_process(child_pid);
+            proc_id child_pid = process->children_pids[i];
+            kernel_result result = kernel_lookup_process(child_pid);
             if (result.code == KERNEL_PROCESS_CREATED) {
                 proc *child = result.data;
                 process_stop(child, force, kill_children);
@@ -107,16 +107,16 @@ void process_destroy(proc *process) {
 b8 process_add_child(proc *parent, proc *child) {
 // Make the child's lua_State a copy of the parent's lua_State
     child->lua_state = parent->lua_state;
-    darray_push(procid, parent->children_pids, child->pid)
+    darray_push(proc_id, parent->children_pids, child->pid)
     return true;
 }
 
 // Removes a child process to a parent process. This will remove the child process to the parent's child process array.
-b8 process_remove_child(proc *parent, procid child_id) {
+b8 process_remove_child(proc *parent, proc_id child_id) {
     u64 length = darray_length(parent->children_pids);
     for (u64 i = 0; i < length; ++i) {
         if (parent->children_pids[i] == child_id) {
-            procid child_pid;
+            proc_id child_pid;
             darray_pop_at(parent->children_pids, i, &child_pid);
             vdebug("Child process %d removed from parent process %d", child_pid, parent->pid);
             return true;

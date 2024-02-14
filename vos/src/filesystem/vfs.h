@@ -5,7 +5,7 @@
 
 //#include <pthread.h>
 #include "defines.h"
-#include "kernel/kresult.h"
+#include "kernel/vresult.h"
 #include "containers/dict.h"
 
 typedef char *Path;

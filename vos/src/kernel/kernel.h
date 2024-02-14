@@ -10,39 +10,36 @@
 #pragma once
 
 #include "defines.h"
-#include "phost.h"
-#include "kresult.h"
+#include "vproc.h"
+#include "vresult.h"
 
 //The maximum number of processes that can be created.
-#define MAX_PROCESSES 10000
+#ifndef MAX_PROCESSES
+#define MAX_PROCESSES 512 //does this need to be dynamic?
+#endif
+
+
 /**
  * The id pool will be internally used to track the next available process id. This will allow for the reuse of
  * process ids.
  */
-typedef struct IDPool {
-    procid ids[MAX_PROCESSES];
+typedef struct proc_pool {
+    proc_id ids[MAX_PROCESSES];
     u32 top_index; // For stack operations, indicates the top of the stack.
-    procid max_id; // The highest ID ever generated.
-} IDPool;
+    proc_id max_id; // The highest ID ever generated.
+} proc_pool;
 
-/**
- * A process context is used to store the state of a process and it's thread.
- */
-typedef struct ProcessContext {
-    // The process id.
-    proc *process;
-    // the thread id.
-} ProcessContext;
+
 
 /**
  * Internally store the state of the kernel.
  */
-typedef struct KernelContext {
+typedef struct kernel_ctx {
     // The root process view is the root of the process tree. This is the first process that is executed.
     proc **processes;
     // The id pool is used to track the next available process id.
-    IDPool *id_pool;
-} KernelContext;
+    proc_pool *id_pool;
+} kernel_ctx;
 
 /**
  * Initializes the kernel. This will allocate the kernel context and initialize the root process view.
@@ -52,7 +49,7 @@ typedef struct KernelContext {
  * @param root_path The path to the root directory.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_initialize(char *root_path);
+kernel_result kernel_initialize(char *root_path);
 
 /**
  * Creates a new process from a lua script. This will parse the script and create a new lua_State for the process.
@@ -73,14 +70,14 @@ b8 kernel_poll_update();
  * @param pid The process id.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process, else an error code.
  */
-KernelResult kernel_lookup_process(procid pid);
+kernel_result kernel_lookup_process(proc_id pid);
 
 /**
  * Destroys a process. This will stop the process and free all memory. It also frees the id from the id pool.
  * @param pid  The process id.
  * @return  KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_destroy_process(procid pid);
+kernel_result kernel_destroy_process(proc_id pid);
 
 /**
  * Locates a process by name.
@@ -94,7 +91,7 @@ proc *kernel_locate_process(const char *name);
  * @param context The kernel context.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_shutdown();
+kernel_result kernel_shutdown();
 
 /**
  * Registers a system function with the kernel. This will allow the function to be called from a lua script.
@@ -102,5 +99,5 @@ KernelResult kernel_shutdown();
  * @param function The function to register.
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
-KernelResult kernel_register_function(const char *name, lua_CFunction function);
+kernel_result kernel_register_function(const char *name, lua_CFunction function);
 

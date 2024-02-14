@@ -1,7 +1,7 @@
 /**
  * Created by jraynor on 8/26/2023.
  */
-#include "luahost.h"
+#include "vlua.h"
 #include "core/vlogger.h"
 #include <lauxlib.h>
 #include <lualib.h>
@@ -64,8 +64,8 @@ int lua_execute_process(lua_State *L) {
 //            lua_pushinteger(L, process->pid);
 //        }
     } else {
-        procid process_id = (procid) lua_tointeger(L, 1);
-        KernelResult result = kernel_lookup_process(process_id);
+        proc_id process_id = (proc_id) lua_tointeger(L, 1);
+        kernel_result result = kernel_lookup_process(process_id);
         if (!is_kernel_success(result.code)) {
             verror("Failed to lookup process: %s", get_kernel_result_message(result));
             return 1;
@@ -131,7 +131,7 @@ int lua_listen_for_event(lua_State *L) {
     lua_getfield(L, -1, "pid");
     int process_id = lua_tointeger(L, -1);
     vdebug("Executing process with id: %d", process_id);
-    KernelResult result = kernel_lookup_process((procid) process_id);
+    kernel_result result = kernel_lookup_process((proc_id) process_id);
     if (!is_kernel_success(result.code)) {
         verror("Failed to lookup process: %s", get_kernel_result_message(result));
         return 1;

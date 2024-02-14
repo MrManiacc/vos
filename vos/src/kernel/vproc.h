@@ -6,7 +6,7 @@
 #include "filesystem/vfs.h"
 
 // Unique identifiers for processes and groups.
-typedef u32 procid;
+typedef u32 proc_id;
 // Process State, used to determine if a process is running, paused, stopped, or dead.
 typedef enum ProcessState {
     PROCESS_STATE_RUNNING,   // In this state, the process is running normally. This is the default state of a process.
@@ -19,7 +19,7 @@ typedef enum ProcessState {
 // Process Structure
 typedef struct proc {
     // Unique process ID
-    procid pid;
+    proc_id pid;
     // Name of the process
     const char *process_name;
     // Path to the Lua script (process)
@@ -27,7 +27,7 @@ typedef struct proc {
     // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
     lua_State *lua_state;
     // The context for accessing a process's child processes
-    procid *children_pids;
+    proc_id *children_pids;
     // Current state of the process
     proc_state state;
 } proc;
@@ -51,7 +51,7 @@ b8 process_add_child(proc *parent, proc *child);
  * @param child The child process.
  * @return TRUE if the child process was successfully added; otherwise FALSE.
  */
-b8 process_remove_child(proc *parent, procid child_id);
+b8 process_remove_child(proc *parent, proc_id child_id);
 
 
 /**
