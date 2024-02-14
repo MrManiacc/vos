@@ -11,6 +11,8 @@
 #include "core/vstring.h"
 #include "core/vmem.h"
 #include "containers/dict.h"
+#include "filesystem/paths.h"
+#include "platform/platform.h"
 
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
@@ -39,7 +41,7 @@ int lua_execute_process(lua_State *L) {
         const char *process_name = lua_tostring(L, 1);
         
         vdebug("Executing process at: %s", process_name);
-//        Asset *asset = fs_load_asset(process_name);
+//        Asset *node = fs_load_node(process_name);
 //        Process *process = kernel_create_process(process_name);
 //        if (process == null) {
 //            verror("Failed to create process: %s", process_name);
@@ -272,11 +274,19 @@ int lua_import(lua_State *L) {
     //Execute the lua from source
     char *data = node->data.file.data;
     //Outputs the first 100 characters of the file with ... if it's longer
-//    vdebug("Executing lua from source: %.*s%s", 100, data, strlen(data) > 100 ? "..." : "");
-    if (luaL_dostring(L, data) != LUA_OK) {
-        verror("Error executing Lua from source: %s", lua_tostring(L, -1));
-        lua_pop(L, 1); // Remove error message
-        return luaL_error(L, "Expected 1 argument to is_button_down");
+    char sources[node->data.file.size + 1];
+    kcopy_memory(sources, data, node->data.file.size);
+    sources[node->data.file.size] = '\0';
+    if (luaL_dostring(L, sources) != LUA_OK) {
+        const char *error_string = lua_tostring(L, -1);
+        verror("Failed to run script %d: %s", error_string);
+        //try to run it from file
+        if (luaL_dofile(L, platform_path(path_absolute(node->path))) != LUA_OK) {
+            error_string = lua_tostring(L, -1);
+            verror("Failed to run script  %s", error_string);
+            
+            return false;
+        }
     }
     kfree(full_path, string_length(full_path), MEMORY_TAG_STRING);
     //TODO build a list of dependencies that can be used for hot reloading
@@ -455,9 +465,7 @@ int lua_file_system_string(lua_State *L) {
 b8 install_lua_intrinsics(proc *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
-    
     lua_newtable(process->lua_state); // Create the sys table
-    
     // Register the process ID
     lua_pushinteger(process->lua_state, process->pid);
     lua_setfield(process->lua_state, -2, "pid");

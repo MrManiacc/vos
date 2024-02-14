@@ -115,3 +115,7 @@ sys.listen("update", function()
         render_stats(10, 10)
     end
 end)
+
+
+
+print("Testing")

@@ -7,7 +7,7 @@
 #include "core/vtimer.h"
 #include "containers/dict.h"
 #include "core/vstring.h"
-#include "kernel/vfs/paths.h"
+#include "filesystem/paths.h"
 
 // Get the next available ID from the pool.
 procid id_pool_next_id();

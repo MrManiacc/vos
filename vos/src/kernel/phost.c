@@ -10,6 +10,7 @@
 #include "platform/platform.h"
 #include "containers/darray.h"
 #include "kernel.h"
+#include "filesystem/paths.h"
 
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
@@ -48,12 +49,19 @@ b8 process_start(proc *process) {
         process->state = PROCESS_STATE_STOPPED;
         return false;
     }
-    if (luaL_dostring(process->lua_state, source) != LUA_OK) {
-        verror("Failed to run script %d", process->pid);
-        //print the error
-        verror("Error: %s", lua_tostring(process->lua_state, -1));
-        process->state = PROCESS_STATE_STOPPED;
-        return false;
+    char sources[asset->data.file.size + 1];
+    kcopy_memory(sources, source, asset->data.file.size);
+    sources[asset->data.file.size] = '\0';
+    if (luaL_dostring(process->lua_state, sources) != LUA_OK) {
+        const char *error_string = lua_tostring(process->lua_state, -1);
+        verror("Failed to run script %d: %s", process->pid, error_string);
+        //try to run it from file
+        if (luaL_dofile(process->lua_state, platform_path(path_absolute(asset->path))) != LUA_OK) {
+            error_string = lua_tostring(process->lua_state, -1);
+            verror("Failed to run script %d: %s", process->pid, error_string);
+            process->state = PROCESS_STATE_STOPPED;
+            return false;
+        }
     }
     vinfo("Process %d started", process->pid);
     return true;

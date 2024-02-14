@@ -3,7 +3,7 @@
 
 #include "lua.h"
 #include "defines.h"
-#include "kernel/vfs/vfs.h"
+#include "filesystem/vfs.h"
 
 // Unique identifiers for processes and groups.
 typedef u32 procid;

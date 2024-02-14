@@ -52,10 +52,10 @@ typedef enum platform_error_code {
     PLATFORM_ERROR_FILE_EXISTS = 4
 } platform_error_code;
 
-typedef struct FilePathList {
+typedef struct VFilePathList {
     char **paths; // Dynamic array of strings
     int count;    // Number of paths
-} FilePathList;
+} VFilePathList;
 
 /**
  * @brief Performs startup routines within the platform layer. Should be called twice,
@@ -268,9 +268,9 @@ b8 platform_file_exists(const char *path);
 */
 VAPI b8 platform_is_directory(const char *path);
 
-VAPI FilePathList *platform_collect_files_direct(const char *path);
+VAPI VFilePathList *platform_collect_files_direct(const char *path);
 
-VAPI FilePathList *platform_collect_files_recursive(const char *path);
+VAPI VFilePathList *platform_collect_files_recursive(const char *path);
 
 /**
 * @brief Checks if the given path represents a file.
@@ -313,4 +313,14 @@ VAPI void *platform_read_file(const char *path);
  */
 VAPI char *platform_path(const char *path);
 
-VAPI void file_path_list_free(FilePathList *list);
+
+VAPI /**
+ * @brief Frees the FilePathList and its contents
+ *
+ * This function frees the memory allocated for a FilePathList structure and its contents.
+ * It releases the memory for each string in the paths array and then frees the array itself.
+ * Finally, it frees the FilePathList structure itself.
+ *
+ * @param list The FilePathList to be freed
+ */
+void file_path_list_free(VFilePathList *list);

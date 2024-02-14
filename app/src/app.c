@@ -12,7 +12,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
 
-#include "kernel/vfs/paths.h"
+#include "filesystem/paths.h"
 
 #include "raylib.h"
 #include "core/vstring.h"
@@ -57,8 +57,8 @@ int main(int argc, char **argv) {
     SetTargetFPS(270);
     while (!WindowShouldClose()) {
         BeginDrawing();
-        ClearBackground(RAYWHITE);
-        lua_fire(update)
+        ClearBackground(DARKGREEN);
+        event_fire(EVENT_LUA_CUSTOM, null, update);
         kernel_poll_update();
         EndDrawing();
     }

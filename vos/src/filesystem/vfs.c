@@ -145,7 +145,7 @@ fs_node *load_directory(Path path) {
     vinfo("load_directory - Loaded directory at path: %s", dir_node->path);
     
     // Loads all the files and directories in the directory into memory.
-    FilePathList *child_files = platform_collect_files_direct(path);
+    VFilePathList *child_files = platform_collect_files_direct(path);
     if (child_files == null) {
         vwarn("load_directory - No files found in directory at path: %s", dir_node->path);
         return null;
@@ -369,4 +369,14 @@ fs_node *vfs_get(Path path) {
         return null;
     }
     return dict_get(fs_context->nodes, path);
+}
+
+const char *vfs_node_system_path(fs_node *node) {
+    if (node == null) {
+        vwarn("vfs_node_system_path - fs_node not found.");
+        return null;
+    }
+    // Get the system path for the node's path
+    Path systemPath = platform_path(node->path);
+    return systemPath;
 }

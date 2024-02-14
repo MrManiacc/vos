@@ -105,6 +105,23 @@ fs_node *vfs_get(Path path);
 char *vfs_node_to_string(fs_node *node);
 
 /**
+ * \fn const char *vfs_node_system_path(fs_node *node)
+ * \brief Get the system path of a vfs_node.
+ *
+ * Given a vfs_node, this function returns the system path of the node
+ * relative to the root. The system path is a null-terminated string
+ * representation of the path. If the node is a directory, the system
+ * path includes the names of all parent directories and the name of
+ * the directory itself. If the node is a file, the system path includes
+ * the names of all parent directories and the name of the file.
+ *
+ * \param node The vfs_node whose system path is to be retrieved.
+ * \return A pointer to the system path string of the vfs_node. If the
+ *         system path cannot be obtained, NULL is returned.
+ */
+const char *vfs_node_system_path(fs_node *node);
+
+/**
  * @breif this function will create a string representation of the vfs file system.
  */
 char *vfs_to_string();

@@ -738,7 +738,7 @@ void *platform_read_file(const char *path) {
 }
 
 // Free the FilePathList and its contents
-void file_path_list_free(FilePathList *fileList) {
+void file_path_list_free(VFilePathList *fileList) {
     for (int i = 0; i < fileList->count; i++) {
         free(fileList->paths[i]); // Free each string
     }
@@ -748,7 +748,7 @@ void file_path_list_free(FilePathList *fileList) {
 
 
 // Add a file path to the FilePathList
-void file_path_list_add(FilePathList *fileList, const char *path) {
+void file_path_list_add(VFilePathList *fileList, const char *path) {
     fileList->paths = realloc(fileList->paths, (fileList->count + 1) * sizeof(char *));
     if (!fileList->paths) {
         perror("Failed to realloc filePaths");
@@ -759,7 +759,7 @@ void file_path_list_add(FilePathList *fileList, const char *path) {
 }
 
 // Recursively collect files into the FilePathList
-void collect_files_recursive(const char *base_path, FilePathList *fileList) {
+void collect_files_recursive(const char *base_path, VFilePathList *fileList) {
     WIN32_FIND_DATAA find_data;
     HANDLE find_handle;
     char search_path[MAX_PATH];
@@ -790,7 +790,7 @@ void collect_files_recursive(const char *base_path, FilePathList *fileList) {
 
 
 // Function to collect files directly within a given directory, non-recursively.
-void collect_files_direct(const char *base_path, FilePathList *fileList) {
+void collect_files_direct(const char *base_path, VFilePathList *fileList) {
     WIN32_FIND_DATAA find_data;
     HANDLE find_handle;
     char search_path[MAX_PATH];
@@ -815,8 +815,8 @@ void collect_files_direct(const char *base_path, FilePathList *fileList) {
 }
 
 // Create and initialize a FilePathList
-FilePathList *platform_collect_files_direct(const char *path) {
-    FilePathList *fileList = malloc(sizeof(FilePathList));
+VFilePathList *platform_collect_files_direct(const char *path) {
+    VFilePathList *fileList = malloc(sizeof(VFilePathList));
     if (!fileList) {
         perror("Failed to allocate FilePathList");
         return NULL;
@@ -829,8 +829,8 @@ FilePathList *platform_collect_files_direct(const char *path) {
 }
 
 // Create and initialize a FilePathList
-FilePathList *platform_collect_files_recursive(const char *path) {
-    FilePathList *fileList = malloc(sizeof(FilePathList));
+VFilePathList *platform_collect_files_recursive(const char *path) {
+    VFilePathList *fileList = malloc(sizeof(VFilePathList));
     if (!fileList) {
         perror("Failed to allocate FilePathList");
         return NULL;
