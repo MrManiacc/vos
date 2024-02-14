@@ -10,7 +10,7 @@ typedef u64 (hash_function)(const char *);
 
 typedef struct entry {
     char *key;
-    void *object;
+    void *value;
     struct entry *next;
 } entry;
 
@@ -76,11 +76,33 @@ b8 dict_set(dict *table, const char *key, void *value);
 void *dict_get(dict *table, const char *key);
 
 /**
+ * @brief Checks if a key is present in the dictionary.
+ *
+ * This function checks if a given key is present in the dictionary.
+ *
+ * @param table A pointer to the dictionary.
+ * @param key The key to search for.
+ * @return True if the key is found, false otherwise.
+ */
+b8 dict_contains(dict *table, const char *key);
+
+/**
  * @brief removes the given key from the table
  * @param table the table to remove from
  * @param key the key to remove
  */
 void *dict_remove(dict *table, const char *key);
+
+
+/**
+ * @brief Get the size of the dictionary.
+ *
+ * This function returns the size of the provided dictionary.
+ *
+ * @param table A pointer to the dictionary.
+ * @return The size of the dictionary.
+ */
+u32 dict_size(dict *table);
 
 /**
  * @brief converts the given table to a string

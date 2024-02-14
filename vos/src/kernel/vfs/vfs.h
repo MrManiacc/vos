@@ -6,14 +6,16 @@
 //#include <pthread.h>
 #include "defines.h"
 #include "kernel/kresult.h"
+#include "containers/dict.h"
 
-typedef const char *Path;
+typedef char *Path;
 #ifndef NODE_CAPACITY
 #define NODE_CAPACITY 1024
 #endif
 #ifndef USER_CAPACITY
 #define USER_CAPACITY 1024
 #endif
+
 /**
  * A serializable representation of a user
  */
@@ -38,34 +40,26 @@ typedef struct Group {
     u16 permissions;
 } Group;
 
-typedef struct Fs Fs;
-
-typedef enum NodeAction {
-    NODE_CREATED,
-    NODE_DELETED,
-    NODE_MODIFIED,
-    NODE_RENAMED
-} NodeAction;
-
-typedef enum NodeType {
+typedef enum fs_node_type {
     NODE_FILE,
     NODE_DIRECTORY,
     NODE_SYMLINK
-} NodeType;
+} fs_node_type;
 
-typedef struct Node {
+
+typedef struct fs_node {
     //The path of the node relative to the root.
     Path path;
     // The Parent of the node.
-    struct Node *parent;
+    struct fs_node *parent;
     // the type of the node.
-    NodeType type;
+    fs_node_type type;
     // A union of the data that can be stored in the node, can be a directory or a file.
     union {
         // The data of the node if it is a directory.
         struct {
-            // The children of the directory.
-            struct Node **children;
+            //A darray of the children for the directory.
+            struct fs_node **children;
             // The number of children in the directory.
             u32 child_count;
         } directory;
@@ -77,46 +71,16 @@ typedef struct Node {
             char *data;
         } file;
     } data;
-} Node;
+} fs_node;
 
-typedef struct NodeData {
-    // The path to the asset.
-    Path path;
-    // The data of the asset.
-    void *data;
-    // The size of the asset.
-    u64 size;
-} NodeData;
-
-
-typedef struct NodeLoader {
-    // The extension that this loader will handle.
-    const char *extension;
-    
-    // The function that will be called to load the asset.
-    void (*load)(Node *node, NodeData *out_asset);
-    
-    // The function that will be called to unload the asset.
-    void (*unload)(Node *node);
-} NodeLoader;
-
-b8 fs_initialize(Path root);
 
 /**
- * This function will return the node at the given path. If the path is invalid, the node will be NULL.
- * It will attempt to load the node from the file system if it is not already loaded. The node will be cached
- * in memory for future use. We also watch the file system for changes to the node and update the node
- * accordingly to keep it in sync with the file system. This method is thread safe and guarantees that
- * a node will only be loaded once.
- * @param path The path to get the node from. Path can be absolute or relative to the current working directory, this is
- * determined by the first character of the path. If the path starts with a '/', it is absolute. Otherwise,
- * it is relative to the current working directory.
- * @param action The action that was performed on the node. This is used to determine how to update the node.
- * @param caller The node that performed the action. This is used to determine how to update the node.
- * Windows paths will be converted to Unix paths, with /c/ being the root of the C drive.
- * @return The node at the given path or NULL if the path is invalid.
+ * This function will initialize the vfs file system.
+ * @param root The root path of the vfs file system.
+ * @return true if the vfs file system was initialized successfully, false otherwise.
  */
-Node *fs_sync_node(Path path, NodeAction action, Node *caller);
+b8 vfs_initialize(Path root);
+
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
@@ -124,24 +88,29 @@ Node *fs_sync_node(Path path, NodeAction action, Node *caller);
  * @param path The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-b8 fs_node_exists(Path path);
+b8 vfs_exists(Path path);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param path  The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-Node *fs_get_node(Path path);
-
-char *fs_to_string();
-
-char *fs_node_to_string(Node *node);
-
-void fs_shutdown();
+fs_node *vfs_get(Path path);
 
 /**
- * This will register a new asset loader. The loader will be used to load and unload assets.
- * @param extension The extension that this loader will handle.
- * @param loader The loader to register.
+ * This function will return the node at the given path. If the path is invalid, the node will be NULL.
+ * @param node The node to get the path from.
+ * @return The path of the node.
  */
-void fs_register_asset_loader(NodeLoader *loader);
+char *vfs_node_to_string(fs_node *node);
+
+/**
+ * @breif this function will create a string representation of the vfs file system.
+ */
+char *vfs_to_string();
+
+/**
+ * @brief shuts down the vfs file system, cleaning up any resources.
+ */
+void vfs_shutdown();
+

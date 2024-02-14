@@ -12,3 +12,8 @@ set_property(TARGET vos PROPERTY C_STANDARD 17)
 target_include_directories(vos PUBLIC src)
 target_link_libraries(vos ${LUA_LIBRARIES} raylib unofficial::tree-sitter::tree-sitter Threads::Threads)
 
+# Setup our defines for the target
+target_compile_definitions(vos PUBLIC
+        -DUSE_LINE_NUMBER
+        -DUSE_DEBUG_LOG
+)

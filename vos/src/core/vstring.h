@@ -2,9 +2,9 @@
 
 #include "defines.h"
 
-void initialize_string_module();
+void strings_initialize();
 
-void shutdown_string_module();
+void strings_shutdown();
 
 
 VAPI char *string_allocate_sized(const char *input, u64 length);
@@ -55,3 +55,11 @@ VAPI char *string_format(const char *str, ...);
 VAPI char *string_to_lower(const char *input);
 
 VAPI char *string_append(const char *str, const char *append);
+
+VAPI char *string_prepend(const char *str, const char *prepend);
+
+VAPI char *string_substring(const char *str, u64 start, u64 end);
+
+VAPI char *string_reverse(const char *str);
+
+VAPI char *string_repeat(const char *str, u64 count);

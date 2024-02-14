@@ -17,7 +17,7 @@
 
 typedef struct platform_system_config {
     /** @brief application_name The name of the application. */
-    const char* application_name;
+    const char *application_name;
     /** @brief x The initial x position of the main window. */
     i32 x;
     /** @brief y The initial y position of the main window.*/
@@ -29,19 +29,19 @@ typedef struct platform_system_config {
 } platform_system_config;
 
 typedef struct dynamic_library_function {
-    const char* name;
-    void* pfn;
+    const char *name;
+    void *pfn;
 } dynamic_library_function;
 
 typedef struct dynamic_library {
-    const char* name;
-    const char* filename;
+    const char *name;
+    const char *filename;
     u64 internal_data_size;
-    void* internal_data;
+    void *internal_data;
     u32 watch_id;
     
     // darray
-    dynamic_library_function* functions;
+    dynamic_library_function *functions;
 } dynamic_library;
 
 typedef enum platform_error_code {
@@ -51,6 +51,11 @@ typedef enum platform_error_code {
     PLATFORM_ERROR_FILE_LOCKED = 3,
     PLATFORM_ERROR_FILE_EXISTS = 4
 } platform_error_code;
+
+typedef struct FilePathList {
+    char **paths; // Dynamic array of strings
+    int count;    // Number of paths
+} FilePathList;
 
 /**
  * @brief Performs startup routines within the platform layer. Should be called twice,
@@ -62,14 +67,14 @@ typedef enum platform_error_code {
  * @param config A pointer to a configuration platform_system_config structure required by this system.
  * @return True on success; otherwise false.
  */
-b8 platform_system_startup(u64* memory_requirement, void* state, void* config);
+b8 platform_system_startup(u64 *memory_requirement, void *state, void *config);
 
 /**
  * @brief Shuts down the platform layer.
  *
  * @param plat_state A pointer to the platform layer state.
  */
-void platform_system_shutdown(void* plat_state);
+void platform_system_shutdown(void *plat_state);
 
 /**
  * @brief Performs any platform-specific message pumping that is required
@@ -86,7 +91,7 @@ b8 platform_pump_messages(void);
  * @param aligned Indicates if the allocation should be aligned.
  * @return A pointer to a block of allocated memory.
  */
-void* platform_allocate(u64 size, b8 aligned);
+void *platform_allocate(u64 size, b8 aligned);
 
 /**
  * @brief Frees the given block of memory.
@@ -94,7 +99,7 @@ void* platform_allocate(u64 size, b8 aligned);
  * @param block The block to be freed.
  * @param aligned Indicates if the block of memory is aligned.
  */
-void platform_free(void* block, b8 aligned);
+void platform_free(void *block, b8 aligned);
 
 /**
  * @brief Performs platform-specific zeroing out of the given block of memory.
@@ -103,7 +108,7 @@ void platform_free(void* block, b8 aligned);
  * @param size The size of data to zero out.
  * @return A pointer to the zeroed out block of memory.
  */
-void* platform_zero_memory(void* block, u64 size);
+void *platform_zero_memory(void *block, u64 size);
 
 /**
  * @brief Copies the bytes of memory in source to dest, of the given size.
@@ -113,7 +118,7 @@ void* platform_zero_memory(void* block, u64 size);
  * @param size The size of data to be copied.
  * @return A pointer to the destination block of memory.
  */
-void* platform_copy_memory(void* dest, const void* source, u64 size);
+void *platform_copy_memory(void *dest, const void *source, u64 size);
 
 /**
  * @brief Sets the bytes of memory to the given value.
@@ -123,7 +128,7 @@ void* platform_copy_memory(void* dest, const void* source, u64 size);
  * @param size The size of data to set.
  * @return A pointer to the set block of memory.
  */
-void* platform_set_memory(void* dest, i32 value, u64 size);
+void *platform_set_memory(void *dest, i32 value, u64 size);
 
 /**
  * @brief Performs platform-specific printing to the console of the given
@@ -132,7 +137,7 @@ void* platform_set_memory(void* dest, i32 value, u64 size);
  * @param message The message to be printed.
  * @param colour The colour to print the text in (if supported).
  */
-void platform_console_write(const char* message, u8 colour);
+void platform_console_write(const char *message, u8 colour);
 
 /**
  * @brief Performs platform-specific printing to the error console of the given
@@ -141,7 +146,7 @@ void platform_console_write(const char* message, u8 colour);
  * @param message The message to be printed.
  * @param colour The colour to print the text in (if supported).
  */
-void platform_console_write_error(const char* message, u8 colour);
+void platform_console_write_error(const char *message, u8 colour);
 
 /**
  * @brief Gets the absolute time since the application started.
@@ -174,7 +179,7 @@ i32 platform_get_processor_count(void);
  * @param out_size A pointer to hold the memory requirement.
  * @param memory Allocated block of memory.
  */
-VAPI void platform_get_handle_info(u64* out_size, void* memory);
+VAPI void platform_get_handle_info(u64 *out_size, void *memory);
 
 /**
  * @brief Returns the device pixel ratio of the main window.
@@ -188,7 +193,7 @@ VAPI f32 platform_device_pixel_ratio(void);
  * @param out_library A pointer to hold the loaded library. Required.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_load(const char* name, dynamic_library* out_library);
+VAPI b8 platform_dynamic_library_load(const char *name, dynamic_library *out_library);
 
 /**
  * @brief Unloads the given dynamic library.
@@ -196,7 +201,7 @@ VAPI b8 platform_dynamic_library_load(const char* name, dynamic_library* out_lib
  * @param library A pointer to the loaded library. Required.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_unload(dynamic_library* library);
+VAPI b8 platform_dynamic_library_unload(dynamic_library *library);
 
 /**
  * @brief Loads an exported function of the given name from the provided loaded library.
@@ -205,17 +210,17 @@ VAPI b8 platform_dynamic_library_unload(dynamic_library* library);
  * @param library A pointer to the library to load the function from.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_load_function(const char* name, dynamic_library* library);
+VAPI b8 platform_dynamic_library_load_function(const char *name, dynamic_library *library);
 
 /**
  * @brief Returns the file extension for the current platform.
  */
-VAPI const char* platform_dynamic_library_extension(void);
+VAPI const char *platform_dynamic_library_extension(void);
 
 /**
  * @brief Returns a file prefix for libraries for the current platform.
  */
-VAPI const char* platform_dynamic_library_prefix(void);
+VAPI const char *platform_dynamic_library_prefix(void);
 
 /**
  * @brief Copies file at source to destination, optionally overwriting.
@@ -234,7 +239,7 @@ VAPI platform_error_code platform_copy_file(const char *source, const char *dest
  * @param out_watch_id A pointer to hold the watch identifier.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_watch_file(const char* file_path, u32* out_watch_id);
+VAPI b8 platform_watch_file(const char *file_path, u32 *out_watch_id);
 
 /**
  * @brief Stops watching the file with the given watch identifier.
@@ -243,3 +248,69 @@ VAPI b8 platform_watch_file(const char* file_path, u32* out_watch_id);
  * @return True on success; otherwise false.
  */
 VAPI b8 platform_unwatch_file(u32 watch_id);
+
+VAPI /**
+*
+*/
+b8 platform_file_exists(const char *path);
+
+/**
+* @brief Checks if a given path is a directory.
+*
+* This function checks whether the specified path represents a directory or not.
+*
+* @param path The path to be checked.
+* @return Returns a bool value indicating if the path is a directory or not.
+*         - true: If the path is a directory.
+*         - false: If the path is not a directory.
+*
+* @note The function returns false if the path does not exist.
+*/
+VAPI b8 platform_is_directory(const char *path);
+
+VAPI FilePathList *platform_collect_files_direct(const char *path);
+
+VAPI FilePathList *platform_collect_files_recursive(const char *path);
+
+/**
+* @brief Checks if the given path represents a file.
+*
+* This function checks if the given path represents a file in the platform-specific
+* file system. It returns true if the path represents a file, and false otherwise.
+*
+* @param[in] path The path to check if it represents a file.
+* @return True if the path represents a file, false otherwise.
+*/
+VAPI b8 platform_is_file(const char *path);
+
+/**
+* @brief Get the size of a file.
+*
+* This function obtains the size in bytes of the file located at the given path.
+*
+* @param path The path to the file.
+* @return The size of the file in bytes, or 0 if the file does not exist or an error occurred.
+*/
+VAPI u32 platform_file_size(const char *path);
+
+/**
+* @brief Reads the contents of a file and returns a pointer to the data.
+*
+* This function reads the contents of the file specified by the given path, and returns a pointer to the data.
+* The caller is responsible for freeing the memory allocated for the data using a corresponding "free" function.
+*
+* @param path The path of the file to be read.
+* @return A pointer to the data read from the file, or NULL if an error occurs.
+*/
+VAPI void *platform_read_file(const char *path);
+
+/**
+ * Converts the given path to a platform-specific path.
+ * @param path The path to convert.
+ * @return A platform-specific path.
+ * @example platform_path("/C/root/asset.txt") -> "C:/root/asset.txt" (Windows)
+ * @example platform_path("/C/root/asset/asset.txt") -> "C:/root/asset/asset.txt" (Windows)
+ */
+VAPI char *platform_path(const char *path);
+
+VAPI void file_path_list_free(FilePathList *list);

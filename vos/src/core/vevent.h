@@ -271,6 +271,4 @@ typedef enum system_event_code {
     memcpy(event_name.data.c, #event_name, strlen(#event_name));\
 
 #define lua_fire(event_name) \
-    event_context context; \
-    memcpy(context.data.c, #event_name, strlen(event_name)); \
-    event_fire(EVENT_LUA_CUSTOM, 0, context)
+ event_fire(EVENT_LUA_CUSTOM, NULL, event_name);

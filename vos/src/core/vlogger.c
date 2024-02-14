@@ -4,51 +4,69 @@
 #include "vstring.h"
 
 
-// TODO: temporary
+// TODO-temporary
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 
 b8 initialize_logging() {
-    // TODO: create log file.
+    // TODO-create log file.
     return true;
 }
 
 void shutdown_logging() {
-    // TODO: cleanup logging/write queued entries.
+    // TODO-cleanup logging/write queued entries.
 }
 
-void log_output(log_level level, const char *message, ...) {
-    const char *level_strings[6] = {"[FATAL]: ", "[ERROR]: ", "[WARN]:  ", "[INFO]:  ", "[DEBUG]: ", "[TRACE]: "};
+//TODO: parse the string for colors in the platform_console_write_error and platform_console_write instead of consecutive calls to platform_console_write
+void log_output(log_level level, const char *call_location, const char *message, ...) {
+    #ifdef USE_LINE_NUMBER
+    static const char *level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"};
+    #else
+    static const char *level_strings[6] = {"[FATAL] - ", "[ERROR] - ", "[WARN] - ", "[INFO] - ", "[DEBUG] - ", "[TRACE] - "};
+    #endif
+    
     b8 is_error = level < LOG_LEVEL_WARN;
     
-    // Technically imposes a 32k character limit on a single log entry, but...
-    // DON'T DO THAT!
-    const u32 msg_length = string_length(message) + 1024;
-    char out_message[msg_length];
-    memset(out_message, 0, sizeof(out_message));
+    const u32 msg_length = 1024; // Adjust size as needed
+    char formatted_message[msg_length];
+    memset(formatted_message, 0, sizeof(formatted_message));
     
-    // Format original message.
-    // NOTE: Oddly enough, MS's headers override the GCC/Clang va_list type with a "typedef char* va_list" in some
-    // cases, and as a result throws a strange error here. The workaround for now is to just use __builtin_va_list,
-    // which is the type GCC/Clang's va_start expects.
     va_list arg_ptr;
     va_start(arg_ptr, message);
-    vsnprintf(out_message, msg_length, message, arg_ptr);
+    vsnprintf(formatted_message, msg_length, message, arg_ptr);
     va_end(arg_ptr);
-    char out_message2[msg_length];
-    sprintf(out_message2, "%s%s\n", level_strings[level], out_message);
-    //include the line and file
-    // Platform-specific output.
-    if (is_error) {
-        platform_console_write_error(out_message2, level);
-    } else {
-        platform_console_write(out_message2, level);
+    
+    //add a newline to the end of the message if it doesn't have one
+    if (formatted_message[strlen(formatted_message) - 1] != '\n') {
+        strcat(formatted_message, "\n");
     }
-   
+    
+    // Output level with its color
+    if (is_error) {
+        platform_console_write_error(level_strings[level], level);
+    } else {
+        platform_console_write(level_strings[level], level);
+    }
+    #ifdef USE_LINE_NUMBER
+    // Output call location with the same color as level
+    if (is_error) {
+        platform_console_write_error(call_location, level);
+    } else {
+        platform_console_write(call_location, level);
+    }
+    #endif
+    
+    // Reset to default color (white) and output the message
+    if (is_error) {
+        platform_console_write_error(formatted_message, LOG_LEVEL_NONE); // Assuming LOG_LEVEL_INFO is white
+    } else {
+        platform_console_write(formatted_message, LOG_LEVEL_NONE); // Assuming LOG_LEVEL_INFO is white
+    }
+    
 }
 
 void report_assertion_failure(const char *expression, const char *message, const char *file, i32 line) {
-    log_output(LOG_LEVEL_FATAL, "Assertion Failure: %s, message: '%s', in file: %s, line: %d\n", expression, message,
+    log_output(LOG_LEVEL_FATAL, "Assertion Failure-%s, message-'%s', in file-%s, line-%d\n", expression, message,
                file, line);
 }

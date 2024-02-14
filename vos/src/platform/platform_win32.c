@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <windowsx.h>  // param input extraction
+#include <stdio.h>
 
 typedef struct win32_handle_info {
     HINSTANCE h_instance;
@@ -84,8 +85,8 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config) {
     wc.cbWndExtra = 0;
     wc.hInstance = state_ptr->handle.h_instance;
     wc.hIcon = icon;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);  // NULL; // Manage the cursor manually
-    wc.hbrBackground = NULL;                   // Transparent
+    wc.hCursor = LoadCursor(null, IDC_ARROW);  // null; // Manage the cursor manually
+    wc.hbrBackground = null;                   // Transparent
     wc.lpszClassName = "kohi_window_class";
     
     if (!RegisterClassA(&wc)) {
@@ -129,7 +130,7 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config) {
             0, 0, state_ptr->handle.h_instance, 0);
     
     if (handle == 0) {
-        MessageBoxA(NULL, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+        MessageBoxA(null, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         
         vfatal("Window creation failed!");
         return false;
@@ -160,7 +161,7 @@ void platform_system_shutdown(void *plat_state) {
 b8 platform_pump_messages(void) {
     if (state_ptr) {
         MSG message;
-        while (PeekMessageA(&message, NULL, 0, 0, PM_REMOVE)) {
+        while (PeekMessageA(&message, null, 0, 0, PM_REMOVE)) {
             TranslateMessage(&message);
             DispatchMessageA(&message);
         }
@@ -201,14 +202,13 @@ void platform_console_write(const char *message, u8 colour) {
         GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     }
     
-    // FATAL,ERROR,WARN,INFO,DEBUG,TRACE
-    static u8 levels[6] = {64, 4, 6, 2, 1, 8};
+    // FATAL,ERROR,WARN,INFO,DEBUG,TRACE, NONE
+    static u8 levels[7] = {64, 4, 6, 2, 1, 8, 15};
     SetConsoleTextAttribute(console_handle, levels[colour]);
     OutputDebugStringA(message);
     u64 length = strlen(message);
     DWORD number_written = 0;
     WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), message, (DWORD) length, &number_written, 0);
-    
     SetConsoleTextAttribute(console_handle, csbi.wAttributes);
 }
 
@@ -223,7 +223,7 @@ void platform_console_write_error(const char *message, u8 colour) {
     }
     
     // FATAL,ERROR,WARN,INFO,DEBUG,TRACE
-    static u8 levels[6] = {64, 4, 6, 2, 1, 8};
+    static u8 levels[7] = {64, 4, 6, 2, 1, 8, 15};
     SetConsoleTextAttribute(console_handle, levels[colour]);
     OutputDebugStringA(message);
     u64 length = strlen(message);
@@ -370,7 +370,7 @@ b8 kmutex_create(kmutex *out_mutex) {
         verror("Unable to create mutex.");
         return false;
     }
-     vtrace("Created mutex.");
+    vtrace("Created mutex.");
     return true;
 }
 
@@ -669,6 +669,207 @@ b8 platform_watch_file(const char *file_path, u32 *out_watch_id) {
 b8 platform_unwatch_file(u32 watch_id) {
     return unregister_watch(watch_id);
 }
+
+b8 platform_is_directory(const char *path) {
+    //checks if the path is a directory on windows
+    DWORD file_attributes = GetFileAttributesA(path);
+    if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return (file_attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+b8 platform_is_file(const char *path) {
+    //checks if the path is a file on windows
+    DWORD file_attributes = GetFileAttributesA(path);
+    if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return (file_attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+b8 platform_file_exists(const char *path) {
+    DWORD file_attributes = GetFileAttributesA(path);
+    if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return true;
+}
+
+
+u32 platform_file_size(const char *path) {
+    HANDLE file_handle = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file_handle == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    
+    LARGE_INTEGER file_size;
+    if (!GetFileSizeEx(file_handle, &file_size)) {
+        CloseHandle(file_handle);
+        return 0;
+    }
+    
+    CloseHandle(file_handle);
+    return (u32) file_size.QuadPart;
+}
+
+void *platform_read_file(const char *path) {
+    HANDLE file_handle = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file_handle == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    
+    u32 file_size = platform_file_size(path);
+    void *data = platform_allocate(file_size, false);
+    if (!data) {
+        CloseHandle(file_handle);
+        return 0;
+    }
+    
+    DWORD bytes_read;
+    if (!ReadFile(file_handle, data, file_size, &bytes_read, 0)) {
+        CloseHandle(file_handle);
+        platform_free(data, false);
+        return 0;
+    }
+    
+    CloseHandle(file_handle);
+    return data;
+}
+
+// Free the FilePathList and its contents
+void file_path_list_free(FilePathList *fileList) {
+    for (int i = 0; i < fileList->count; i++) {
+        free(fileList->paths[i]); // Free each string
+    }
+    free(fileList->paths); // Free the array of pointers
+    free(fileList); // Free the structure itself
+}
+
+
+// Add a file path to the FilePathList
+void file_path_list_add(FilePathList *fileList, const char *path) {
+    fileList->paths = realloc(fileList->paths, (fileList->count + 1) * sizeof(char *));
+    if (!fileList->paths) {
+        perror("Failed to realloc filePaths");
+        exit(1); // Or handle error as appropriate
+    }
+    fileList->paths[fileList->count] = strdup(path); // Copy the path
+    fileList->count++;
+}
+
+// Recursively collect files into the FilePathList
+void collect_files_recursive(const char *base_path, FilePathList *fileList) {
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle;
+    char search_path[MAX_PATH];
+    snprintf(search_path, MAX_PATH, "%s\\*", base_path);
+    
+    find_handle = FindFirstFileA(search_path, &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE) {
+        return; // Directory not found or unable to open directory.
+    }
+    
+    do {
+        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+            continue; // Skip the '.' and '..' directory entries.
+        }
+        
+        char full_path[MAX_PATH];
+        snprintf(full_path, MAX_PATH, "%s\\%s", base_path, find_data.cFileName);
+        file_path_list_add(fileList, full_path); // Add both files and folders
+        
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            // If it's a directory, recurse into it
+            collect_files_recursive(full_path, fileList);
+        }
+    } while (FindNextFileA(find_handle, &find_data));
+    
+    FindClose(find_handle);
+}
+
+
+// Function to collect files directly within a given directory, non-recursively.
+void collect_files_direct(const char *base_path, FilePathList *fileList) {
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle;
+    char search_path[MAX_PATH];
+    snprintf(search_path, MAX_PATH, "%s\\*", base_path);
+    
+    find_handle = FindFirstFileA(search_path, &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE) {
+        return; // Directory not found or unable to open directory.
+    }
+    
+    do {
+        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+            continue; // Skip the '.' and '..' directory entries.
+        }
+        
+        char full_path[MAX_PATH];
+        snprintf(full_path, MAX_PATH, "%s\\%s", base_path, find_data.cFileName);
+        file_path_list_add(fileList, full_path);
+    } while (FindNextFileA(find_handle, &find_data));
+    
+    FindClose(find_handle);
+}
+
+// Create and initialize a FilePathList
+FilePathList *platform_collect_files_direct(const char *path) {
+    FilePathList *fileList = malloc(sizeof(FilePathList));
+    if (!fileList) {
+        perror("Failed to allocate FilePathList");
+        return NULL;
+    }
+    fileList->paths = NULL;
+    fileList->count = 0;
+    
+    collect_files_direct(path, fileList);
+    return fileList;
+}
+
+// Create and initialize a FilePathList
+FilePathList *platform_collect_files_recursive(const char *path) {
+    FilePathList *fileList = malloc(sizeof(FilePathList));
+    if (!fileList) {
+        perror("Failed to allocate FilePathList");
+        return NULL;
+    }
+    fileList->paths = NULL;
+    fileList->count = 0;
+    
+    collect_files_recursive(path, fileList);
+    return fileList;
+}
+
+
+char *platform_path(const char *path) {
+    if (path == null) return null; // Added null check
+    //if it doesn't start with a slash and contains :, it's a windows path so we return it
+    if (path[0] != '/' && path[1] == ':') return string_duplicate(path);
+    
+    u32 len = strlen(path);
+    char *platform_path = string_allocate_sized(path, len + 2);
+    strcpy(platform_path, path);  // Copy the original path
+    
+    
+    
+    // Transform '/' to '\\'
+    for (u32 i = 0; i < len; ++i) {
+        if (platform_path[i] == '/') {
+            platform_path[i] = '\\';
+        }
+    }
+    
+    // Handle drive letter
+    if (len > 1 && platform_path[0] == '\\' && platform_path[1] != '\\') {
+        platform_path[0] = platform_path[1];
+        platform_path[1] = ':';
+    }
+    
+    return platform_path;
+}
+
 
 static void platform_update_watches(void) {
     if (!state_ptr || !state_ptr->watches) {

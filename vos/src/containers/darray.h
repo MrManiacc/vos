@@ -41,7 +41,7 @@ VAPI u64 _darray_find(void *array, void *value_ptr);
 
 VAPI u64 _darray_remove(void *array, void *value_ptr);
 
-#define DARRAY_DEFAULT_CAPACITY 4
+#define DARRAY_DEFAULT_CAPACITY 1
 #define DARRAY_RESIZE_FACTOR 2
 
 #define darray_find(array, value_ptr) \

@@ -15,33 +15,35 @@ typedef struct PathContext {
 static PathContext *path_context = null;
 
 char *path_normalize(char *path) {
-    if (path == NULL) {
-        return NULL;
+    if (path == null) {
+        return null;
     }
-    // Allocate enough space for the normalized path
+    
+    // Allocate enough space for the normalized path, including potential leading slash
     char *normalized_path = string_allocate_empty(
-            string_length(path) + 1); // Use string_allocate for initial allocation
-    u32 j = 0;
-    for (u32 i = 0; i < strlen(path); ++i) {
-        if (path[i] == '\\') {
-            normalized_path[j] = '/';
-        } else if (path[i] == ':') {
-            continue;  // Skip the colon
-        } else {
-            normalized_path[j] = path[i];
-        }
-        j++;
+            string_length(path) + 2); // +1 for null terminator, +1 for potential leading slash
+    if (normalized_path == null) {
+        // Memory allocation failed
+        return null;
     }
-    normalized_path[j] = '\0';  // Null-terminate the string
+    
+    size_t j = 0; // Index for writing to normalized_path
     
     // Ensure it starts with a slash
-    if (normalized_path[0] != '/') {
-        char *new_path = string_allocate_empty(j + 2); // Use string_allocate for the new path
-        new_path[0] = '/';
-        strcpy(new_path + 1, normalized_path);
-        string_deallocate(normalized_path); // Use string_deallocate to free the original normalized path
-        normalized_path = new_path;
+    if (path[0] != '/') {
+        normalized_path[j++] = '/';
     }
+    
+    // Replace backslashes with slashes and skip colons
+    for (size_t i = 0; i < strlen(path); ++i) {
+        if (path[i] == '\\') {
+            normalized_path[j++] = '/';
+        } else if (path[i] != ':') {
+            normalized_path[j++] = path[i];
+        }
+    }
+    
+    normalized_path[j] = '\0'; // Null-terminate the modified path
     
     return normalized_path;
 }
@@ -51,6 +53,8 @@ char *path_normalize(char *path) {
  * Expects the path to be absolute when passed in as well as being within the root file tree.
  * @param path The path to normalize.
  * @return The normalized path.
+ * @example path_relative("/root/asset.txt") -> "asset.txt"
+ * @example path_relative("/root/asset/asset.txt") -> "asset/asset.txt"
  */
 char *path_relative(char *path) {
     if (path == null) {
@@ -59,11 +63,14 @@ char *path_relative(char *path) {
     
     char *input_path = path_normalize(path);
     char *root_path = path_normalize(path_root_directory());
+    // if the strings are equal, we know it's the root and just return a slash
+    if (strcmp(input_path, root_path) == 0) return string_duplicate("/");
     if (string_starts_with(input_path, root_path)) {
         char *relative_path = string_duplicate(input_path + string_length(root_path) + 1);
-        kfree(input_path, string_length(input_path) + 1, MEMORY_TAG_VFS);
-        kfree(root_path, string_length(root_path) + 1, MEMORY_TAG_VFS);
-        vdebug("relative path: %s", relative_path)
+        kfree(input_path, string_length(input_path) + 1, MEMORY_TAG_STRING);
+        kfree(root_path, string_length(root_path) + 1, MEMORY_TAG_STRING);
+//        vdebug("relative path: %s", relative_path)
+//
         return relative_path;
     }
     return input_path;
@@ -79,10 +86,10 @@ char *path_relative(char *path) {
  */
 
 // Example modification for path_move to demonstrate the pattern:
-void path_init(char *path) {
+void initialize_paths(char *path) {
     char *normalized = path_normalize(string_duplicate(path)); // Use string_duplicate for tracking
     if (path_context == null) {
-        path_context = kallocate(sizeof(PathContext), MEMORY_TAG_VFS); // Keep as is; non-string allocation
+        path_context = kallocate(sizeof(PathContext), MEMORY_TAG_STRING); // Keep as is; non-string allocation
         path_context->root_directory = null;
         path_context->current_directory = null;
     }
@@ -98,11 +105,11 @@ void path_init(char *path) {
     }
 }
 
-void path_shutdown() {
+void shutdown_paths() {
     if (path_context == null) {
         return;
     }
-    kfree(path_context, sizeof(PathContext), MEMORY_TAG_VFS); // Keep as is; non-string allocation
+    kfree(path_context, sizeof(PathContext), MEMORY_TAG_STRING); // Keep as is; non-string allocation
     path_context = null;
 }
 
@@ -117,7 +124,7 @@ char *path_absolute(char *path) {
     }
     size_t total_length =
             strlen(path_context->current_directory) + strlen(path) + 1; // +1 for the separator or terminator
-    char *absolute_path = kallocate(total_length, MEMORY_TAG_VFS);
+    char *absolute_path = kallocate(total_length, MEMORY_TAG_STRING);
     vdebug("current directory: %s", path_context->current_directory)
     vdebug("path: %s", path)
     strcpy(absolute_path, path_context->current_directory);
@@ -139,7 +146,7 @@ char *path_parent_directory(char *path) {
     }
     char *absolute_path = path_absolute(path);
     char *parent_directory = string_split_at(absolute_path, "/", string_split_count(absolute_path, "/") - 1);
-    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_STRING);
     return parent_directory;
 }
 
@@ -156,7 +163,7 @@ char *path_file_name(char *path) {
     char *absolute_path = path_absolute(path);
     char *file_name = string_split_at(absolute_path, "/", string_split_count(absolute_path, "/") - 1);
     file_name = string_split_at(file_name, ".", 0);
-    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_STRING);
     return file_name;
 }
 
@@ -195,7 +202,7 @@ char *path_file_extension(char *path) {
     }
     char *absolute_path = path_absolute(path);
     char *file_extension = string_split_at(absolute_path, ".", string_split_count(absolute_path, ".") - 1);
-    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_VFS);
+    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_STRING);
     return file_extension;
 }
 
@@ -206,17 +213,13 @@ char *path_file_extension(char *path) {
  * @return The platform specific path from the path. This is the reverse of path_normalize.
  */
 char *path_to_platform(char *path) {
-#ifndef KPLATFORM_WINDOWS
-    return string_duplicate(path);  // Return a copy
-#else
+    
     if (path == NULL) {
         return NULL; // Added NULL check
     }
     u32 len = strlen(path);
     char *platform_path = string_allocate_sized(path, len + 2);
     strcpy(platform_path, path);  // Copy the original path
-    
-    
     
     // Transform '/' to '\\'
     for (u32 i = 0; i < len; ++i) {
@@ -232,5 +235,4 @@ char *path_to_platform(char *path) {
     }
     
     return platform_path;
-#endif
 }

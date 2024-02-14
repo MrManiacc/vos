@@ -5,8 +5,9 @@
 
 #include "kernel.h"
 
-b8 initialize_syscalls();
-b8 shutdown_syscalls();
+b8 install_lua_intrinsics(proc *process);
 
-b8 initialize_syscalls_for(Process *process);
 
+void intrinsics_initialize();
+
+void intrinsics_shutdown();

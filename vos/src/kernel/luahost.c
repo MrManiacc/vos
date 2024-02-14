@@ -7,18 +7,14 @@
 #include <lualib.h>
 #include <string.h>
 #include <raylib.h>
-#include "luahost.h"
 #include "core/vevent.h"
 #include "core/vstring.h"
 #include "core/vmem.h"
-#include "kernel/vfs/vfs.h"
 #include "containers/dict.h"
-#include "kernel/vfs/paths.h"
-#include "kernel/asset/asset.h"
 
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
-    Process *process;
+    proc *process;
     char *event_name;
     int callback_ref;
 } LuaPayload;
@@ -37,12 +33,12 @@ int lua_execute_process(lua_State *L) {
         verror("Invalid argument passed to process: %s", lua_typename(L, arg_type));
         return 1;
     }
-    Process *process;
+    proc *process;
     // Get the process name
     if (arg_type == LUA_TSTRING) {
-//        const char *process_name = lua_tostring(L, 1);
-//
-//        vdebug("Executing process at: %s", process_name);
+        const char *process_name = lua_tostring(L, 1);
+        
+        vdebug("Executing process at: %s", process_name);
 //        Asset *asset = fs_load_asset(process_name);
 //        Process *process = kernel_create_process(process_name);
 //        if (process == null) {
@@ -65,7 +61,7 @@ int lua_execute_process(lua_State *L) {
 //            lua_pushinteger(L, process->pid);
 //        }
     } else {
-        ProcessID process_id = (ProcessID) lua_tointeger(L, 1);
+        procid process_id = (procid) lua_tointeger(L, 1);
         KernelResult result = kernel_lookup_process(process_id);
         if (!is_kernel_success(result.code)) {
             verror("Failed to lookup process: %s", get_kernel_result_message(result));
@@ -132,12 +128,12 @@ int lua_listen_for_event(lua_State *L) {
     lua_getfield(L, -1, "pid");
     int process_id = lua_tointeger(L, -1);
     vdebug("Executing process with id: %d", process_id);
-    KernelResult result = kernel_lookup_process((ProcessID) process_id);
+    KernelResult result = kernel_lookup_process((procid) process_id);
     if (!is_kernel_success(result.code)) {
         verror("Failed to lookup process: %s", get_kernel_result_message(result));
         return 1;
     }
-    Process *process = result.data;
+    proc *process = result.data;
     payload->process = process;
     return 0;
 }
@@ -264,26 +260,27 @@ int lua_import(lua_State *L) {
     lua_getglobal(L, "sys");
     lua_getfield(L, -1, "path");
     const char *path = lua_tostring(L, -1);
-    char *parent_dir = strdup(path);
-    char *last_slash = strrchr(parent_dir, '/');
-    if (last_slash != NULL) {
-        *last_slash = '\0';
+    char *full_path = string_append(module_name, ".lua");
+    // get the node data from the file system
+    fs_node *node = vfs_get(full_path);
+    
+    if (node == null) {
+        verror("Failed to import module %s, file not found", module_name);
+        return 1;
     }
-    char *full_path = string_format("%s/%s.lua", parent_dir, module_name);
-    //lookup the process, if it exists then we mark it as a dependency on the process
     
-    
-    
-    vdebug("Importing module %s from %s", module_name, full_path);
-    if (luaL_dofile(L, full_path) != LUA_OK) {
-        verror("Failed to run script %s", full_path);
-        //print the error
-        verror("Error: %s", lua_tostring(L, -1));
+    //Execute the lua from source
+    char *data = node->data.file.data;
+    //Outputs the first 100 characters of the file with ... if it's longer
+//    vdebug("Executing lua from source: %.*s%s", 100, data, strlen(data) > 100 ? "..." : "");
+    if (luaL_dostring(L, data) != LUA_OK) {
+        verror("Error executing Lua from source: %s", lua_tostring(L, -1));
+        lua_pop(L, 1); // Remove error message
+        return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     kfree(full_path, string_length(full_path), MEMORY_TAG_STRING);
     //TODO build a list of dependencies that can be used for hot reloading
-    
-    
+    return 10;
 }
 
 int lua_is_button_down(lua_State *L) {
@@ -372,7 +369,7 @@ int lua_key(lua_State *L) {
 }
 
 
-void configure_lua_input(Process *process) {
+void configure_lua_input(proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
     
@@ -412,7 +409,7 @@ int lua_windwow_size(lua_State *L) {
     return 1;
 }
 
-int configure_lua_window(Process *process) {
+int configure_lua_window(proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
     
@@ -424,7 +421,7 @@ int configure_lua_window(Process *process) {
     lua_setfield(process->lua_state, -2, "window");
 }
 
-void configure_lua_gui(Process *process) {
+void configure_lua_gui(proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
     
@@ -449,12 +446,13 @@ void configure_lua_gui(Process *process) {
 }
 
 int lua_file_system_string(lua_State *L) {
-    //
-    lua_pushstring(L, fs_to_string());
+    //TODO: add the ability to read files from the file system
+    //lua_pushstring(L, vfs_to_string());
+    lua_pushstring(L, "Not implemented");
     return 1;
 }
 
-b8 initialize_syscalls_for(Process *process) {
+b8 install_lua_intrinsics(proc *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
     
@@ -464,7 +462,7 @@ b8 initialize_syscalls_for(Process *process) {
     lua_pushinteger(process->lua_state, process->pid);
     lua_setfield(process->lua_state, -2, "pid");
     
-    lua_pushstring(process->lua_state, process->script_asset->path);
+    lua_pushstring(process->lua_state, process->script_file_node->path);
     lua_setfield(process->lua_state, -2, "path");
     
     // Register the process name
@@ -497,6 +495,8 @@ b8 initialize_syscalls_for(Process *process) {
     configure_lua_window(process);
     
     lua_setglobal(process->lua_state, "sys"); // Set the sys table as a global variable
+    
+    return 1;
 }
 
 b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {
@@ -522,61 +522,11 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
     return true;
 }
 
-static NodeLoader *lua_loader;
 
-void load_lua_asset(Node *node, NodeData *asset) {
-//    asset->path = path_relative((char *) node->path);
-    asset->path = node->path;
-    asset->data = node->data.file.data;
-    asset->size = node->data.file.size;
-//    vdebug("Loaded lua asset %s", asset->data);
-//    Process *process = process_create(asset);
-//    initialize_syscalls_for(process);
-//    process_start(process);
-    Process *process = kernel_create_process(asset);
-    if (strings_equal(process->process_name, "init")) {
-        process_start(process);
-    }
-    
-}
-
-void unload_lua_asset(Node *node) {
-//    asset->data = fs_read_file(asset->path, &asset->size);
-    Process *process = kernel_locate_process(node->path);
-//    vdebug("Unloaded lua asset %s at %s", process->process_name, node->path);
-    //Check if the process is running and stop it
-    //find and free any payloads with our process
-    for (int i = 0; i < lua_context.count; ++i) {
-        LuaPayload *payload = &lua_context.payloads[i];
-        if (payload->process == process) {
-            luaL_unref(process->lua_state, LUA_REGISTRYINDEX, payload->callback_ref);
-            kfree(payload->event_name, string_length(payload->event_name), MEMORY_TAG_STRING);
-            payload->event_name = null;
-            payload->callback_ref = LUA_NOREF;
-            payload->process = NULL;
-            lua_context.count--;
-        }
-    }
-//    free the asset resources
-    if (process->state == PROCESS_STATE_RUNNING) {
-        process_stop(process, true, true);
-    }
-    kernel_destroy_process(process->pid);
-}
-
-b8 initialize_syscalls() {
+void intrinsics_initialize() {
     event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
-    lua_loader = kallocate(sizeof(NodeLoader), MEMORY_TAG_KERNEL);
-    lua_loader->extension = "lua";
-    lua_loader->load = load_lua_asset;
-    lua_loader->unload = unload_lua_asset;
-    fs_register_asset_loader(lua_loader);
-    return true;
 }
 
-b8 shutdown_syscalls() {
-//TODO: probably need to do some more cleanup here
-//    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
-    kfree(lua_loader, sizeof(NodeLoader), MEMORY_TAG_KERNEL);
-    return true;
+void intrinsics_shutdown() {
+    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
 }

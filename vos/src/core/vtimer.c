@@ -13,7 +13,7 @@ typedef struct {
 
 static dict *timers = NULL;
 
-void timer_initialize() {
+void initialize_timer() {
     if (timers != NULL) {
         timer_cleanup();
         vwarn("Timer was already initialized, cleaning up old timer");
@@ -49,7 +49,7 @@ void timer_poll() {
     while (dict_next(&it)) {
         time_t current_time;
         time(&current_time);
-        TimerData *data = (TimerData *) it.entry->object;
+        TimerData *data = (TimerData *) it.entry->value;
         if (current_time >= data->expiration_time) {
             data->callback(data->data);
             dict_remove(timers, it.entry->key);

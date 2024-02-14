@@ -75,7 +75,7 @@ char *dict_to_string(dict *table) {
                                    result,
                                    hash_key,
                                    e->key,
-                                   e->object);
+                                   e->value);
             if (e->next != NULL)
                 result = string_concat(result, ",");
             e = e->next;
@@ -96,7 +96,7 @@ b8 dict_set(dict *table, const char *key, void *value) {
     
     entry *e = kallocate(sizeof(entry), MEMORY_TAG_DICT);
     e->key = string_duplicate(key);
-    e->object = value;
+    e->value = value;
     
     e->next = table->elements[index];
     table->elements[index] = e;
@@ -114,7 +114,7 @@ void *dict_get(dict *table, const char *key) {
     }
     if (temp == NULL)
         return NULL;
-    return temp->object;
+    return temp->value;
 }
 
 void *dict_remove(dict *table, const char *key) {
@@ -136,7 +136,7 @@ void *dict_remove(dict *table, const char *key) {
         //Deleting from the middle of the list
         prev->next = temp->next;
     }
-    void *result = temp->object;
+    void *result = temp->value;
     kfree(temp->key, string_length(temp->key) + 1, MEMORY_TAG_STRING);
     kfree(temp, sizeof(entry), MEMORY_TAG_DICT);
     return result;
@@ -183,5 +183,22 @@ b8 dict_next(idict *it) {
         }
     }
     return false; // No more entries left
+}
+
+b8 dict_contains(dict *table, const char *key) {
+    return dict_get(table, key) != NULL;
+}
+
+u32 dict_size(dict *table) {
+    //Counts the number of elements in the table
+    u32 count = 0;
+    for (u32 i = 0; i < table->size; i++) {
+        entry *e = table->elements[i];
+        while (e != NULL) {
+            count++;
+            e = e->next;
+        }
+    }
+    return count;
 }
 

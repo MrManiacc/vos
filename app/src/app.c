@@ -16,7 +16,22 @@
 
 #include "raylib.h"
 #include "core/vstring.h"
-#include "kernel/asset/asset.h"
+
+
+// launch our bootstrap code
+void startup_script_init() {
+    //at this piont we know the file system is ready to go. Let's lookup the startup script and run it.
+    char *startup_script = "boot.lua";
+    //check if the file exists
+    proc *proc = kernel_create_process(vfs_get(startup_script));
+    if (proc == null) {
+        verror("Failed to create process for startup script %s", startup_script)
+        return;
+    }
+    //run the process
+    process_start(proc);
+}
+
 
 int main(int argc, char **argv) {
     //If no arguments are passed, then we are running in the runtime and use the current working directory.
@@ -34,6 +49,7 @@ int main(int argc, char **argv) {
         verror("Failed to initialize kernel: %s", get_kernel_result_message(result))
         return 1;
     }
+    startup_script_init();
     lua_ctx(update)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     SetTraceLogLevel(LOG_ERROR);
@@ -42,7 +58,7 @@ int main(int argc, char **argv) {
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        event_fire(EVENT_LUA_CUSTOM, NULL, update);
+        lua_fire(update)
         kernel_poll_update();
         EndDrawing();
     }

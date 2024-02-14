@@ -19,11 +19,11 @@ typedef struct StringAllocation {
 
 static void **string_allocations = NULL;
 
-void initialize_string_module() {
+void strings_initialize() {
     string_allocations = darray_create(StringAllocation*);
 }
 
-void shutdown_string_module() {
+void strings_shutdown() {
     if (!string_allocations) return;
     
     for (u64 i = 0; i < darray_length(string_allocations); ++i) {
@@ -60,13 +60,17 @@ char *string_allocate_sized(const char *input, u64 length) {
     
     char *copiedString = kallocate(length + 1, MEMORY_TAG_STRING);
     kcopy_memory(copiedString, input, length + 1);
-    
+    //append the null terminator if it's not there
+    if (copiedString[length] != '\0') {
+        copiedString[length] = '\0';
+    }
     StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
     allocation->string = copiedString;
     allocation->length = length;
     allocation->tag = MEMORY_TAG_STRING;
     
     darray_push(string_allocations, allocation);
+    
     return copiedString;
 }
 
@@ -136,8 +140,7 @@ char *string_concat(const char *str0, const char *str1) {
     allocation->string = result;
     allocation->length = str0_len + str1_len;
     allocation->tag = MEMORY_TAG_STRING;
-    ptr_hash_table_set(string_allocations, result, allocation);
-    
+    darray_push(string_allocations, allocation);
     return result;
 }
 
@@ -230,6 +233,23 @@ char *string_format(const char *str, ...) {
 char *string_append(const char *str, const char *append) {
     if (!str || !append) return null;
     return string_concat(str, append); // Reuse string_concat for efficiency and tracking
+}
+
+char *string_repeat(const char *str, u64 count) {
+    if (!str) return null;
+    u64 str_len = string_length(str);
+    char *result = kallocate(str_len * count + 1, MEMORY_TAG_STRING); // Allocate once
+    for (u64 i = 0; i < count; ++i) {
+        kcopy_memory(result + i * str_len, str, str_len);
+    }
+    result[str_len * count] = '\0';
+    // Track the allocation right after creating it
+    StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
+    allocation->string = result;
+    allocation->length = str_len * count;
+    allocation->tag = MEMORY_TAG_STRING;
+    darray_push(string_allocations, allocation);
+    return result;
 }
 
 
