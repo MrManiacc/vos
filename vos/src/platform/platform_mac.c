@@ -1,8 +1,9 @@
+#ifdef __APPLE__
 #include "platform.h"
 #include "core/ksemaphore.h"
 #include "core/vmutex.h"
 #include <sys/stat.h>
-#include <stdio.h>x
+#include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
@@ -687,3 +688,4 @@ b8 kmutex_unlock(kmutex *mutex) {
     return true;
 }
 
+#endif // __APPLE__

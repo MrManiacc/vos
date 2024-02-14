@@ -4,8 +4,13 @@ project(vlos C)
 find_package(raylib CONFIG REQUIRED)
 find_package(Lua REQUIRED)
 find_package(unofficial-tree-sitter CONFIG REQUIRED)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
+
+# Only run these if on mac
+if (APPLE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
+endif (APPLE)
+
 add_subdirectory(vos)
 add_subdirectory(app)
