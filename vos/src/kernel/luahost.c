@@ -26,6 +26,7 @@ typedef struct LuaPayloadContext {
     int count;
 } LuaPayloadContext;
 
+typedef char *string;
 static LuaPayloadContext lua_context;
 
 int lua_execute_process(lua_State *L) {
@@ -273,11 +274,7 @@ int lua_import(lua_State *L) {
     
     //Execute the lua from source
     char *data = node->data.file.data;
-    //Outputs the first 100 characters of the file with ... if it's longer
-    char sources[node->data.file.size + 1];
-    kcopy_memory(sources, data, node->data.file.size);
-    sources[node->data.file.size] = '\0';
-    if (luaL_dostring(L, sources) != LUA_OK) {
+    if (luaL_dostring(L, data) != LUA_OK) {
         const char *error_string = lua_tostring(L, -1);
         verror("Failed to run script %d: %s", error_string);
         //try to run it from file
@@ -462,7 +459,7 @@ int lua_file_system_string(lua_State *L) {
     return 1;
 }
 
-b8 install_lua_intrinsics(proc *process) {
+b8 intrinsics_install_to(proc *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
     lua_newtable(process->lua_state); // Create the sys table

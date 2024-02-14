@@ -131,6 +131,15 @@ typedef struct range32 {
 /** @brief Inline qualifier */
 #define KINLINE __forceinline
 
+#define typeof(expr) _Generic((expr), \
+    int: "int", \
+    float: "float", \
+    char*: "char*",                   \
+    StringAllocation* : "StringAllocation *"                                  \
+    default: "unknown" \
+)
+
+
 /** @brief No-inline qualifier */
 #define KNOINLINE __declspec(noinline)
 #else

@@ -51,7 +51,7 @@ char *string_allocate_empty(u64 length) {
     allocation->length = length;
     allocation->tag = MEMORY_TAG_STRING;
     
-    darray_push(string_allocations, allocation);
+    darray_push(StringAllocation*, string_allocations, allocation);
     return copiedString;
 }
 
@@ -69,7 +69,7 @@ char *string_allocate_sized(const char *input, u64 length) {
     allocation->length = length;
     allocation->tag = MEMORY_TAG_STRING;
     
-    darray_push(string_allocations, allocation);
+    darray_push(StringAllocation *, string_allocations, allocation);
     
     return copiedString;
 }
@@ -140,7 +140,7 @@ char *string_concat(const char *str0, const char *str1) {
     allocation->string = result;
     allocation->length = str0_len + str1_len;
     allocation->tag = MEMORY_TAG_STRING;
-    darray_push(string_allocations, allocation);
+    darray_push(StringAllocation *, string_allocations, allocation);
     return result;
 }
 
@@ -221,10 +221,10 @@ char *string_replace(const char *str, const char *substr, const char *replacemen
 // Format string with tracking
 char *string_format(const char *str, ...) {
     va_list args;
-    va_start(args, str);
+            va_start(args, str);
     char formatted[1024]; // Assuming 1024 is enough; adjust as needed
     vsprintf(formatted, str, args);
-    va_end(args);
+            va_end(args);
     return string_allocate(formatted);;
 }
 
@@ -248,7 +248,7 @@ char *string_repeat(const char *str, u64 count) {
     allocation->string = result;
     allocation->length = str_len * count;
     allocation->tag = MEMORY_TAG_STRING;
-    darray_push(string_allocations, allocation);
+    darray_push(StringAllocation*, string_allocations, allocation);
     return result;
 }
 

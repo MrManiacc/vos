@@ -79,7 +79,7 @@ term:register_command("game", function()
     end)
 
     term:register_command("stop", function()
-        sys.unlisten("update")
+
     end)
 
     term:register_command("clear", function()
@@ -115,5 +115,3 @@ sys.listen("update", function()
         render_stats(10, 10)
     end
 end)
-
-print("Testing")

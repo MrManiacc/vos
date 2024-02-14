@@ -74,78 +74,78 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config) {
     // NOTE: Older versions of windows might have to use this:
     // SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
     state_ptr->device_pixel_ratio = 1.0f;
-    
-    // Setup and register window class.
-    HICON icon = LoadIcon(state_ptr->handle.h_instance, IDI_APPLICATION);
-    WNDCLASSA wc;
-    memset(&wc, 0, sizeof(wc));
-    wc.style = CS_DBLCLKS;  // Get double-clicks
-    wc.lpfnWndProc = win32_process_message;
-    wc.cbClsExtra = 0;
-    wc.cbWndExtra = 0;
-    wc.hInstance = state_ptr->handle.h_instance;
-    wc.hIcon = icon;
-    wc.hCursor = LoadCursor(null, IDC_ARROW);  // null; // Manage the cursor manually
-    wc.hbrBackground = null;                   // Transparent
-    wc.lpszClassName = "kohi_window_class";
-    
-    if (!RegisterClassA(&wc)) {
-        MessageBoxA(0, "Window registration failed", "Error", MB_ICONEXCLAMATION | MB_OK);
-        return false;
-    }
-    
-    // Create window
-    u32 client_x = typed_config->x;
-    u32 client_y = typed_config->y;
-    u32 client_width = typed_config->width;
-    u32 client_height = typed_config->height;
-    
-    u32 window_x = client_x;
-    u32 window_y = client_y;
-    u32 window_width = client_width;
-    u32 window_height = client_height;
-    
-    u32 window_style = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
-    u32 window_ex_style = WS_EX_APPWINDOW;
-    
-    window_style |= WS_MAXIMIZEBOX;
-    window_style |= WS_MINIMIZEBOX;
-    window_style |= WS_THICKFRAME;
-    
-    // Obtain the size of the border.
-    RECT border_rect = {0, 0, 0, 0};
-    AdjustWindowRectEx(&border_rect, window_style, 0, window_ex_style);
-    
-    // In this case, the border rectangle is negative.
-    window_x += border_rect.left;
-    window_y += border_rect.top;
-    
-    // Grow by the size of the OS border.
-    window_width += border_rect.right - border_rect.left;
-    window_height += border_rect.bottom - border_rect.top;
-    
-    HWND handle = CreateWindowExA(
-            window_ex_style, "kohi_window_class", typed_config->application_name,
-            window_style, window_x, window_y, window_width, window_height,
-            0, 0, state_ptr->handle.h_instance, 0);
-    
-    if (handle == 0) {
-        MessageBoxA(null, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
-        
-        vfatal("Window creation failed!");
-        return false;
-    } else {
-        state_ptr->handle.hwnd = handle;
-    }
-    
-    // Show the window
-    b32 should_activate = 1;  // TODO: if the window should not accept input, this should be false.
-    i32 show_window_command_flags = should_activate ? SW_SHOW : SW_SHOWNOACTIVATE;
-    // If initially minimized, use SW_MINIMIZE : SW_SHOWMINNOACTIVE;
-    // If initially maximized, use SW_SHOWMAXIMIZED : SW_MAXIMIZE
-    ShowWindow(state_ptr->handle.hwnd, show_window_command_flags);
-    
-    // Clock setup
+
+//    // Setup and register window class.
+//    HICON icon = LoadIcon(state_ptr->handle.h_instance, IDI_APPLICATION);
+//    WNDCLASSA wc;
+//    memset(&wc, 0, sizeof(wc));
+//    wc.style = CS_DBLCLKS;  // Get double-clicks
+//    wc.lpfnWndProc = win32_process_message;
+//    wc.cbClsExtra = 0;
+//    wc.cbWndExtra = 0;
+//    wc.hInstance = state_ptr->handle.h_instance;
+//    wc.hIcon = icon;
+//    wc.hCursor = LoadCursor(null, IDC_ARROW);  // null; // Manage the cursor manually
+//    wc.hbrBackground = null;                   // Transparent
+//    wc.lpszClassName = "kohi_window_class";
+//
+//    if (!RegisterClassA(&wc)) {
+//        MessageBoxA(0, "Window registration failed", "Error", MB_ICONEXCLAMATION | MB_OK);
+//        return false;
+//    }
+//
+//    // Create window
+//    u32 client_x = typed_config->x;
+//    u32 client_y = typed_config->y;
+//    u32 client_width = typed_config->width;
+//    u32 client_height = typed_config->height;
+//
+//    u32 window_x = client_x;
+//    u32 window_y = client_y;
+//    u32 window_width = client_width;
+//    u32 window_height = client_height;
+//
+//    u32 window_style = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
+//    u32 window_ex_style = WS_EX_APPWINDOW;
+//
+//    window_style |= WS_MAXIMIZEBOX;
+//    window_style |= WS_MINIMIZEBOX;
+//    window_style |= WS_THICKFRAME;
+//
+//    // Obtain the size of the border.
+//    RECT border_rect = {0, 0, 0, 0};
+//    AdjustWindowRectEx(&border_rect, window_style, 0, window_ex_style);
+//
+//    // In this case, the border rectangle is negative.
+//    window_x += border_rect.left;
+//    window_y += border_rect.top;
+//
+//    // Grow by the size of the OS border.
+//    window_width += border_rect.right - border_rect.left;
+//    window_height += border_rect.bottom - border_rect.top;
+//
+//    HWND handle = CreateWindowExA(
+//            window_ex_style, "kohi_window_class", typed_config->application_name,
+//            window_style, window_x, window_y, window_width, window_height,
+//            0, 0, state_ptr->handle.h_instance, 0);
+//
+//    if (handle == 0) {
+//        MessageBoxA(null, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+//
+//        vfatal("Window creation failed!");
+//        return false;
+//    } else {
+//        state_ptr->handle.hwnd = handle;
+//    }
+//
+//    // Show the window
+//    b32 should_activate = 1;  // TODO: if the window should not accept input, this should be false.
+//    i32 show_window_command_flags = should_activate ? SW_SHOW : SW_SHOWNOACTIVATE;
+//    // If initially minimized, use SW_MINIMIZE : SW_SHOWMINNOACTIVE;
+//    // If initially maximized, use SW_SHOWMAXIMIZED : SW_MAXIMIZE
+//    ShowWindow(state_ptr->handle.hwnd, show_window_command_flags);
+//
+//    // Clock setup
     clock_setup();
     
     return true;
@@ -567,7 +567,7 @@ b8 platform_dynamic_library_load_function(const char *name, dynamic_library *lib
     dynamic_library_function f = {0};
     f.pfn = f_addr;
     f.name = string_duplicate(name);
-    darray_push(library->functions, f);
+    darray_push(dynamic_library_function, library->functions, f);
     
     return true;
 }
@@ -637,7 +637,7 @@ static b8 register_watch(const char *file_path, u32 *out_watch_id) {
     w.file_path = string_duplicate(file_path);
     w.last_write_time = data.ftLastWriteTime;
     *out_watch_id = count;
-    darray_push(state_ptr->watches, w);
+    darray_push(win32_file_watch, state_ptr->watches, w);
     
     return true;
 }

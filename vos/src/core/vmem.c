@@ -109,7 +109,7 @@ b8 _memory_system_initialize(memory_system_configuration config, int line, const
     state_ptr->alloc_count = 0;
     state_ptr->allocator_memory_requirement = alloc_requirement;
     platform_zero_memory(&state_ptr->stats, sizeof(state_ptr->stats));
-    state_ptr->allocator_block = ((void *) block + state_memory_requirement);
+    state_ptr->allocator_block = ((char *) block + state_memory_requirement);
     state_ptr->stats.allocations = ptr_hash_table_create(100);
     if (!dynamic_allocator_create(
             config.total_alloc_size,

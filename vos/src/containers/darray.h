@@ -17,6 +17,8 @@ enum {
     DARRAY_FIELD_LENGTH
 };
 
+
+
 VAPI void *_darray_create(u64 length, u64 stride);
 
 VAPI void _darray_destroy(void *array);
@@ -58,9 +60,10 @@ VAPI u64 _darray_remove(void *array, void *value_ptr);
 #define darray_get(array, index) \
     _darray_get(array, index)
 
-#define darray_push(array, value)           \
+#define darray_push(type, array, value)           \
     {                                       \
-        typeof(value) temp = value;         \
+                                            \
+        type temp = value;         \
         array = _darray_push(array, &temp); \
     }
 

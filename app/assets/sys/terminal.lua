@@ -81,6 +81,11 @@ function Terminal:unregister_command(name, callback)
         end
     end
 end
+
+function Terminal:unregister_all_commands(name)
+    self.internal.commands[name] = nil
+end
+
 --- Resets the command state after execution.
 -- This is a local function and is not meant to be called externally.
 local function _resetCommandState(self)

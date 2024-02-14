@@ -22,9 +22,9 @@ static void return_node(freelist_node *node);
 
 void freelist_create(u64 total_size, u64 *memory_requirement, void *memory, freelist *out_list) {
     // Enough space to hold state, plus array for all nodes.
-    u64 max_entries = (total_size /
-                       (sizeof(void *) * sizeof(freelist_node)));  // NOTE: This might have a remainder, but that's ok.
-    
+//    u64 max_entries = (total_size /
+//                       (sizeof(void *) * sizeof(freelist_node)));  // NOTE: This might have a remainder, but that's ok.
+    u64 max_entries = total_size / sizeof(freelist_node);
     // Catch an edge case of having a really small amount of memory to manage, and only having a
     // super small number of entries. Always make sure we have at least a decent amount, like 20 or so.
     if (max_entries < 20) {
@@ -49,7 +49,7 @@ void freelist_create(u64 total_size, u64 *memory_requirement, void *memory, free
     // The block's layout is head* first, then array of available nodes.
     kzero_memory(out_list->memory, *memory_requirement);
     internal_state *state = out_list->memory;
-    state->nodes = (void *) (out_list->memory + sizeof(internal_state));
+    state->nodes = (freelist_node*)((char*)memory + sizeof(internal_state));
     state->max_entries = max_entries;
     state->total_size = total_size;
     
@@ -238,7 +238,7 @@ b8 freelist_resize(freelist *list, u64 *memory_requirement, void *new_memory, u6
     
     // Setup the new state.
     internal_state *state = (internal_state *) list->memory;
-    state->nodes = (void *) (list->memory + sizeof(internal_state));
+    state->nodes = (freelist_node*)((char*)new_memory + sizeof(internal_state));
     state->max_entries = max_entries;
     state->total_size = new_size;
     

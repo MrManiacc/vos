@@ -1,14 +1,13 @@
 #include "vtimer.h"
 #include "containers/dict.h"
 #include <time.h>
-#include <pthread.h>
 #include "vmem.h"
 #include "vlogger.h"
 
 typedef struct {
-  time_t expiration_time;
-  TimerCallback callback;
-  void *data;
+    time_t expiration_time;
+    TimerCallback callback;
+    void *data;
 } TimerData;
 
 static dict *timers = NULL;
@@ -26,7 +25,7 @@ void timer_set(const char *id, u32 delay, TimerCallback callback, void *raw_data
     if (!timers) return;
     time_t current_time;
     time(&current_time);
-
+    
     TimerData *data = kallocate(sizeof(TimerData), MEMORY_TAG_DICT);
     //converts the delay into miliseconds from second
     delay /= 1000;
@@ -43,9 +42,9 @@ b8 timer_exists(const char *id) {
 
 void timer_poll() {
     if (!timers) return;
-
+    
     idict it = dict_iterator(timers);
-
+    
     while (dict_next(&it)) {
         time_t current_time;
         time(&current_time);

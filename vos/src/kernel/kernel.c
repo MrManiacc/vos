@@ -26,7 +26,7 @@ KernelResult kernel_initialize(char *root_path) {
         return result;
     }
     // Memory system must be the first thing to be stood up.
-    memory_system_configuration memory_system_config = {};
+    memory_system_configuration memory_system_config;
     memory_system_config.total_alloc_size = GIBIBYTES(2);
     if (!memory_system_initialize(memory_system_config)) {
         verror("Failed to initialize memory system; shutting down.");
@@ -76,7 +76,6 @@ KernelResult kernel_shutdown() {
     kfree(kernel_context->id_pool, sizeof(IDPool), MEMORY_TAG_KERNEL);
     kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
     kernel_initialized = false;
-    KernelResult result = {KERNEL_SUCCESS, null};
     timer_cleanup();
     intrinsics_shutdown();
     event_shutdown();
@@ -84,6 +83,7 @@ KernelResult kernel_shutdown() {
     strings_shutdown();
 //    vtrace("Mem usage: %s", get_memory_usage_str())
     memory_system_shutdown();
+    KernelResult result = {KERNEL_SUCCESS, null};
     return result;
 }
 
@@ -107,7 +107,7 @@ proc *kernel_create_process(fs_node *script_node_file) {
         return null;
     }
     process->pid = pid;
-    install_lua_intrinsics(process);
+    intrinsics_install_to(process);
     dict_set(processes_by_name, process->script_file_node->path, process);
     kernel_context->processes[pid] = process;
     vdebug("Created process 0x%04x named %s", pid, process->process_name)

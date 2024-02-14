@@ -28,13 +28,12 @@ void log_output(log_level level, const char *call_location, const char *message,
 
     b8 is_error = level < LOG_LEVEL_WARN;
 
-    const u32 msg_length = 1024; // Adjust size as needed
-    char formatted_message[msg_length];
+    char formatted_message[1024];
     memset(formatted_message, 0, sizeof(formatted_message));
 
     va_list arg_ptr;
     va_start(arg_ptr, message);
-    vsnprintf(formatted_message, msg_length, message, arg_ptr);
+    vsnprintf(formatted_message, 1024, message, arg_ptr);
     va_end(arg_ptr);
 
     //add a newline to the end of the message if it doesn't have one

@@ -16,4 +16,5 @@ target_link_libraries(vos ${LUA_LIBRARIES} raylib unofficial::tree-sitter::tree-
 target_compile_definitions(vos PUBLIC
         -DUSE_LINE_NUMBER
         -DUSE_DEBUG_LOG
+        -DKEXPORT
 )

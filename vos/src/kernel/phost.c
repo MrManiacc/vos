@@ -49,10 +49,7 @@ b8 process_start(proc *process) {
         process->state = PROCESS_STATE_STOPPED;
         return false;
     }
-    char sources[asset->data.file.size + 1];
-    kcopy_memory(sources, source, asset->data.file.size);
-    sources[asset->data.file.size] = '\0';
-    if (luaL_dostring(process->lua_state, sources) != LUA_OK) {
+    if (luaL_dostring(process->lua_state, source) != LUA_OK) {
         const char *error_string = lua_tostring(process->lua_state, -1);
         verror("Failed to run script %d: %s", process->pid, error_string);
         //try to run it from file
@@ -110,7 +107,7 @@ void process_destroy(proc *process) {
 b8 process_add_child(proc *parent, proc *child) {
 // Make the child's lua_State a copy of the parent's lua_State
     child->lua_state = parent->lua_state;
-    darray_push(parent->children_pids, child->pid)
+    darray_push(procid, parent->children_pids, child->pid)
     return true;
 }
 

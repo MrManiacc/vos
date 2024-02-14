@@ -71,7 +71,7 @@ b8 event_register(u16 code, void *listener, PFN_on_event on_event) {
     registered_event event;
     event.listener = listener;
     event.callback = on_event;
-    darray_push(state.registered[code].events, event);
+    darray_push(registered_event, state.registered[code].events, event);
     
     return true;
 }
