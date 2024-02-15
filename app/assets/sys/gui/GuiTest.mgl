@@ -1,0 +1,19 @@
+use "components/TextInputComponent";
+
+Window {
+    Title = "Application Window";
+    Size = { Width: 800, Height: 600 };
+
+    VBox {
+        Label {
+            Text = "Welcome to the App";
+        }
+        TextInputComponent {
+            Placeholder = "Please enter your name";
+        }
+        ButtonComponent {
+            Text = "Submit";
+            OnClick = submitNameAction;
+        }
+    }
+}

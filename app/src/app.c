@@ -6,6 +6,7 @@
 #ifdef _WIN32
 
 #include <io.h>
+#include <stdio.h>
 
 #else
 #include <unistd.h>
@@ -25,6 +26,7 @@
 #include "core/vstring.h"
 #include "core/vinput.h"
 #include "platform/platform.h"
+#include "kernel/vlexer.h"
 
 // launch our bootstrap code
 void startup_script_init() {
@@ -40,7 +42,7 @@ void startup_script_init() {
     process_start(proc);
 }
 
-
+// testing the lexer
 int main(int argc, char **argv) {
     char *root_path = path_locate_root();
     vdebug("Root path: %s", root_path)
@@ -50,20 +52,23 @@ int main(int argc, char **argv) {
         return 1;
     }
     startup_script_init();
-    lua_ctx(update)
     
-    if (!window_initialize("VOS", 1600, 900)) {
-        verror("Failed to initialize window context");
+    fs_node *gui = vfs_get("sys/gui/GuiTest.mgl");
+    
+    if (gui == null) {
+        verror("Failed to load gui file")
         return 1;
     }
-    gui_load_font("sys/fonts/JetBrainsMono-Bold.ttf", "sans");
-    while (!window_should_close()) {
-        window_begin_frame();
-        event_fire(EVENT_LUA_CUSTOM, null, update);
-        kernel_poll_update();
-        window_end_frame();
-    }
-    window_shutdown();
+    
+    LexerResult lexerResult = lexer_lex(gui->data.file.data, gui->data.file.size);
+    
+    char *dumped = lexer_dump_tokens(&lexerResult);
+    
+    printf("Dumped: %s", dumped);
+    
+    lexer_free(&lexerResult);
+    // Here we test the lexer
+    
     kernel_result shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))
@@ -71,4 +76,35 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
+
+//int main(int argc, char **argv) {
+//    char *root_path = path_locate_root();
+//    vdebug("Root path: %s", root_path)
+//    kernel_result result = kernel_initialize(root_path);
+//    if (!is_kernel_success(result.code)) {
+//        verror("Failed to initialize kernel: %s", get_kernel_result_message(result))
+//        return 1;
+//    }
+//    startup_script_init();
+//    lua_ctx(update)
+//
+//    if (!window_initialize("VOS", 1600, 900)) {
+//        verror("Failed to initialize window context");
+//        return 1;
+//    }
+//    gui_load_font("sys/fonts/JetBrainsMono-Bold.ttf", "sans");
+//    while (!window_should_close()) {
+//        window_begin_frame();
+//        event_fire(EVENT_LUA_CUSTOM, null, update);
+//        kernel_poll_update();
+//        window_end_frame();
+//    }
+//    window_shutdown();
+//    kernel_result shutdown_result = kernel_shutdown();
+//    if (!is_kernel_success(shutdown_result.code)) {
+//        verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))
+//        return 1;
+//    }
+//    return 0;
+//}
 
