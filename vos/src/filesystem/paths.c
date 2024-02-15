@@ -3,6 +3,7 @@
 #include "core/vlogger.h"
 #include "core/vmem.h"
 #include "core/vstring.h"
+#include "platform/platform.h"
 
 typedef struct PathContext {
     // The root directory.
@@ -135,20 +136,6 @@ char *path_absolute(char *path) {
     return result;
 }
 
-/**
- * Gets the parent directory of a path.
- * @param path The path to get the parent directory from.
- * @return The parent directory of the path.
- */
-char *path_parent_directory(char *path) {
-    if (path == null) {
-        return null;
-    }
-    char *absolute_path = path_absolute(path);
-    char *parent_directory = string_split_at(absolute_path, "/", string_split_count(absolute_path, "/") - 1);
-    kfree(absolute_path, string_length(absolute_path) + 1, MEMORY_TAG_STRING);
-    return parent_directory;
-}
 
 /**
  * Gets the file name from a path.
@@ -219,6 +206,7 @@ char *path_to_platform(char *path) {
     }
     u32 len = strlen(path);
     char *platform_path = string_allocate_sized(path, len + 2);
+    
     strcpy(platform_path, path);  // Copy the original path
     
     // Transform '/' to '\\'
@@ -235,4 +223,37 @@ char *path_to_platform(char *path) {
     }
     
     return platform_path;
+}
+
+// Used for recursive calls to locate the directory that contains the init script.
+// Assumes the passed path is a directory, so we want to check for the init script in the directory using the platform specific path.
+const char *locate_boot_folder(char *search_path) {
+    //Check if the file exists
+    VFilePathList *paths = platform_collect_files_recursive(search_path);
+    //Check if the file exists
+    if (paths == null) {
+        verror("Failed to collect files from directory %s", search_path);
+        return null;
+    }
+    for (u32 i = 0; i < paths->count; i++) {
+        char *path = paths->paths[i];
+        if (string_ends_with(path, "boot.lua")) {
+            // return the PARENT directory of the init script
+            char *parent = platform_parent_directory(path);
+//            kfree(paths, sizeof(VFilePathList), MEMORY_TAG_STRING);
+            return parent;
+        }
+    }
+    return null;
+}
+
+
+char *path_locate_root() {
+    const char *root_path = locate_boot_folder(platform_get_current_working_directory());
+    if (root_path == null) root_path = locate_boot_folder(platform_get_current_home_directory());
+    if (root_path == null) {
+        verror("Failed to locate root directory");
+        return null;
+    }
+    return strdup(root_path);
 }

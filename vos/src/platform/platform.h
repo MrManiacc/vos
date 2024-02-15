@@ -324,3 +324,44 @@ VAPI /**
  * @param list The FilePathList to be freed
  */
 void file_path_list_free(VFilePathList *list);
+
+/**
+ * @brief Retrieves the current working directory of the platform.
+ *
+ * This function returns a null-terminated string containing the current working directory of the platform.
+ *
+ * @return A pointer to the current working directory string.
+ *
+ * @note The returned string is dynamically allocated and should be freed when no longer needed.
+ * @note If the function fails to retrieve the current working directory, it returns a null pointer.
+ */
+char *platform_get_current_working_directory(void);
+
+
+/**
+ * @brief Gets the home directory of the current user.
+ *
+ * This function retrieves the home directory of the current user on Windows.
+ *
+ * @return A pointer to the home directory buffer. NULL if an error occurred.
+ */
+char *platform_get_current_home_directory(void);
+
+
+/**
+ * @brief Returns the parent directory of the given path.
+ *
+ * This function takes a path string as input and returns a new string representing the parent directory of the path.
+ * If the given path is already the root directory or an empty string, NULL is returned.
+ * The returned string must be freed by the caller.
+ *
+ * @param path The path string for which the parent directory is to be found.
+ * @return A new string representing the parent directory of the given path, or NULL if it is the root directory or an empty string.
+ *
+ * @note The input path must be a valid null-terminated string.
+ * @note The returned string must be freed by the caller using free() to avoid memory leaks.
+ * @note The returned string may be the same as the input path if it does not contain a directory separator (i.e., it's a file name in the root directory).
+ * @note This function does not modify the input path.
+ */
+char* platform_parent_directory(const char* path);
+

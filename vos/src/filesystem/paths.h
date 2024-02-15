@@ -64,12 +64,6 @@ char *path_relative(char *path);
  */
 char *path_absolute(char *path);
 
-/**
- * Gets the parent directory of a path.
- * @param path The path to get the parent directory from.
- * @return The parent directory of the path.
- */
-char *path_parent_directory(char *path);
 
 /**
  * Gets the file name from a path.
@@ -98,3 +92,12 @@ char *path_file_name_without_extension(char *path);
  * @return The platform specific path from the path. This is the reverse of path_normalize.
  */
 char *path_to_platform(char *path);
+
+/**
+ * Gets the working directory of the application. It will then walk down the directory tree until it finds the folder with
+ * and init.lua file.
+ *
+ * It will search in the user's home directory if no init.lua file is found in the current working directory.
+ * @return The root directory of the application.
+ */
+char* path_locate_root();

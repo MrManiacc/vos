@@ -6,18 +6,18 @@
 
 #include "containers/darray.h"
 #include "core/vevent.h"
-#include "core/vinput.h"
 #include "core/vmem.h"
 #include "core/vmutex.h"
 #include "core/vstring.h"
 #include "core/vthread.h"
 #include "core/vlogger.h"
+#include "filesystem/paths.h"
 
 #define WIN32_LEAN_AND_MEAN
 
 #include <stdlib.h>
 #include <windows.h>
-#include <windowsx.h>  // param input extraction
+#include <pathcch.h>
 #include <stdio.h>
 
 typedef struct win32_handle_info {
@@ -793,6 +793,49 @@ char *platform_path(const char *path) {
     }
     
     return platform_path;
+}
+
+char *platform_get_current_working_directory(void) {
+    char *buffer = platform_allocate(MAX_PATH, false);
+    u32 result = GetCurrentDirectoryA(MAX_PATH, buffer);
+    if (result == 0) {
+        platform_free(buffer, false);
+        return null;
+    }
+    return buffer;
+}
+
+char *platform_get_current_home_directory(void) {
+    //gets the home directory on windows of the current user
+    char *buffer = platform_allocate(MAX_PATH, false);
+    u32 result = GetEnvironmentVariableA("USERPROFILE", buffer, MAX_PATH);
+    if (result == 0) {
+        platform_free(buffer, false);
+        return null;
+    }
+    return buffer;
+}
+
+char *platform_parent_directory(const char *path) {
+    if (path == null) {
+        return null;
+    }
+    // if the path doesn't container \\ or /, it's a file name, so we return the current directory
+    if (string_contains(path, "/") == -1 && string_contains(path, "\\") == -1) {
+        return platform_get_current_working_directory();
+    }
+    
+    //If we're here, we have a path, so we need to remove the last part of the path
+    u32 len = string_length(path);
+    char *parent_path = strdup(path);
+    for (i32 i = len - 1; i >= 0; i--) {
+        if (parent_path[i] == '/' || parent_path[i] == '\\') {
+            parent_path[i] = '\0';
+            break;
+        }
+    }
+    return parent_path;
+    
 }
 
 

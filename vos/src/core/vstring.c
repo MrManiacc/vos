@@ -183,14 +183,23 @@ inline char *string_split_at(const char *str, const char *delimiter, u64 index) 
 }
 
 inline i32 string_split_count(const char *str, const char *delimiter) {
-    char *copy = string_duplicate(str);
-    char *token = strtok(copy, delimiter);
-    i32 count = 0;
-    while (token != null) {
-        count++;
-        token = strtok(null, delimiter);
+    if (str == NULL || delimiter == NULL) {
+        return 0; // Early return for NULL input
     }
-    kfree(copy, string_length(str) + 1, MEMORY_TAG_STRING);
+    
+    char *copy = strdup(str);
+    if (copy == NULL) {
+        return 0; // Failed to allocate memory for the copy
+    }
+    
+    i32 count = 0;
+    char *token = strtok(copy, delimiter);
+    while (token != NULL) {
+        count++;
+        token = strtok(NULL, delimiter);
+    }
+    
+    kfree(copy, strlen(str) + 1, MEMORY_TAG_STRING); // Replace string_length with the correct function if necessary
     return count;
 }
 
