@@ -100,7 +100,7 @@ b8 window_initialize(const char *title, int width, int height) {
         verror("Failed to init GLFW.");
         return false;
     }
-    
+
     #ifndef _WIN32 // don't require this on win32, and works with more cards
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
@@ -148,13 +148,12 @@ b8 window_initialize(const char *title, int width, int height) {
 }
 
 void window_begin_frame() {
+    glfwGetFramebufferSize(window_context.window, &window_context.width, &window_context.height);
     glViewport(0, 0, window_context.width, window_context.height);
     // Clears a nice light purple color.
     glClearColor(0.694f, 0.282f, 0.823f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    nvgBeginFrame(window_context.vg, window_context.width, window_context.height, 1);
-    
-    
+    nvgBeginFrame(window_context.vg, window_context.width, window_context.height,window_context.width/window_context.height);
 }
 
 void window_end_frame() {
@@ -168,7 +167,7 @@ void window_shutdown() {
     nvgDeleteGL3(window_context.vg);
     glfwDestroyWindow(window_context.window);
     glfwTerminate();
-    
+
     window_context.window = null;
     window_context.vg = null;
     window_context.width = 0;

@@ -44,21 +44,32 @@ b8 process_start(proc *process) {
         return false;
     }
     const char *source = asset->data.file.data;
+    u64 size = asset->data.file.size;
     if (source == null) {
         verror("Failed to load script %s", process->pid);
         process->state = PROCESS_STATE_STOPPED;
         return false;
     }
-    if (luaL_dostring(process->lua_state, source) != LUA_OK) {
+    if (luaL_loadbuffer(process->lua_state, source, size, asset->path) != LUA_OK) {
         const char *error_string = lua_tostring(process->lua_state, -1);
         verror("Failed to run script %d: %s", process->pid, error_string);
-        //try to run it from file
-        if (luaL_dofile(process->lua_state, platform_path(path_absolute(asset->path))) != LUA_OK) {
-            error_string = lua_tostring(process->lua_state, -1);
-            verror("Failed to run script %d: %s", process->pid, error_string);
-            process->state = PROCESS_STATE_STOPPED;
-            return false;
-        }
+//        //try to run it from file
+//        char *absolute = path_absolute(asset->path);
+//        char *platform = platform_path(absolute);
+//        if (luaL_dofile(process->lua_state, platform) != LUA_OK) {
+//            error_string = lua_tostring(process->lua_state, -1);
+//            verror("Failed to run script %d: %s", process->pid, error_string);
+//            process->state = PROCESS_STATE_STOPPED;
+//            return false;
+//        }
+        return false;
+    }
+    // execute the script
+    if (lua_pcall(process->lua_state, 0, 0, 0) != LUA_OK) {
+        const char *error_string = lua_tostring(process->lua_state, -1);
+        verror("Failed to run script %d: %s", process->pid, error_string);
+        process->state = PROCESS_STATE_STOPPED;
+        return false;
     }
     vinfo("Process %d started", process->pid);
     return true;
@@ -122,6 +133,6 @@ b8 process_remove_child(proc *parent, proc_id child_id) {
             return true;
         }
     }
-    
+
     return false;
 }

@@ -1,6 +1,6 @@
 #ifdef __APPLE__
 #include "platform.h"
-#include "core/ksemaphore.h"
+#include "core/vsemaphore.h"
 #include "core/vmutex.h"
 #include <sys/stat.h>
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #include <time.h>
 #include <errno.h>
 
-b8 ksemaphore_wait_with_timeout(sem_t *semaphore, u64 timeout_ms) {
+b8 vsemaphore_wait_with_timeout(sem_t *semaphore, u64 timeout_ms) {
     if (!semaphore) {
         return false;
     }
@@ -164,6 +164,11 @@ typedef struct {
 
 void platform_get_required_extension_names(const char ***names_darray);
 
+f64 platform_get_absolute_time(void){
+    struct timespec time;
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    return (f64)time.tv_sec + (f64)time.tv_nsec / 1000000000.0;
+}
 
 b8 platform_system_startup(u64 *memory_requirement, void *state, void *config) {
     *memory_requirement = sizeof(platform_state);
@@ -613,7 +618,7 @@ char *platform_path(const char *path) {
     return strdup(path);
 }
 
-b8 ksemaphore_create(ksemaphore *out_semaphore, u32 max_count, u32 start_count) {
+b8 vsemaphore_create(vsemaphore *out_semaphore, u32 max_count, u32 start_count) {
     if (!out_semaphore) return false;
 
     // Use sem_open to create or open a named semaphore
@@ -632,20 +637,20 @@ b8 ksemaphore_create(ksemaphore *out_semaphore, u32 max_count, u32 start_count) 
     return true;
 }
 
-void ksemaphore_destroy(ksemaphore *semaphore) {
+void vsemaphore_destroy(vsemaphore *semaphore) {
     if (semaphore && semaphore->internal_data != SEM_FAILED) {
         sem_close(semaphore->internal_data);
     }
 }
 
-b8 ksemaphore_signal(ksemaphore *semaphore) {
+b8 vsemaphore_signal(vsemaphore *semaphore) {
     if (!semaphore || semaphore->internal_data == SEM_FAILED) {
         return false;
     }
     return sem_post(semaphore->internal_data) == 0;
 }
 
-b8 ksemaphore_wait(ksemaphore *semaphore, u64 timeout_ms) {
+b8 vsemaphore_wait(vsemaphore *semaphore, u64 timeout_ms) {
     if (!semaphore || semaphore->internal_data == SEM_FAILED) {
         return false;
     }
@@ -655,7 +660,7 @@ b8 ksemaphore_wait(ksemaphore *semaphore, u64 timeout_ms) {
         return sem_wait(semaphore->internal_data) == 0;
     } else {
         // For timed wait, macOS supports sem_timedwait
-        return ksemaphore_wait_with_timeout(semaphore->internal_data, timeout_ms);
+        return vsemaphore_wait_with_timeout(semaphore->internal_data, timeout_ms);
     }
 }
 
