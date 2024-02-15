@@ -256,6 +256,7 @@ typedef enum system_event_code {
      */
     EVENT_LUA_CUSTOM = 0x23,
     
+    
     /** @brief The maximum event code that can be used internally. */
     MAX_EVENT_CODE = 0xFF
 } system_event_code;
@@ -272,3 +273,4 @@ typedef enum system_event_code {
 
 #define lua_fire(event_name) \
  event_fire(EVENT_LUA_CUSTOM, NULL, event_name);
+ 

@@ -27,8 +27,8 @@ local function _initializeProperties(self, config)
     self.cursor = {
         x = 0,
         y = 0,
-        width = 4,
-        height = self.text.size,
+        width = 3,
+        height = self.text.size - 5,
         color = sys.gui.color("03a83aff"),
         cursor_blink_rate = 0.5,
         cursor_blink = true,
@@ -38,7 +38,8 @@ local function _initializeProperties(self, config)
     self.last_blink_time = sys.time()
     self.buffer = {}
     self.last_key_time = {}
-    self.key_repeat_initial_delay = 0.5
+    self.key_repeat_initial_delay = 0.66
+    self.is_key_repeating = false
 end
 
 --- Initializes a new instance of the Terminal.
@@ -150,23 +151,36 @@ end
 --- Handles key input for the Terminal.
 -- This is a local function and is not meant to be called externally.
 local function _handleKeyInput(self)
-    local currentTime = sys.time()
+
     -- Initialize key_repeat_rate if not done already
     self.key_repeat_rate = self.key_repeat_rate or {}
 
     -- Generic function to handle key repeat behavior
     local function handleKeyRepeat(key, action)
+        -- Calls the first action immediately when the key is pressed.
+        -- stores that time in last_key_time
         if sys.input.key(key).is_pressed then
-            self.last_key_time[key] = currentTime
-            self.key_repeat_rate[key] = self.key_repeat_initial_delay
-            action()  -- immediate action on key press
-        elseif sys.input.key(key).is_down then
-            local elapsed = currentTime - (self.last_key_time[key] or 0)
-            if elapsed > self.key_repeat_rate[key] then
-                action()  -- repeated action on key hold
-                self.last_key_time[key] = currentTime
-                self.key_repeat_rate[key] = 0.025  -- subsequent repeats should be faster
+            if not self.last_key_time[key] then
+                self.last_key_time[key] = sys.time()
+                self.is_key_repeating = true -- Key repeat starts
+                action()
             end
+        end
+        -- starts a timer to call the action again after the initial delay
+        if sys.input.key(key).is_down then
+            if not self.key_repeat_rate[key] then
+                self.key_repeat_rate[key] = self.key_repeat_initial_delay
+            end
+            if sys.time() - self.last_key_time[key] > self.key_repeat_rate[key] then
+                self.key_repeat_rate[key] = self.key_repeat_rate[key] * 0.33
+                action()
+            end
+        end
+        -- resets the key repeat rate when the key is released
+        if sys.input.key(key).is_released then
+            self.key_repeat_rate[key] = self.key_repeat_initial_delay
+            self.last_key_time[key] = nil
+            self.is_key_repeating = false -- Key repeat stops
         end
     end
 
@@ -185,6 +199,9 @@ local function _handleKeyInput(self)
             self.cursor_position = self.cursor_position + 1
         end
     end
+
+    local isControlPressed = sys.input.key(keys.KEY_LEFT_CONTROL).is_down or sys.input.key(keys.KEY_RIGHT_CONTROL).is_down
+
     -- Handle Enter key
     handleKeyRepeat(keys.KEY_ENTER, function()
         if #self.internal.input > 0 then
@@ -195,18 +212,38 @@ local function _handleKeyInput(self)
             self.cursor_position = 0
         end
     end)
+    -- Check for Control key state
 
-    -- Handle left arrow (move cursor left)
-    handleKeyRepeat(keys.KEY_LEFT, function()
-        if self.cursor_position > 0 then
-            self.cursor_position = self.cursor_position - 1
+    -- Handle right arrow with Control for jumping to the next space
+    handleKeyRepeat(keys.KEY_RIGHT, function()
+        if isControlPressed then
+            local foundPos = string.find(self.internal.input, " ", self.cursor_position + 1)
+            if foundPos then
+                self.cursor_position = foundPos
+            else
+                self.cursor_position = #self.internal.input -- Move to end if no space found
+            end
+        else
+            if self.cursor_position < #self.internal.input then
+                self.cursor_position = self.cursor_position + 1
+            end
         end
     end)
 
-    -- Handle right arrow (move cursor right)
-    handleKeyRepeat(keys.KEY_RIGHT, function()
-        if self.cursor_position < #self.internal.input then
-            self.cursor_position = self.cursor_position + 1
+    -- Handle left arrow with Control for jumping to the previous space
+    handleKeyRepeat(keys.KEY_LEFT, function()
+        if isControlPressed then
+            local startPos = self.cursor_position - 1
+            local foundPos = startPos > 0 and string.find(string.reverse(self.internal.input:sub(1, startPos)), " ") or nil
+            if foundPos then
+                self.cursor_position = startPos - foundPos + 1
+            else
+                self.cursor_position = 0 -- Move to start if no space found
+            end
+        else
+            if self.cursor_position > 0 then
+                self.cursor_position = self.cursor_position - 1
+            end
         end
     end)
 
@@ -267,10 +304,10 @@ end
 local function _renderHeader(self)
     local size = sys.window.size()
     local x = 0
-    local y = math.floor(size.height - (size.height / 3))
+    local y = math.floor(size.height - (size.height / 3)) + 10
     local width = size.width
     local height = size.height / 3
-    sys.gui.draw_rect(x, y + 1, width, height, sys.gui.color("474747FF"))
+    sys.gui.draw_rect(x, y - 12, width, height, sys.gui.color("474747FF"))
     sys.gui.draw_rect(x + 10, y + 10, width - 20, height - 20, sys.gui.color("363534ff"))
     sys.gui.draw_rect(x + 10, y + 40, width - 20, height - 50, sys.gui.color("1b1c1bff"))
 end
@@ -280,18 +317,18 @@ end
 local function _renderCursor(self)
     local size = sys.window.size()
     local x = 0
-    local y = math.floor(size.height - (size.height / 3))
     local height = size.height / 3
-    local text_x = x + 20
-    local text_y = y + height - 40
+    local y = math.floor(size.height - height) + 10
     local text_size = 20
+    local text_x = x + 20
+    local text_y = y + height - text_size
 
     -- Calculate the width of the text up to the cursor's position
     local input_upto_cursor = string.sub(self.internal.input, 1, self.cursor_position)
     local width_upto_cursor = sys.gui.text_width(input_upto_cursor, text_size)
 
     local cursor_x = text_x + width_upto_cursor
-    local cursor_y = text_y
+    local cursor_y = text_y - text_size + 7
     local cursor_width = self.cursor.width
     local cursor_height = self.cursor.height
     local cursor_color = self.cursor.color
@@ -306,9 +343,10 @@ end
 local function _renderBuffer(self)
     local size = sys.window.size()  -- Get the current window size
     local x = 0
-    local y = math.floor(size.height - (size.height / 3))
+    local height = size.height / 3
+    local y = math.floor(size.height - height) + 25
     local text_x = x + 20
-    local cursor_base_y = y + size.height / 3 - 40  -- Calculate based on the cursor's relative position
+    local cursor_base_y = y + height - 30  -- Calculate based on the cursor's relative position
     local text_size = 20
 
     local lines = {}
@@ -333,8 +371,8 @@ local function _renderBuffer(self)
     sys.gui.draw_rect(x + 15, y + 5, width - 25, 40, sys.gui.color("000000ff"))
     -- draw the overlay
     sys.gui.draw_rect(x + 10, y + 5, width - 25, 35, sys.gui.color("1b1c1bff"))
-    sys.gui.draw_text("Terminus", x + 20, y + 15, 20, sys.gui.color("FFFFFFFF"))
-    sys.gui.draw_text("v" .. self.internal.version, sys.gui.text_width("Terminus", 20) + 25, y + 20, 15, sys.gui.color("03a83aff"))
+    sys.gui.draw_text("Terminus", x + 20, y + 30, 30, sys.gui.color("FFFFFFFF"))
+    sys.gui.draw_text("v" .. self.internal.version, sys.gui.text_width("Terminus", 20) + 25, y + 40, 12, sys.gui.color("03a83aff"))
 end
 
 
@@ -342,9 +380,13 @@ end
 -- This is a local function and is not meant to be called externally.
 local function _handleCursorBlinking(self)
     local currentTime = sys.time()
-    if currentTime - self.last_blink_time > self.cursor.cursor_blink_rate then
-        self.cursor.cursor_blink = not self.cursor.cursor_blink
-        self.last_blink_time = currentTime
+    if self.is_key_repeating then
+        self.cursor.cursor_blink = true -- Keep the cursor always visible during key repeat
+    else
+        if currentTime - self.last_blink_time > self.cursor.cursor_blink_rate then
+            self.cursor.cursor_blink = not self.cursor.cursor_blink
+            self.last_blink_time = currentTime
+        end
     end
 end
 

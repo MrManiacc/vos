@@ -20,7 +20,7 @@ proc *process_create(fs_node *script_file_node) {
     process->script_file_node = script_file_node;
     process->state = PROCESS_STATE_STOPPED;
     process->children_pids = darray_create(proc_id);
-    Path path = process->script_file_node->path;
+    fs_path path = process->script_file_node->path;
     //get the name by getting the last part of the path after the last slash
     char *name = string_split_at(path, "/", string_split_count(path, "/") - 1);
     //remove the extension

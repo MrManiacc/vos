@@ -8,7 +8,7 @@
 #include "kernel/vresult.h"
 #include "containers/dict.h"
 
-typedef char *Path;
+typedef char *fs_path;
 #ifndef NODE_CAPACITY
 #define NODE_CAPACITY 1024
 #endif
@@ -25,7 +25,7 @@ typedef struct User {
     // Allows for safe authentication.
     const char *password_hash;
     // The home directory of the user.
-    Path home_directory;
+    fs_path home_directory;
     // The permissions of the user.
     u16 permissions;
 } User;
@@ -49,7 +49,7 @@ typedef enum fs_node_type {
 
 typedef struct fs_node {
     //The path of the node relative to the root.
-    Path path;
+    fs_path path;
     // The Parent of the node.
     struct fs_node *parent;
     // the type of the node.
@@ -79,7 +79,7 @@ typedef struct fs_node {
  * @param root The root path of the vfs file system.
  * @return true if the vfs file system was initialized successfully, false otherwise.
  */
-b8 vfs_initialize(Path root);
+b8 vfs_initialize(fs_path root);
 
 
 /**
@@ -88,14 +88,14 @@ b8 vfs_initialize(Path root);
  * @param path The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-b8 vfs_exists(Path path);
+b8 vfs_exists(fs_path path);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param path  The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-fs_node *vfs_get(Path path);
+fs_node *vfs_get(fs_path path);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.

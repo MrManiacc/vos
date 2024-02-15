@@ -41,7 +41,7 @@ void unload_nodes();
  * @param path The path of the node to load.
  * @return A pointer to the loaded node, or null if the node could not be loaded.
  */
-fs_node *load_node(Path path);
+fs_node *load_node(fs_path path);
 
 
 /**
@@ -69,7 +69,7 @@ b8 unload_node(fs_node *node);
  * @param root  The root path of the file system.
  * @return
  */
-b8 vfs_initialize(Path root) {
+b8 vfs_initialize(fs_path root) {
     if (fs_context) {
         vwarn("vfs_initialize - File system already initialized.")
         return false;
@@ -104,7 +104,7 @@ void vfs_shutdown() {
 
 
 // Loads a file from the file system into memory.
-fs_node *load_file(Path path) {
+fs_node *load_file(fs_path path) {
     if (!fs_context) {
         vwarn("load_file - File system not initialized.");
         return null;
@@ -130,7 +130,7 @@ fs_node *load_file(Path path) {
 }
 
 // Loads a directory from the file system into memory.
-fs_node *load_directory(Path path) {
+fs_node *load_directory(fs_path path) {
     if (!fs_context) {
         vwarn("load_directory - File system not initialized.");
         return null;
@@ -168,7 +168,7 @@ fs_node *load_directory(Path path) {
 }
 
 //Loads a node from the file system into memory, doesn't care if it's a file or directory.
-fs_node *load_node(Path path) {
+fs_node *load_node(fs_path path) {
     if (!fs_context) {
         vwarn("load_node - File system not initialized.");
         return null;
@@ -198,7 +198,7 @@ b8 unload_file(fs_node *node) {
         vwarn("unload_file - fs_node not found.");
         return false;
     }
-    Path path = node->path;
+    fs_path path = node->path;
     if (node->type != NODE_FILE) {
         vwarn("unload_file - fs_node at path is not a file: %s", path)
         return false;
@@ -223,7 +223,7 @@ b8 unload_directory(fs_node *node) {
         return false;
     }
     
-    Path path = node->path;
+    fs_path path = node->path;
     if (node->type != NODE_DIRECTORY) {
         vwarn("unload_directory - fs_node at path is not a directory: %s", path);
         return false;
@@ -355,7 +355,7 @@ char *vfs_node_to_string(fs_node *node) {
     return node_tree_to_string(node, 1);
 }
 
-b8 vfs_exists(Path path) {
+b8 vfs_exists(fs_path path) {
     if (fs_context == null) {
         vwarn("vfs_exists - File system not initialized.");
         return false;
@@ -363,7 +363,7 @@ b8 vfs_exists(Path path) {
     return dict_contains(fs_context->nodes, path);
 }
 
-fs_node *vfs_get(Path path) {
+fs_node *vfs_get(fs_path path) {
     if (fs_context == null) {
         vwarn("vfs_get - File system not initialized.");
         return null;
@@ -377,6 +377,6 @@ const char *vfs_node_system_path(fs_node *node) {
         return null;
     }
     // Get the system path for the node's path
-    Path systemPath = platform_path(node->path);
+    fs_path systemPath = platform_path(node->path);
     return systemPath;
 }

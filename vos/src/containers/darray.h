@@ -18,7 +18,6 @@ enum {
 };
 
 
-
 VAPI void *_darray_create(u64 length, u64 stride);
 
 VAPI void _darray_destroy(void *array);
@@ -100,3 +99,4 @@ VAPI u64 _darray_remove(void *array, void *value_ptr);
 
 #define darray_remove(array, value_ptr) \
     _darray_remove(array, value_ptr)
+    

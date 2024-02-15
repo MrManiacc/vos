@@ -114,4 +114,7 @@ sys.listen("update", function()
     if showing_stats then
         render_stats(10, 10)
     end
+
 end)
+
+--print("Hello World!")

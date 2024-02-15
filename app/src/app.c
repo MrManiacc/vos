@@ -2,25 +2,28 @@
  * Created by jraynor on 8/24/2023.
  */
 #include <string.h>
+
 #ifdef _WIN32
+
 #include <io.h>
+
 #else
 #include <unistd.h>
 #endif
+
 #include "defines.h"
 #include "kernel/vproc.h"
 #include "kernel/kernel.h"
 #include "core/vlogger.h"
 #include "core/vevent.h"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
 
 #include "filesystem/paths.h"
 
-#include "raylib.h"
+//#include "raylib.h"
+#include "core/vgui.h"
 #include "core/vstring.h"
-
+#include "core/vinput.h"
 
 // launch our bootstrap code
 void startup_script_init() {
@@ -55,18 +58,19 @@ int main(int argc, char **argv) {
     }
     startup_script_init();
     lua_ctx(update)
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
-    SetTraceLogLevel(LOG_ERROR);
-    InitWindow(1280, 720, "VOS");
-    SetTargetFPS(270);
-    while (!WindowShouldClose()) {
-        BeginDrawing();
-        ClearBackground(DARKGREEN);
+    
+    if (!window_initialize("VOS", 1600, 900)) {
+        verror("Failed to initialize window context");
+        return 1;
+    }
+    gui_load_font("sys/fonts/JetBrainsMono-Bold.ttf", "sans");
+    while (!window_should_close()) {
+        window_begin_frame();
         event_fire(EVENT_LUA_CUSTOM, null, update);
         kernel_poll_update();
-        EndDrawing();
+        window_end_frame();
     }
-    CloseWindow();
+    window_shutdown();
     kernel_result shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))
@@ -75,4 +79,3 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-#pragma clang diagnostic pop

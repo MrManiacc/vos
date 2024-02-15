@@ -1,4 +1,4 @@
-#include "core/ksemaphore.h"
+#include "core/vsemaphore.h"
 #include "platform/platform.h"
 
 // Windows platform layer.
@@ -339,7 +339,7 @@ b8 kmutex_unlock(kmutex *mutex) {
 
 // NOTE: End mutexes.
 
-b8 ksemaphore_create(ksemaphore *out_semaphore, u32 max_count, u32 start_count) {
+b8 vsemaphore_create(vsemaphore *out_semaphore, u32 max_count, u32 start_count) {
     if (!out_semaphore) {
         return false;
     }
@@ -349,7 +349,7 @@ b8 ksemaphore_create(ksemaphore *out_semaphore, u32 max_count, u32 start_count) 
     return true;
 }
 
-void ksemaphore_destroy(ksemaphore *semaphore) {
+void vsemaphore_destroy(vsemaphore *semaphore) {
     if (semaphore && semaphore->internal_data) {
         CloseHandle(semaphore->internal_data);
         vtrace("Destroyed semaphore handle.");
@@ -357,7 +357,7 @@ void ksemaphore_destroy(ksemaphore *semaphore) {
     }
 }
 
-b8 ksemaphore_signal(ksemaphore *semaphore) {
+b8 vsemaphore_signal(vsemaphore *semaphore) {
     if (!semaphore || !semaphore->internal_data) {
         return false;
     }
@@ -372,7 +372,7 @@ b8 ksemaphore_signal(ksemaphore *semaphore) {
     // L: post/Increment
 }
 
-b8 ksemaphore_wait(ksemaphore *semaphore, u64 timeout_ms) {
+b8 vsemaphore_wait(vsemaphore *semaphore, u64 timeout_ms) {
     if (!semaphore || !semaphore->internal_data) {
         return false;
     }

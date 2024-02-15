@@ -4,7 +4,9 @@ project(vlos C)
 find_package(raylib CONFIG REQUIRED)
 find_package(Lua REQUIRED)
 find_package(unofficial-tree-sitter CONFIG REQUIRED)
-
+find_package(GLEW REQUIRED)
+find_package(nanovg CONFIG REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
 # Only run these if on mac
 if (APPLE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")

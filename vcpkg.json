@@ -11,5 +11,14 @@
   }, {
     "name" : "raylib",
     "version>=" : "4.5.0#1"
+  }, {
+    "name" : "nanovg",
+    "version>=" : "2019-08-30#6"
+  }, {
+    "name" : "glfw3",
+    "version>=" : "3.3.9"
+  }, {
+    "name" : "glew",
+    "version>=" : "2.2.0#3"
   } ]
 }

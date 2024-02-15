@@ -26,22 +26,28 @@ const char *get_kernel_result_message(kernel_result result) {
             else
                 sprintf(message, "The kernel operation was successful: %s", (char *) result.data);
             break;
-        case KERNEL_ALREADY_INITIALIZED:sprintf(message, "The kernel has already been initialized.");
+        case KERNEL_ALREADY_INITIALIZED:
+            sprintf(message, "The kernel has already been initialized.");
             break;
-        case KERNEL_ALREADY_SHUTDOWN:sprintf(message, "The kernel has already been shutdown.");
+        case KERNEL_ALREADY_SHUTDOWN:
+            sprintf(message, "The kernel has already been shutdown.");
             break;
-        case KERNEL_CALL_BEFORE_INIT:sprintf(message, "The kernel has not been initialized.");
+        case KERNEL_CALL_BEFORE_INIT:
+            sprintf(message, "The kernel has not been initialized.");
             break;
-        case KERNEL_PROCESS_CREATED:sprintf(message, "The process was successfully created.");
+        case KERNEL_PROCESS_CREATED:
+            sprintf(message, "The process was successfully created.");
             break;
         case KERNEL_PROCESS_NOT_FOUND:
             sprintf(message,
                     "The process with id %d was not found.",
                     (proc_id) result.data);
             break;
-        case KERNEL_ERROR:sprintf(message, "Kernel error: %s", (char *) result.data);
+        case KERNEL_ERROR:
+            sprintf(message, "Kernel error: %s", (char *) result.data);
             break;
-        default:sprintf(message, "An unknown kernel error occurred, this may be gibberish: %s", (char *) result.data);
+        default:
+            sprintf(message, "An unknown kernel error occurred, this may be gibberish: %s", (char *) result.data);
             break;
     }
     return message;

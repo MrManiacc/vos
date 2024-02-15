@@ -35,7 +35,6 @@ kernel_result kernel_initialize(char *root_path) {
     strings_initialize();
     vfs_initialize(root_path);
     initialize_logging();
-//    initialize_asset_manager(root_path);
     vdebug("Root path: %s", root_path)
     
     kernel_context = kallocate(sizeof(kernel_ctx), MEMORY_TAG_KERNEL);
@@ -61,9 +60,7 @@ kernel_result kernel_shutdown() {
         return result;
     }
     shutdown_logging();
-    
-    //TODO: do we need to destroy the processes?
-    
+    //destroy all processes
     proc_pool *pool = kernel_context->id_pool;
     for (proc_id i = 1; i <= pool->max_id; i++) {
         if (!id_exists_in_stack(pool, i)) {
@@ -71,17 +68,20 @@ kernel_result kernel_shutdown() {
             if (!is_kernel_success(process_destroy_result.code))return process_destroy_result;
         }
     }
-    vfs_shutdown();
+    //free the kernels associated memory
     kfree(kernel_context->processes, sizeof(proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(proc_pool), MEMORY_TAG_KERNEL);
     kfree(kernel_context, sizeof(kernel_ctx), MEMORY_TAG_KERNEL);
+    
+    //shutdown the vfs
+    vfs_shutdown();
     kernel_initialized = false;
     timer_cleanup();
     intrinsics_shutdown();
     event_shutdown();
     dict_destroy(processes_by_name);
     strings_shutdown();
-//    vtrace("Mem usage: %s", get_memory_usage_str())
+    vtrace("Mem usage: %s", get_memory_usage_str())
     memory_system_shutdown();
     kernel_result result = {KERNEL_SUCCESS, null};
     return result;
@@ -114,12 +114,14 @@ proc *kernel_create_process(fs_node *script_node_file) {
     return process;
 }
 
+//TODO: here we should do some kind of thread watch dog to make sure the process is still running and all
 b8 kernel_poll_update() {
     if (!kernel_initialized) {
         vwarn("Attempted to poll kernel before initialization");
         return false;
     }
     timer_poll();
+    return true;
 }
 
 kernel_result kernel_lookup_process(proc_id pid) {

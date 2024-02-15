@@ -6,13 +6,14 @@
 #include <lauxlib.h>
 #include <lualib.h>
 #include <string.h>
-#include <raylib.h>
+//#include <raylib.h>
 #include "core/vevent.h"
 #include "core/vstring.h"
 #include "core/vmem.h"
 #include "containers/dict.h"
 #include "filesystem/paths.h"
 #include "platform/platform.h"
+#include "core/vinput.h"
 
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
@@ -178,7 +179,8 @@ int lua_draw_string(lua_State *L) {
         lua_getfield(L, 5, "a");
         int a = lua_tonumber(L, -1);
         // log the position and color
-        DrawText(message, x, y, size, (Color) {r, g, b, a});
+//        DrawText(message, x, y, size, (Color) {r, g, b, a});
+        gui_draw_text(message, x, y, size, "sans", nvgRGBA(r, g, b, a));
         return 0;
     }
     return 0;
@@ -206,10 +208,12 @@ int lua_draw_rect(lua_State *L) {
         int b = lua_tointeger(L, -1);
         lua_getfield(L, 5, "a");
         int a = lua_tointeger(L, -1);
-        DrawRectangle(x, y, width, height, (Color) {r, g, b, a});
+        gui_draw_rect(x, y, width, height, nvgRGBA(r, g, b, a));
+        // log the position and color
         return 0;
     }
-    DrawRectangle(x, y, width, height, DARKGRAY);
+//    DrawRectangle(x, y, width, height, DARKGRAY);
+    
     return 0;
 }
 
@@ -250,8 +254,14 @@ int lua_color(lua_State *L) {
     return 1;
 }
 
+
 int lua_time(lua_State *L) {
-    lua_pushnumber(L, GetTime());
+    static u64 start_time = 0;
+    if (start_time == 0) {
+        start_time = platform_get_absolute_time();
+    }
+    u64 current_time = platform_get_absolute_time();
+    lua_pushinteger(L, current_time - start_time);
     return 1;
 }
 
@@ -296,7 +306,7 @@ int lua_is_button_down(lua_State *L) {
         return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     int button = lua_tointeger(L, 1);
-    lua_pushboolean(L, IsMouseButtonDown(button));
+    lua_pushboolean(L, input_is_button_down(button));
     return 1;
 }
 
@@ -306,7 +316,7 @@ int lua_is_button_up(lua_State *L) {
         return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     int button = lua_tointeger(L, 1);
-    lua_pushboolean(L, IsMouseButtonUp(button));
+    lua_pushboolean(L, input_is_key_up(button));
     return 1;
 }
 
@@ -316,7 +326,7 @@ int lua_is_button_pressed(lua_State *L) {
         return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     int button = lua_tointeger(L, 1);
-    lua_pushboolean(L, IsMouseButtonPressed(button));
+    lua_pushboolean(L, input_is_button_down(button));
     return 1;
 }
 
@@ -326,7 +336,7 @@ int lua_is_button_released(lua_State *L) {
         return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     int button = lua_tointeger(L, 1);
-    lua_pushboolean(L, IsMouseButtonReleased(button));
+    lua_pushboolean(L, input_is_button_up(button));
     return 1;
 }
 
@@ -335,12 +345,12 @@ int lua_mouse(lua_State *L) {
     if (top != 0) {
         return luaL_error(L, "Expected 0 argument to mouse");
     }
-    Vector2 mouse = GetMousePosition();
-    
+    i32 x, y;
+    input_get_mouse_position(&x, &y);
     lua_newtable(L);
-    lua_pushinteger(L, mouse.x);
+    lua_pushinteger(L, x);
     lua_setfield(L, -2, "x");
-    lua_pushinteger(L, mouse.y);
+    lua_pushinteger(L, y);
     lua_setfield(L, -2, "y");
     lua_pushcfunction(L, lua_is_button_down);
     lua_setfield(L, -2, "is_down");
@@ -364,13 +374,13 @@ int lua_key(lua_State *L) {
     int key = lua_tointeger(L, 1);
     lua_newtable(L);
     //TODO: assign key codes to lua
-    lua_pushboolean(L, IsKeyDown(key));
+    lua_pushboolean(L, input_is_key_down(key));
     lua_setfield(L, -2, "is_down");
-    lua_pushboolean(L, IsKeyUp(key));
+    lua_pushboolean(L, input_is_key_up(key));
     lua_setfield(L, -2, "is_up");
-    lua_pushboolean(L, IsKeyPressed(key));
+    lua_pushboolean(L, input_is_key_pressed(key));
     lua_setfield(L, -2, "is_pressed");
-    lua_pushboolean(L, IsKeyReleased(key));
+    lua_pushboolean(L, input_is_key_released(key));
     lua_setfield(L, -2, "is_released");
     return 1;
 }
@@ -399,7 +409,8 @@ int lua_text_width(lua_State *L) {
     }
     const char *text = lua_tostring(L, 1);
     int size = lua_tointeger(L, 2);
-    lua_pushinteger(L, MeasureText(text, size));
+    void *vg = window_context.vg;
+    lua_pushnumber(L, gui_text_width(text, "sans", size));
     return 1;
 }
 
@@ -408,10 +419,12 @@ int lua_windwow_size(lua_State *L) {
     if (top != 0) {
         return luaL_error(L, "Expected 0 argument to window_size");
     }
+    u32 width, height;
+    window_get_size(&width, &height);
     lua_newtable(L);
-    lua_pushinteger(L, GetScreenWidth());
+    lua_pushinteger(L, width);
     lua_setfield(L, -2, "width");
-    lua_pushinteger(L, GetScreenHeight());
+    lua_pushinteger(L, height);
     lua_setfield(L, -2, "height");
     return 1;
 }
@@ -426,6 +439,7 @@ int configure_lua_window(proc *process) {
     
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "window");
+    return 1;
 }
 
 void configure_lua_gui(proc *process) {
@@ -454,8 +468,7 @@ void configure_lua_gui(proc *process) {
 
 int lua_file_system_string(lua_State *L) {
     //TODO: add the ability to read files from the file system
-    //lua_pushstring(L, vfs_to_string());
-    lua_pushstring(L, "Not implemented");
+    lua_pushstring(L, vfs_to_string());
     return 1;
 }
 
@@ -512,16 +525,16 @@ b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_co
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
         if (payload->process == NULL)continue;
-        if (strcmp(payload->event_name, event_name) == 0) {
-            lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
-            
-            lua_rawgeti(L, LUA_REGISTRYINDEX, payload->callback_ref);
-            
-            if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
-                verror("Error executing Lua callback: %s", lua_tostring(L, -1));
-                lua_pop(L, 1); // Remove error message
-            }
+//        if (strcmp(payload->event_name, event_name) == 0) {
+        lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
+        
+        lua_rawgeti(L, LUA_REGISTRYINDEX, payload->callback_ref);
+        
+        if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+            verror("Error executing Lua callback: %s", lua_tostring(L, -1));
+            lua_pop(L, 1); // Remove error message
         }
+//        }
     }
     
     return true;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "kernel.h"
+#include "core/vgui.h"
 
 /**
  * @brief Initializes the intrinsics system.
