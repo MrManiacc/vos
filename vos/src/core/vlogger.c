@@ -2,7 +2,7 @@
 #include "vasserts.h"
 #include "platform/platform.h"
 #include "vstring.h"
-
+#include <stdlib.h> // For dynamic memory allocation
 
 // TODO-temporary
 #include <stdio.h>
@@ -18,29 +18,46 @@ void shutdown_logging() {
     // TODO-cleanup logging/write queued entries.
 }
 
-//TODO: parse the string for colors in the platform_console_write_error and platform_console_write instead of consecutive calls to platform_console_write
 void log_output(log_level level, const char *call_location, const char *message, ...) {
 #ifdef USE_LINE_NUMBER
     static const char *level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"};
 #else
     static const char *level_strings[6] = {"[FATAL] - ", "[ERROR] - ", "[WARN] - ", "[INFO] - ", "[DEBUG] - ", "[TRACE] - "};
 #endif
-
+    
     b8 is_error = level < LOG_LEVEL_WARN;
-
-    char formatted_message[1024];
-    memset(formatted_message, 0, sizeof(formatted_message));
-
+    
     va_list arg_ptr;
-    va_start(arg_ptr, message);
-    vsnprintf(formatted_message, 1024, message, arg_ptr);
-    va_end(arg_ptr);
-
-    //add a newline to the end of the message if it doesn't have one
+            va_start(arg_ptr, message);
+    
+    // Determine required buffer size
+    int required_length = vsnprintf(NULL, 0, message, arg_ptr) + 1;
+            va_end(arg_ptr);
+    
+    // Allocate buffer dynamically based on required length
+    char *formatted_message = (char *) malloc(required_length);
+    if (!formatted_message) {
+        // Handle memory allocation failure
+        // For simplicity, we just return here, but you might want to handle this more gracefully
+        return;
+    }
+    
+    // Actually format the string
+            va_start(arg_ptr, message);
+    vsnprintf(formatted_message, required_length, message, arg_ptr);
+            va_end(arg_ptr);
+    
+    // Add a newline to the end of the message if it doesn't have one
     if (formatted_message[strlen(formatted_message) - 1] != '\n') {
+        size_t new_length = required_length + 1; // +1 for the newline
+        formatted_message = (char *) realloc(formatted_message, new_length);
+        if (!formatted_message) {
+            // Handle reallocation failure
+            return;
+        }
         strcat(formatted_message, "\n");
     }
-
+    
     // Output level with its color
     if (is_error) {
         platform_console_write_error(level_strings[level], level);
@@ -61,7 +78,9 @@ void log_output(log_level level, const char *call_location, const char *message,
     } else {
         platform_console_write(formatted_message, LOG_LEVEL_NONE); // Assuming LOG_LEVEL_INFO is white
     }
-
+    
+    // Free the dynamically allocated memory
+    free(formatted_message);
 }
 
 void report_assertion_failure(const char *expression, const char *message, const char *file, i32 line) {

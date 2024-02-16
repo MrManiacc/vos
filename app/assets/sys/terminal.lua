@@ -348,7 +348,7 @@ local function _renderBuffer(self)
     local text_x = x + 20
     local cursor_base_y = y + height - 30  -- Calculate based on the cursor's relative position
     local text_size = 20
-
+    
     local lines = {}
     for line in self.text.value:gmatch("([^\n]*)\n?") do
         table.insert(lines, line)

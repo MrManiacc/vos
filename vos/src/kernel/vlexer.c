@@ -7,27 +7,27 @@
 #include <stdio.h>
 #include "vlexer.h"
 
-static Token makeToken(LexerResult *result, TokenType type, const char *start, u32 length, u32 line, u32 column);
+static Token makeToken(ProgramSource *result, TokenType type, const char *start, u32 length, u32 line, u32 column);
 
-static void ensureCapacity(LexerResult *result);
+static void ensureCapacity(ProgramSource *result);
 
-static Token errorToken(LexerResult *result, const char *message, u32 line, u32 column);
+static Token errorToken(ProgramSource *result, const char *message, u32 line, u32 column);
 
-static void addToken(LexerResult *result, Token token);
+static void addToken(ProgramSource *result, Token token);
 
 static int isAlpha(char c);
 
 static int isDigit(char c);
 
-static void lexString(LexerResult *result, const char **current, u32 *line, u32 *column);
+static void lexString(ProgramSource *result, const char **current, u32 *line, u32 *column);
 
-static void lexNumber(LexerResult *result, const char **current, u32 *line, u32 *column);
+static void lexNumber(ProgramSource *result, const char **current, u32 *line, u32 *column);
 
-static void lexIdentifier(LexerResult *result, const char **current, u32 *line, u32 *column);
+static void lexIdentifier(ProgramSource *result, const char **current, u32 *line, u32 *column);
 
-static void skipComment(LexerResult *result, const char **current, u32 *line);
+static void skipComment(ProgramSource *result, const char **current, u32 *line);
 
-const char *getTokenTypeName(TokenType type) {
+const char *get_token_type_name(TokenType type) {
     switch (type) {
         case TOKEN_EOF:
             return "EOF";
@@ -60,6 +60,12 @@ const char *getTokenTypeName(TokenType type) {
             return "Delimiter";
         case TOKEN_EQUALS:
             return "Equals";
+        case TOKEN_PIPE:
+            return "Pipe";
+        case TOKEN_LBRACKET:
+            return "Left Bracket";
+        case TOKEN_RBRACKET:
+            return "Right Bracket";
         default:
             return "Unknown";
     }
@@ -70,17 +76,16 @@ static Token *lastToken = NULL;
 
 
 // LexerResult lexInput implementation
-LexerResult lexer_lex(const char *source, size_t length) {
-    LexerResult result = {NULL, 0, 0};
+ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
+    ProgramSource result = {NULL, 0, 0};
     const char *start = source;
     const char *current = source;
     const char *lineStart = source; // Track the start of the current line
-    int line = 1;
+    int line = 0;
     while (current - source < length) {
         start = current; // Start of the new token
         char c = *current++;
         u32 column = (u32) (current - lineStart) + 1;
-        
         switch (c) {
             case '(':
                 addToken(&result, makeToken(&result, TOKEN_LPAREN, start, 1, line, column));
@@ -94,6 +99,12 @@ LexerResult lexer_lex(const char *source, size_t length) {
             case '}':
                 addToken(&result, makeToken(&result, TOKEN_RBRACE, start, 1, line, column));
                 break;
+            case '[':
+                addToken(&result, makeToken(&result, TOKEN_LBRACKET, start, 1, line, column));
+                break;
+            case ']':
+                addToken(&result, makeToken(&result, TOKEN_RBRACKET, start, 1, line, column));
+                break;
             case ',':
                 addToken(&result, makeToken(&result, TOKEN_COMMA, start, 1, line, column));
                 break;
@@ -102,6 +113,9 @@ LexerResult lexer_lex(const char *source, size_t length) {
                 break;
             case '=':
                 addToken(&result, makeToken(&result, TOKEN_EQUALS, start, 1, line, column));
+                break;
+            case '|':
+                addToken(&result, makeToken(&result, TOKEN_PIPE, start, 1, line, column));
                 break;
             case '"':
                 lexString(&result, &current, &line, &column);
@@ -139,13 +153,13 @@ LexerResult lexer_lex(const char *source, size_t length) {
 
 
 // Create a new token and add it to the lexer result
-static Token makeToken(LexerResult *result, TokenType type, const char *start, u32 length, u32 line, u32 column) {
+static Token makeToken(ProgramSource *result, TokenType type, const char *start, u32 length, u32 line, u32 column) {
     Token token = {type, start, length, line, column};
     return token;
 }
 
 // Create a new error token
-static Token errorToken(LexerResult *result, const char *message, u32 line, u32 column) {
+static Token errorToken(ProgramSource *result, const char *message, u32 line, u32 column) {
     // Construct a more detailed error message
     char *detailedMessage = malloc(256); // Ensure this buffer is appropriately sized for your error messages
     snprintf(detailedMessage, 256, "Error at line %d, column %d: %s", line, column, message);
@@ -155,7 +169,7 @@ static Token errorToken(LexerResult *result, const char *message, u32 line, u32 
 }
 
 // Add a token to the lexer result
-static void addToken(LexerResult *result, Token token) {
+static void addToken(ProgramSource *result, Token token) {
     ensureCapacity(result);
     result->tokens[result->count++] = token;
     lastToken = &result->tokens[result->count - 1];
@@ -173,7 +187,7 @@ static int isDigit(char c) {
 }
 
 // Lex a string literal
-static void lexString(LexerResult *result, const char **current, u32 *line, u32 *column) {
+static void lexString(ProgramSource *result, const char **current, u32 *line, u32 *column) {
     const char *start = *current; // Still points to the opening quote
     (*current)++; // Move past the opening quote to start capturing the string content
     
@@ -203,7 +217,7 @@ static void lexString(LexerResult *result, const char **current, u32 *line, u32 
 
 // Lex a number (integer for simplicity, extend for floats)
 // Extended lexNumber to handle floating-point numbers
-static void lexNumber(LexerResult *result, const char **current, u32 *line, u32 *column) {
+static void lexNumber(ProgramSource *result, const char **current, u32 *line, u32 *column) {
     const char *start = *current - 1;
     while (isDigit(**current)) (*current)++;
     
@@ -221,7 +235,7 @@ static int checkKeyword(const char *start, size_t length, const char *keyword, T
 }
 
 // Enhanced lexIdentifier to distinguish keywords
-static void lexIdentifier(LexerResult *result, const char **current, u32 *line, u32 *column) {
+static void lexIdentifier(ProgramSource *result, const char **current, u32 *line, u32 *column) {
     const char *start = *current - 1;
     u32 startColumn = *column - 1; // Adjust for the already incremented column
     
@@ -244,7 +258,7 @@ static void lexIdentifier(LexerResult *result, const char **current, u32 *line, 
     addToken(result, makeToken(result, type, start, length, *line, startColumn));
 }
 
-static void ensureCapacity(LexerResult *result) {
+static void ensureCapacity(ProgramSource *result) {
     if (result->capacity == 0) {
         result->
                 capacity = 8; // Initial capacity
@@ -252,13 +266,12 @@ static void ensureCapacity(LexerResult *result) {
                 tokens = (Token *) malloc(result->capacity * sizeof(Token));
     } else if (result->count >= result->capacity) {
         result->capacity *= 2;
-        result->
-                tokens = (Token *) realloc(result->tokens, result->capacity * sizeof(Token));
+        result->tokens = (Token *) realloc(result->tokens, result->capacity * sizeof(Token));
     }
 }
 
 // Function to skip single and multi-line comments
-static void skipComment(LexerResult *result, const char **current, u32 *line) {
+static void skipComment(ProgramSource *result, const char **current, u32 *line) {
     if (**current == '/') {
         // Single-line comment
         (*current)++;
@@ -276,7 +289,7 @@ static void skipComment(LexerResult *result, const char **current, u32 *line) {
 }
 
 
-char *lexer_dump_tokens(LexerResult *result) {
+char *lexer_dump_tokens(ProgramSource *result) {
 // Estimate buffer size
     size_t bufferSize = 256; // Start with a reasonable size
     for (size_t i = 0; i < result->count; i++) {
@@ -292,7 +305,7 @@ char *lexer_dump_tokens(LexerResult *result) {
         // Don't print the \n value for the delimiter token
         if (token.type == TOKEN_DELIMITER) {
             int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Line: %d, Column: %d\n",
-                                   getTokenTypeName(token.type), token.line, token.column);
+                                   get_token_type_name(token.type), token.line, token.column);
             if (written < 0) {
                 free(buffer);
                 return NULL; // Writing error
@@ -300,7 +313,7 @@ char *lexer_dump_tokens(LexerResult *result) {
             offset += written; // Update offset
             continue;
         }
-        const char *tokenType = getTokenTypeName(token.type);
+        const char *tokenType = get_token_type_name(token.type);
         int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Value: '%.*s', Line: %d, Column: %d\n",
                                tokenType, (int) token.length, token.start, token.line, token.column);
         if (written < 0) {
@@ -313,9 +326,3 @@ char *lexer_dump_tokens(LexerResult *result) {
     return buffer; // Caller is responsible for freeing this buffer
 }
 
-void lexer_free(LexerResult *result) {
-    free(result->tokens);
-    result->tokens = NULL;
-    result->count = 0;
-    result->capacity = 0;
-}

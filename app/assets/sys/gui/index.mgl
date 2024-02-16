@@ -1,0 +1,85 @@
+use "std.mgl";
+
+Root : Element {
+    // We can override the default padding for all elements
+    Padding = 0
+
+    // Last element is inferred as the return value, so we don't need to specify it
+    [
+        Label {
+            Id = "label"
+            Value = Text {
+                // Don't need to specify the type of the value, it's inferred. But we can if we want to.
+                // Return type is mapped to last defined type of the value.
+                // We could probably even just use the string "Absolute" here, getting rid of {} because they're not necessary
+                Position = {"Absolute"}
+                Text = "Click count"
+                FontSize = 16
+                // Here we specify the Color type directly, it's not necessary to specify the type of the value
+                FontColor = Color {
+                    R = 0
+                    G = 0
+                    B = 0
+                    A = 1
+                }
+                TextAlign = "center"
+                TextAlignVertical = "center"
+                TextAlignHorizontal = "center"
+            }
+        },
+        Input {
+            Id = "input"
+            Placeholder = "Type something"
+            Background = Color {
+                R = 255
+                G = 255
+                B = 255
+                A = 1
+            }
+            FontSize = 16
+            FontColor = Color {
+                R = 0
+                G = 0
+                B = 0
+                A = 1
+            }
+            TextAlign = "center"
+            TextAlignVertical = "center"
+            TextAlignHorizontal = "center"
+        },
+        Button {
+            Id = "btn"
+            Background = Color{
+                R = 0
+                G = 0
+                B = 0
+                A = 1
+            }
+            Value = Text{
+                Text = "Click Me"
+                FontSize = 16
+                FontColor = Color {
+                    R = 255
+                    G = 255
+                    B = 255
+                    A = 1
+                }
+                TextAlign = "center"
+                TextAlignVertical = "center"
+                TextAlignHorizontal = "center"
+                // Can also specify a single value for an element.
+                // This creates a default object if not already specified
+                Hooks.OnClick = function(self)
+                    // Self would be a reference to this button
+                    local value = GetElement("#input").Value
+                    value = "You typed: " .. value
+                    local label = GetElement("#label")
+                    //Set our value here
+                    label.Value = Text {
+                       value // we're inferring the type here because it's the last value.
+                    }
+                end
+            }
+        }
+    ]
+}

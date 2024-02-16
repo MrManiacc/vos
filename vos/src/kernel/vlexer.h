@@ -64,35 +64,25 @@ typedef struct {
 } Token;
 
 // Lexer output structure
-typedef struct LexerResult {
+typedef struct ProgramSource {
     Token *tokens; // Dynamic array of tokens
     size_t count; // Number of tokens
     size_t capacity; // Capacity of the tokens array
     // Any additional fields for error handling, etc.
-} LexerResult;
+} ProgramSource;
 
 /**
  * @brief This function performs lexical analysis on the provided source code and returns the result.
  *
- * The lexer_lex function tokenizes the given source code into a sequence of tokens.
+ * The lexer_analysis_from_mem function tokenizes the given source code into a sequence of tokens.
  *
  * @param source The source code to be analyzed.
  * @param length The length of the source code.
  * @return The result of the lexical analysis, which includes the list of tokens and any errors encountered.
  */
-LexerResult lexer_lex(const char *source, size_t length);
+ProgramSource lexer_analysis_from_mem(const char *source, size_t length);
 
-/**
- * @brief Frees the memory allocated for a LexerResult structure.
- *
- * This function is used to release the resources held by a LexerResult structure. It should be called
- * after the LexerResult object is no longer needed to avoid memory leaks.
- *
- * @param result Pointer to the LexerResult structure to free.
- *
- * @note The result pointer should not be used after calling this function.
- */
-void lexer_free(LexerResult *result);
+
 
 /**
  * @brief Prints the tokens in the given LexerResult.
@@ -102,4 +92,16 @@ void lexer_free(LexerResult *result);
  *
  * @param result A pointer to the LexerResult structure containing the tokens.
  */
-char *lexer_dump_tokens(LexerResult *result);
+char *lexer_dump_tokens(ProgramSource *result);
+
+/**
+ * @brief Returns the name of the given token type.
+ *
+ * This function takes a TokenType as input and returns the corresponding
+ * name of the token type. If the token type is not recognized, "Unknown"
+ * is returned.
+ *
+ * @param type The token type.
+ * @return The name of the token type.
+ */
+const char *get_token_type_name(TokenType type);

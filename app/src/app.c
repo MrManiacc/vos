@@ -26,7 +26,7 @@
 #include "core/vstring.h"
 #include "core/vinput.h"
 #include "platform/platform.h"
-#include "kernel/vlexer.h"
+#include "kernel/vparser.h"
 
 // launch our bootstrap code
 void startup_script_init() {
@@ -53,21 +53,15 @@ int main(int argc, char **argv) {
     }
     startup_script_init();
     
-    fs_node *gui = vfs_get("sys/gui/GuiTest.mgl");
+    fs_node *gui = vfs_get("sys/gui/std.mgl");
     
     if (gui == null) {
         verror("Failed to load gui file")
         return 1;
     }
     
-    LexerResult lexerResult = lexer_lex(gui->data.file.data, gui->data.file.size);
-    
-    char *dumped = lexer_dump_tokens(&lexerResult);
-    
-    printf("Dumped: %s", dumped);
-    
-    lexer_free(&lexerResult);
-    // Here we test the lexer
+    ProgramSource lexerResult = lexer_analysis_from_mem(gui->data.file.data, gui->data.file.size);
+    ProgramAST ast = parser_parse(&lexerResult);
     
     kernel_result shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
