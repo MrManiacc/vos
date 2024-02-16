@@ -41,7 +41,7 @@ const char *kernel_get_result_message(KernelResult result) {
         case KERNEL_PROCESS_NOT_FOUND:
             sprintf(message,
                     "The process with id %d was not found.",
-                    (ProcID) result.data);
+                    (ProcID *) result.data);
             break;
         case KERNEL_ERROR:
             sprintf(message, "Kernel error: %s", (char *) result.data);

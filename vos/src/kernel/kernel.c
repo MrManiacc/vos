@@ -37,7 +37,7 @@ KernelResult kernel_initialize(char *root_path) {
     initialize_logging();
     vdebug("Root path: %s", root_path)
     
-    kernel_context = kallocate(sizeof(KernelContext), MEMORY_TAG_KERNEL);
+    kernel_context = kallocate(sizeof(Kernel), MEMORY_TAG_KERNEL);
     kernel_context->processes = kallocate(sizeof(Proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     //make sure the processes array is zeroed out
     kzero_memory(kernel_context->processes, sizeof(Proc *) * MAX_PROCESSES);
@@ -71,7 +71,7 @@ KernelResult kernel_shutdown() {
     //free the kernels associated memory
     kfree(kernel_context->processes, sizeof(Proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(ProcPool), MEMORY_TAG_KERNEL);
-    kfree(kernel_context, sizeof(KernelContext), MEMORY_TAG_KERNEL);
+    kfree(kernel_context, sizeof(Kernel), MEMORY_TAG_KERNEL);
     
     //shutdown the vfs
     vfs_shutdown();
@@ -108,7 +108,7 @@ Proc *kernel_create_process(FsNode *script_node_file) {
     }
     process->pid = pid;
     intrinsics_install_to(process);
-    dict_set(processes_by_name, process->script_file_node->path, process);
+    dict_set(processes_by_name, process->source_file_node->path, process);
     kernel_context->processes[pid] = process;
     vdebug("Created process 0x%04x named %s", pid, process->process_name)
     return process;
@@ -148,30 +148,26 @@ KernelResult kernel_destroy_process(ProcID pid) {
         KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
         return result;
     }
-    dict_remove(processes_by_name, process->script_file_node->path);
+    dict_remove(processes_by_name, process->source_file_node->path);
     vdebug("Destroyed process 0x%04x named %s", pid, process->process_name)
-//    kfree(process->script_asset->data, process->script_asset->size, MEMORY_TAG_VFS);
-//    kfree(process->script_asset, sizeof(Asset), MEMORY_TAG_ASSET);
     process_destroy(process);
     id_pool_release_id(pid);
-
-//    kfree(process, sizeof(Process), MEMORY_TAG_PROCESS);
     KernelResult result = {KERNEL_SUCCESS, null};
     return result;
 }
 
 //TODO more advanced process lookup with wildcards and such
-Proc *kernel_lookup_process_id(const char *name) {
+ProcID *kernel_lookup_process_id(const char *name) {
     if (!kernel_initialized) {
         vtrace("Attempted to locate process before initialization")
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
-        return &result;
+        return null;
     }
     Proc *process = dict_get(processes_by_name, name);
     if (process == null) {
+        vtrace("Process not found with name %s", name)
         return null;
     }
-    return process;
+    return &process->pid;
 }
 
 

@@ -839,7 +839,7 @@ char *platform_parent_directory(const char *path) {
 }
 
 void *platform_reallocate(void *block, u64 size, b8 aligned) {
-    return realloc(block, size);
+    return HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, block, size);
 }
 
 

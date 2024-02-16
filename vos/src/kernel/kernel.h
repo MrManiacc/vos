@@ -84,7 +84,7 @@ KernelResult kernel_destroy_process(ProcID pid);
  * @param name The name of the process.
  * @return A pointer to the process if it was found, otherwise NULL.
  */
-Proc *kernel_lookup_process_id(const char *name);
+ProcID *kernel_lookup_process_id(const char *name);
 
 /**
  * Destroys the kernel. This will deallocate the kernel context and destroy the root process view.

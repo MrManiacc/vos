@@ -482,7 +482,7 @@ b8 intrinsics_install_to(Proc *process) {
     lua_pushinteger(process->lua_state, process->pid);
     lua_setfield(process->lua_state, -2, "pid");
 
-    lua_pushstring(process->lua_state, process->script_file_node->path);
+    lua_pushstring(process->lua_state, process->source_file_node->path);
     lua_setfield(process->lua_state, -2, "path");
 
     // Register the process name

@@ -10,15 +10,16 @@
 #include <string.h>
 
 
-
+// Function prototypes for readability
 static char *appendString(char **dest, const char *src, size_t *cursor, size_t *bufferSize);
 
-static char *dump_type(const Type *type, int indentLevel);
+char *generate_json_for_type(const Type *type, int indentLevel);
 
-static char *dump_property(const Property *property, int indentLevel);
+char *generate_json_for_property(const Property *property, int indentLevel);
 
-static char *dump_component(const Component *component, int indentLevel);
+char *generate_json_for_component(const ASTNode *node, int indentLevel);
 
+char *create_indent(int indentLevel);
 
 typedef struct ParserState {
     ProgramSource *source;
@@ -248,7 +249,6 @@ ASTNode *parser_parse_component(ParserState *state) {
 }
 
 
-
 ProgramAST parser_parse(ProgramSource *source) {
     ProgramAST result = {0};
     ParserState state = {source, 0};
@@ -289,12 +289,6 @@ ProgramAST parser_parse(ProgramSource *source) {
 }
 
 
-// Function prototypes for readability
-char *generate_json_for_type(const Type *type, int indentLevel);
-char *generate_json_for_property(const Property *property, int indentLevel);
-char *generate_json_for_component(const ASTNode *node, int indentLevel);
-char *create_indent(int indentLevel);
-
 char *parser_dump_program(ProgramAST *result) {
     size_t bufferSize = 2048; // Adjust buffer size as needed
     char *buffer = platform_allocate(bufferSize, false);
@@ -318,6 +312,7 @@ char *parser_dump_program(ProgramAST *result) {
     appendString(&buffer, "\n}", &cursor, &bufferSize); // Close JSON object
     return buffer;
 }
+
 char *generate_json_for_component(const ASTNode *node, int indentLevel) {
     size_t bufferSize = 512; // Adjust based on needs
     char *buffer = platform_allocate(bufferSize, false);
@@ -414,8 +409,6 @@ char *create_indent(int indentLevel) {
     indent[indentLevel * 4] = '\0';
     return indent;
 }
-
-
 
 
 static char *appendString(char **dest, const char *src, size_t *cursor, size_t *bufferSize) {

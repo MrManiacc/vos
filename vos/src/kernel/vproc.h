@@ -17,6 +17,11 @@ typedef enum ProcessState {
     PROCESS_STATE_MAX_STATES
 } ProcessState;
 
+typedef enum ProcessType {
+    PROCESS_TYPE_KERNEL, // For drivers, these are shared libraries that are loaded into the kernel.
+    PROCESS_TYPE_USER // For user processes, these are lua scripts that are executed by the kernel.
+} ProcessType;
+
 // Process Structure
 typedef struct Proc {
     // Unique process ID
@@ -24,7 +29,7 @@ typedef struct Proc {
     // Name of the process
     const char *process_name;
     // Path to the Lua script (process)
-    FsNode *script_file_node;
+    FsNode *source_file_node;
     // Pointer to the shared lua_State for this process, children will copy the pointer to their own lua_State
     lua_State *lua_state;
     // The context for accessing a process's child processes

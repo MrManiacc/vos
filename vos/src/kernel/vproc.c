@@ -17,10 +17,10 @@
  */
 Proc *process_create(FsNode *script_file_node) {
     Proc *process = kallocate(sizeof(Proc), MEMORY_TAG_PROCESS);
-    process->script_file_node = script_file_node;
+    process->source_file_node = script_file_node;
     process->state = PROCESS_STATE_STOPPED;
     process->children_pids = darray_create(ProcID);
-    FsPath path = process->script_file_node->path;
+    FsPath path = process->source_file_node->path;
     //get the name by getting the last part of the path after the last slash
     char *name = string_split_at(path, "/", string_split_count(path, "/") - 1);
     //remove the extension
@@ -37,7 +37,7 @@ b8 process_start(Proc *process) {
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
     //    process->process_name =
-    FsNode *asset = process->script_file_node;
+    FsNode *asset = process->source_file_node;
     if (asset == null || asset->type != NODE_FILE) {
         verror("Failed to load script %s", process->pid);
         process->state = PROCESS_STATE_STOPPED;
@@ -53,15 +53,6 @@ b8 process_start(Proc *process) {
     if (luaL_loadbuffer(process->lua_state, source, size, asset->path) != LUA_OK) {
         const char *error_string = lua_tostring(process->lua_state, -1);
         verror("Failed to run script %d: %s", process->pid, error_string);
-//        //try to run it from file
-//        char *absolute = path_absolute(asset->path);
-//        char *platform = platform_path(absolute);
-//        if (luaL_dofile(process->lua_state, platform) != LUA_OK) {
-//            error_string = lua_tostring(process->lua_state, -1);
-//            verror("Failed to run script %d: %s", process->pid, error_string);
-//            process->state = PROCESS_STATE_STOPPED;
-//            return false;
-//        }
         return false;
     }
     // execute the script
@@ -133,6 +124,6 @@ b8 process_remove_child(Proc *parent, ProcID child_id) {
             return true;
         }
     }
-
+    
     return false;
 }
