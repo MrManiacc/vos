@@ -8,7 +8,7 @@
  * @param code The error code.
  * @return TRUE if the operation was successful, else FALSE.
  */
-b8 is_kernel_success(KernelCode code) {
+b8 kernel_is_result_success(KernelResultCode code) {
     return code >= KERNEL_SUCCESS;
 }
 
@@ -17,7 +17,7 @@ b8 is_kernel_success(KernelCode code) {
  * @param result The result of the kernel operation.
  * @return
  */
-const char *get_kernel_result_message(kernel_result result) {
+const char *kernel_get_result_message(KernelResult result) {
     char *message = kallocate(256, MEMORY_TAG_KERNEL);
     switch (result.code) {
         case KERNEL_SUCCESS:
@@ -41,7 +41,7 @@ const char *get_kernel_result_message(kernel_result result) {
         case KERNEL_PROCESS_NOT_FOUND:
             sprintf(message,
                     "The process with id %d was not found.",
-                    (proc_id) result.data);
+                    (ProcID) result.data);
             break;
         case KERNEL_ERROR:
             sprintf(message, "Kernel error: %s", (char *) result.data);

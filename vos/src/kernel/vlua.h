@@ -21,7 +21,7 @@ void intrinsics_initialize();
  *
  * @return Returns 1 on success, 0 otherwise.
  */
-b8 intrinsics_install_to(proc *process);
+b8 intrinsics_install_to(Proc *process);
 
 /**
  * @brief Shuts down the intrinsics system.

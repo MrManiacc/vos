@@ -17,7 +17,7 @@
 
 #define MAX_LUA_PAYLOADS 100
 typedef struct LuaPayload {
-    proc *process;
+    Proc *process;
     char *event_name;
     int callback_ref;
 } LuaPayload;
@@ -37,7 +37,7 @@ int lua_execute_process(lua_State *L) {
         verror("Invalid argument passed to process: %s", lua_typename(L, arg_type));
         return 1;
     }
-    proc *process;
+    Proc *process;
     // Get the process name
     if (arg_type == LUA_TSTRING) {
         const char *process_name = lua_tostring(L, 1);
@@ -65,10 +65,10 @@ int lua_execute_process(lua_State *L) {
 //            lua_pushinteger(L, process->pid);
 //        }
     } else {
-        proc_id process_id = (proc_id) lua_tointeger(L, 1);
-        kernel_result result = kernel_lookup_process(process_id);
-        if (!is_kernel_success(result.code)) {
-            verror("Failed to lookup process: %s", get_kernel_result_message(result));
+        ProcID process_id = (ProcID) lua_tointeger(L, 1);
+        KernelResult result = kernel_lookup_process(process_id);
+        if (!kernel_is_result_success(result.code)) {
+            verror("Failed to lookup process: %s", kernel_get_result_message(result));
             return 1;
         }
         process = result.data;
@@ -132,12 +132,12 @@ int lua_listen_for_event(lua_State *L) {
     lua_getfield(L, -1, "pid");
     int process_id = lua_tointeger(L, -1);
     vdebug("Executing process with id: %d", process_id);
-    kernel_result result = kernel_lookup_process((proc_id) process_id);
-    if (!is_kernel_success(result.code)) {
-        verror("Failed to lookup process: %s", get_kernel_result_message(result));
+    KernelResult result = kernel_lookup_process((ProcID) process_id);
+    if (!kernel_is_result_success(result.code)) {
+        verror("Failed to lookup process: %s", kernel_get_result_message(result));
         return 1;
     }
-    proc *process = result.data;
+    Proc *process = result.data;
     payload->process = process;
     return 0;
 }
@@ -275,7 +275,7 @@ int lua_import(lua_State *L) {
     const char *path = lua_tostring(L, -1);
     char *full_path = string_append(module_name, ".lua");
     // get the node data from the file system
-    fs_node *node = vfs_get(full_path);
+    FsNode *node = vfs_node_get(full_path);
 
     if (node == null) {
         verror("Failed to import module %s, file not found", module_name);
@@ -388,7 +388,7 @@ int lua_key(lua_State *L) {
 }
 
 
-void configure_lua_input(proc *process) {
+void configure_lua_input(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
 
@@ -431,7 +431,7 @@ int lua_windwow_size(lua_State *L) {
     return 1;
 }
 
-int configure_lua_window(proc *process) {
+int configure_lua_window(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
 
@@ -444,7 +444,7 @@ int configure_lua_window(proc *process) {
     return 1;
 }
 
-void configure_lua_gui(proc *process) {
+void configure_lua_gui(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
 
@@ -474,7 +474,7 @@ int lua_file_system_string(lua_State *L) {
     return 1;
 }
 
-b8 intrinsics_install_to(proc *process) {
+b8 intrinsics_install_to(Proc *process) {
     process->lua_state = luaL_newstate();
     luaL_openlibs(process->lua_state);
     lua_newtable(process->lua_state); // Create the sys table

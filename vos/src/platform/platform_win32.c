@@ -838,6 +838,10 @@ char *platform_parent_directory(const char *path) {
     
 }
 
+void *platform_reallocate(void *block, u64 size, b8 aligned) {
+    return realloc(block, size);
+}
+
 
 static void platform_update_watches(void) {
     if (!state_ptr || !state_ptr->watches) {

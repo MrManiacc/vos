@@ -15,7 +15,7 @@
 
 // File System Structure
 typedef struct FSContext {
-    fs_node *root; // Root directory node
+    FsNode *root; // Root directory node
     dict *users; // Users loaded in memory
     dict *nodes;// The nodes that are currently loaded in memory. They can be directories or files.
 } FSContext;
@@ -26,7 +26,6 @@ static FSContext *fs_context = null;
  * Loads all the nodes in the file system into memory, recursively.
  */
 void load_nodes();
-
 
 /**
  * Shuts down all the nodes in the file system.
@@ -41,7 +40,7 @@ void unload_nodes();
  * @param path The path of the node to load.
  * @return A pointer to the loaded node, or null if the node could not be loaded.
  */
-fs_node *load_node(fs_path path);
+FsNode *load_node(FsPath path);
 
 
 /**
@@ -62,14 +61,14 @@ fs_node *load_node(fs_path path);
  * it only removes the node from memory and the node hierarchy. The memory occupied by the
  * node and file/directory data must be freed separately using \c kfree().
  */
-b8 unload_node(fs_node *node);
+b8 unload_node(FsNode *node);
 
 /**
  * Initializes the file system. This function must be called before any other file system functions.
  * @param root  The root path of the file system.
  * @return
  */
-b8 vfs_initialize(fs_path root) {
+b8 vfs_initialize(FsPath root) {
     if (fs_context) {
         vwarn("vfs_initialize - File system already initialized.")
         return false;
@@ -104,12 +103,12 @@ void vfs_shutdown() {
 
 
 // Loads a file from the file system into memory.
-fs_node *load_file(fs_path path) {
+FsNode *load_file(FsPath path) {
     if (!fs_context) {
         vwarn("load_file - File system not initialized.");
         return null;
     }
-    fs_node *node = kallocate(sizeof(fs_node), MEMORY_TAG_RESOURCE);
+    FsNode *node = kallocate(sizeof(FsNode), MEMORY_TAG_RESOURCE);
     //Make sure to sanitize the path, the path will be relative to the root. i.e:
     // D:/root/asset.txt -> asset.txt
     // D:/root/asset/asset.txt -> asset/asset.txt
@@ -125,17 +124,17 @@ fs_node *load_file(fs_path path) {
         return node;
     }
     vwarn("load_file - Failed to load file at path: %s", node->path);
-    kfree(node, sizeof(fs_node), MEMORY_TAG_RESOURCE);
+    kfree(node, sizeof(FsNode), MEMORY_TAG_RESOURCE);
     return null;
 }
 
 // Loads a directory from the file system into memory.
-fs_node *load_directory(fs_path path) {
+FsNode *load_directory(FsPath path) {
     if (!fs_context) {
         vwarn("load_directory - File system not initialized.");
         return null;
     }
-    fs_node *dir_node = kallocate(sizeof(fs_node), MEMORY_TAG_RESOURCE);
+    FsNode *dir_node = kallocate(sizeof(FsNode), MEMORY_TAG_RESOURCE);
     dir_node->path = path_relative(path);
     dir_node->type = NODE_DIRECTORY;
     dir_node->data.directory.children = null; // Initialize to null
@@ -152,10 +151,10 @@ fs_node *load_directory(fs_path path) {
     }
     
     // Allocate memory for children pointers based on count
-    dir_node->data.directory.children = kallocate(child_files->count * sizeof(fs_node *), MEMORY_TAG_RESOURCE);
+    dir_node->data.directory.children = kallocate(child_files->count * sizeof(FsNode *), MEMORY_TAG_RESOURCE);
     for (int i = 0; i < child_files->count; i++) {
         char *file_path = child_files->paths[i];
-        fs_node *child_node = load_node(string_duplicate(file_path));
+        FsNode *child_node = load_node(string_duplicate(file_path));
         if (child_node == null) {
             vwarn("load_directory - Failed to load child node at path: %s", file_path);
             continue;
@@ -168,13 +167,13 @@ fs_node *load_directory(fs_path path) {
 }
 
 //Loads a node from the file system into memory, doesn't care if it's a file or directory.
-fs_node *load_node(fs_path path) {
+FsNode *load_node(FsPath path) {
     if (!fs_context) {
         vwarn("load_node - File system not initialized.");
         return null;
     }
     char *system_path = platform_path(path);
-    fs_node *node = null;
+    FsNode *node = null;
     if (platform_file_exists(system_path)) {
         if (platform_is_directory(system_path))
             node = load_directory(system_path);
@@ -189,7 +188,7 @@ fs_node *load_node(fs_path path) {
 }
 
 // Unloads a file from memory
-b8 unload_file(fs_node *node) {
+b8 unload_file(FsNode *node) {
     if (!fs_context) {
         vwarn("unload_file - File system not initialized.");
         return false;
@@ -198,7 +197,7 @@ b8 unload_file(fs_node *node) {
         vwarn("unload_file - fs_node not found.");
         return false;
     }
-    fs_path path = node->path;
+    FsPath path = node->path;
     if (node->type != NODE_FILE) {
         vwarn("unload_file - fs_node at path is not a file: %s", path)
         return false;
@@ -206,14 +205,14 @@ b8 unload_file(fs_node *node) {
     
     vdebug("unload_file - Unloaded file at path: %s", path);
     kfree(node->data.file.data, node->data.file.size, MEMORY_TAG_RESOURCE);
-    kfree(node, sizeof(fs_node), MEMORY_TAG_RESOURCE);
+    kfree(node, sizeof(FsNode), MEMORY_TAG_RESOURCE);
     
     dict_remove(fs_context->nodes, path);
     return true;
 }
 
 // Unloads a directory from memory.
-b8 unload_directory(fs_node *node) {
+b8 unload_directory(FsNode *node) {
     if (!fs_context) {
         vwarn("unload_directory - File system not initialized.");
         return false;
@@ -223,7 +222,7 @@ b8 unload_directory(fs_node *node) {
         return false;
     }
     
-    fs_path path = node->path;
+    FsPath path = node->path;
     if (node->type != NODE_DIRECTORY) {
         vwarn("unload_directory - fs_node at path is not a directory: %s", path);
         return false;
@@ -234,17 +233,17 @@ b8 unload_directory(fs_node *node) {
         unload_node(node->data.directory.children[i]);
     }
     // Free the children array
-    kfree(node->data.directory.children, node->data.directory.child_count * sizeof(fs_node *), MEMORY_TAG_RESOURCE);
+    kfree(node->data.directory.children, node->data.directory.child_count * sizeof(FsNode *), MEMORY_TAG_RESOURCE);
     node->data.directory.children = null; // Ensure pointer is NULL after free
     node->data.directory.child_count = 0; // Reset count to 0
     
     vdebug("unload_directory - Unloaded folder at path: %s", path);
     dict_remove(fs_context->nodes, path);
-    kfree(node, sizeof(fs_node), MEMORY_TAG_RESOURCE);
+    kfree(node, sizeof(FsNode), MEMORY_TAG_RESOURCE);
     return true;
 }
 
-b8 unload_node(fs_node *node) {
+b8 unload_node(FsNode *node) {
     if (node == null) {
         vwarn("unload_node - fs_node not found.");
         return false;
@@ -259,11 +258,11 @@ b8 unload_node(fs_node *node) {
 
 void load_nodes() {
     //Loads all the nodes in the file system into memory, recursively.
-    fs_node *root = load_node(path_root_directory());
+    FsNode *root = load_node(path_root_directory());
     //iterate children to make sure they are loaded.
     // Iterate the children of the root node to make sure they are loaded.
     for (u32 i = 0; i < root->data.directory.child_count; i++) {
-        fs_node *child = root->data.directory.children[i];
+        FsNode *child = root->data.directory.children[i];
         vinfo("load_nodes - Loaded child node at path: %s", child->path);
         //Log the tostring of the root node.
         vinfo("load_nodes - Loaded node: \n%s", vfs_node_to_string(child));
@@ -284,7 +283,7 @@ void unload_nodes() {
 }
 
 
-char *node_tree_to_string(fs_node *node, int depth) {
+char *node_tree_to_string(FsNode *node, int depth) {
     if (node == NULL) {
         return string_duplicate(""); // Return an empty string for easy concatenation
     }
@@ -318,7 +317,7 @@ char *node_tree_to_string(fs_node *node, int depth) {
     if (node->type == NODE_DIRECTORY) {
         char *children_str = string_duplicate(""); // Initialize to an empty string
         for (u32 i = 0; i < node->data.directory.child_count; ++i) {
-            fs_node *child = node->data.directory.children[i];
+            FsNode *child = node->data.directory.children[i];
             if (child == NULL) continue;
             char *child_str = node_tree_to_string(child, depth + 1);
             char *temp = children_str;
@@ -347,7 +346,7 @@ char *vfs_to_string() {
     return vfs_node_to_string(fs_context->root);
 }
 
-char *vfs_node_to_string(fs_node *node) {
+char *vfs_node_to_string(FsNode *node) {
     if (node == null) {
         vwarn("vfs_node_to_string - fs_node not found.");
         return null;
@@ -355,28 +354,19 @@ char *vfs_node_to_string(fs_node *node) {
     return node_tree_to_string(node, 1);
 }
 
-b8 vfs_exists(fs_path path) {
+b8 vfs_node_exists(FsPath path) {
     if (fs_context == null) {
-        vwarn("vfs_exists - File system not initialized.");
+        vwarn("vfs_node_exists - File system not initialized.");
         return false;
     }
     return dict_contains(fs_context->nodes, path);
 }
 
-fs_node *vfs_get(fs_path path) {
+FsNode *vfs_node_get(FsPath path) {
     if (fs_context == null) {
-        vwarn("vfs_get - File system not initialized.");
+        vwarn("vfs_node_get - File system not initialized.");
         return null;
     }
     return dict_get(fs_context->nodes, path);
 }
 
-const char *vfs_node_system_path(fs_node *node) {
-    if (node == null) {
-        vwarn("vfs_node_system_path - fs_node not found.");
-        return null;
-    }
-    // Get the system path for the node's path
-    fs_path systemPath = platform_path(node->path);
-    return systemPath;
-}

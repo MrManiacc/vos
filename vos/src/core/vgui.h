@@ -120,7 +120,7 @@ void window_shutdown();
  *       The return value indicates whether the font was successfully loaded or not.
  *       A return value of 1 indicates a successful loading, while 0 represents a failure.
  */
-VAPI b8 gui_load_font(fs_path font_path, const char *font_name);
+VAPI b8 gui_load_font(FsPath font_path, const char *font_name);
 
 VAPI/**
  * @brief Draws text on the GUI with the specified parameters.

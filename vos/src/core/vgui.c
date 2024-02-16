@@ -179,9 +179,9 @@ b8 window_should_close() {
     return glfwWindowShouldClose(window_context.window);
 }
 
-b8 gui_load_font(fs_path font_path, const char *font_name) {
+b8 gui_load_font(FsPath font_path, const char *font_name) {
     //load our fonts
-    fs_node *font = vfs_get(font_path);
+    FsNode *font = vfs_node_get(font_path);
     if (font == null) {
         verror("Failed to load font");
         return false;

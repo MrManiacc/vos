@@ -15,12 +15,12 @@
 /**
  * Creates a new process. This will parse the script and create a new lua_State for the process.
  */
-proc *process_create(fs_node *script_file_node) {
-    proc *process = kallocate(sizeof(proc), MEMORY_TAG_PROCESS);
+Proc *process_create(FsNode *script_file_node) {
+    Proc *process = kallocate(sizeof(Proc), MEMORY_TAG_PROCESS);
     process->script_file_node = script_file_node;
     process->state = PROCESS_STATE_STOPPED;
-    process->children_pids = darray_create(proc_id);
-    fs_path path = process->script_file_node->path;
+    process->children_pids = darray_create(ProcID);
+    FsPath path = process->script_file_node->path;
     //get the name by getting the last part of the path after the last slash
     char *name = string_split_at(path, "/", string_split_count(path, "/") - 1);
     //remove the extension
@@ -33,11 +33,11 @@ proc *process_create(fs_node *script_file_node) {
 /**
  * Starts a process. This will start the process and all child processes.
  */
-b8 process_start(proc *process) {
+b8 process_start(Proc *process) {
     //run the lua source file
     process->state = PROCESS_STATE_RUNNING;
     //    process->process_name =
-    fs_node *asset = process->script_file_node;
+    FsNode *asset = process->script_file_node;
     if (asset == null || asset->type != NODE_FILE) {
         verror("Failed to load script %s", process->pid);
         process->state = PROCESS_STATE_STOPPED;
@@ -81,7 +81,7 @@ b8 process_start(proc *process) {
  * @param force If TRUE, the process will be stopped immediately. If FALSE, the process will be stopped gracefully.
  * @param kill_children If TRUE, all child processes will be stopped immediately. If FALSE, child processes will be stopped gracefully.
  */
-b8 process_stop(proc *process, b8 force, b8 kill_children) {
+b8 process_stop(Proc *process, b8 force, b8 kill_children) {
     vinfo("Process %d stopped", process->pid);
     if (process->state == PROCESS_STATE_STOPPED && !force && !kill_children) {
         vwarn("Process %d is already stopped", process->pid);
@@ -90,10 +90,10 @@ b8 process_stop(proc *process, b8 force, b8 kill_children) {
     if (kill_children) {
         u64 length = darray_length(process->children_pids);
         for (u64 i = 0; i < length; ++i) {
-            proc_id child_pid = process->children_pids[i];
-            kernel_result result = kernel_lookup_process(child_pid);
+            ProcID child_pid = process->children_pids[i];
+            KernelResult result = kernel_lookup_process(child_pid);
             if (result.code == KERNEL_PROCESS_CREATED) {
-                proc *child = result.data;
+                Proc *child = result.data;
                 process_stop(child, force, kill_children);
             }
         }
@@ -101,7 +101,7 @@ b8 process_stop(proc *process, b8 force, b8 kill_children) {
     darray_destroy(process->children_pids)
     // close the lua state
     lua_close(process->lua_state);
-    kfree(process, sizeof(proc), MEMORY_TAG_PROCESS);
+    kfree(process, sizeof(Proc), MEMORY_TAG_PROCESS);
     return true;
 }
 
@@ -110,24 +110,24 @@ b8 process_stop(proc *process, b8 force, b8 kill_children) {
  * @param process The process to destroy.
  * @return TRUE if the process was successfully destroyed; otherwise FALSE.
  */
-void process_destroy(proc *process) {
+void process_destroy(Proc *process) {
     process_stop(process, true, true);
 }
 
 // Adds a child process to a parent process. This will add the child process to the parent's child process array.
-b8 process_add_child(proc *parent, proc *child) {
+b8 process_add_child(Proc *parent, Proc *child) {
 // Make the child's lua_State a copy of the parent's lua_State
     child->lua_state = parent->lua_state;
-    darray_push(proc_id, parent->children_pids, child->pid)
+    darray_push(ProcID, parent->children_pids, child->pid)
     return true;
 }
 
 // Removes a child process to a parent process. This will remove the child process to the parent's child process array.
-b8 process_remove_child(proc *parent, proc_id child_id) {
+b8 process_remove_child(Proc *parent, ProcID child_id) {
     u64 length = darray_length(parent->children_pids);
     for (u64 i = 0; i < length; ++i) {
         if (parent->children_pids[i] == child_id) {
-            proc_id child_pid;
+            ProcID child_pid;
             darray_pop_at(parent->children_pids, i, &child_pid);
             vdebug("Child process %d removed from parent process %d", child_pid, parent->pid);
             return true;
