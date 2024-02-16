@@ -21,6 +21,8 @@ typedef enum {
     AST_ARRAY,
     AST_ELEMENT,
     AST_LITERAL,
+    AST_FUNCTION,
+    AST_ASSIGNMENT
     // Add more as needed
 } ASTNodeType;
 
@@ -52,6 +54,11 @@ typedef struct Component {
     struct Component *next; // The next component in the list
 } Component;
 
+typedef struct Assignment {
+    char *identifier;
+    struct ASTNode *value; // RHS can be a literal, another component, or a Lua function
+} Assignment;
+
 // AST node for a component or a type
 typedef struct ASTNode {
     ASTNodeType type;
@@ -60,9 +67,12 @@ typedef struct ASTNode {
         Component component;
         Type type;
         Property property;
-        // Add more as needed
+        Assignment assignment;
+        struct ASTNode *children; // For arrays of elements or function bodies
+        char *literalValue; // For literals like strings, numbers, or Lua code
+        
     } data;
-    struct ASTNode *next; // For linking siblings, if you prefer a linked list approach
+    struct ASTNode *next; // For linking siblings
 } ASTNode;
 
 
@@ -79,27 +89,7 @@ typedef struct ASTNode {
 ProgramAST parser_parse(ProgramSource *source);
 
 /**
- * @brief Parses a program from a file.
- *
- * This function takes a file name as input and parses the program
- * from the file. It returns a ProgramAST structure containing the
- * list of statements in the program.
- *
- * @param file_name The name of the file to parse.
- * @return ProgramAST The parsed program.
- */
-ProgramAST parser_parse_from_file(char *file_name);
 
-/**
- * @brief Parses the source code from memory and generates an Abstract Syntax Tree (AST) for the program.
- *
- * @param source_code       The source code to parse.
- * @param source_code_length The length of the source code.
- *
- * @return The generated ProgramAST as an Abstract Syntax Tree (AST) representation of the program.
- *         Returns NULL if an error occurs during parsing.
- */
-ProgramAST parser_parse_from_memory(const char *source_code, u64 source_code_length);
 
 /**
  * @brief Generates a string representation of a ProgramAST.

@@ -6,8 +6,8 @@ file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT
 
 add_library(vos STATIC ${SOURCES}
         src/filesystem/paths.h
-        src/kernel/vlexer.h
-        src/kernel/vlexer.c)
+        src/muil/vlexer.h
+        src/muil/vlexer.c)
 # Set c standard target
 set_property(TARGET vos PROPERTY C_STANDARD 17)
 target_include_directories(vos PUBLIC src)

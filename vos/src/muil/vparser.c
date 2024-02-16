@@ -9,15 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Utility function for creating indents
-static char *create_indent(int indentLevel) {
-    char *indent = platform_allocate(indentLevel * 2 + 1, false);
-    for (int i = 0; i < indentLevel * 2; ++i) {
-        indent[i] = ' ';
-    }
-    indent[indentLevel * 2] = '\0';
-    return indent;
-}
 
 
 static char *appendString(char **dest, const char *src, size_t *cursor, size_t *bufferSize);
@@ -77,7 +68,7 @@ static b8 matchToken(ParserState *state, TokenType type) {
 }
 
 Type *parser_parse_simple_or_composite_type(ParserState *state) {
-    Type *head = NULL, *current = NULL;
+    Type *head = null, *current = null;
     
     do {
         Token typeNameToken = consumeToken(state, TOKEN_IDENTIFIER);
@@ -85,7 +76,7 @@ Type *parser_parse_simple_or_composite_type(ParserState *state) {
             // Error handling: Expected identifier but not found
             // Clean up any allocated types
             // Note: You might need a function to recursively free types
-            return NULL;
+            return null;
         }
         
         Type *type = platform_allocate(sizeof(Type), false);
@@ -93,16 +84,16 @@ Type *parser_parse_simple_or_composite_type(ParserState *state) {
             // Error handling: Memory allocation failed
             // Clean up any allocated types
             // Note: You might need a function to recursively free types
-            return NULL;
+            return null;
         }
         
         // Initialize the type
         type->name = platform_allocate(typeNameToken.length + 1, false);
-        memcpy(type->name, typeNameToken.start, typeNameToken.length);
+        platform_copy_memory(type->name, typeNameToken.start, typeNameToken.length);
         type->name[typeNameToken.length] = '\0'; // Ensure null-termination
         type->isArray = false; // This will be set to true later if it's an array
         type->isComposite = false; // This might be updated in the loop
-        type->next = NULL;
+        type->next = null;
         
         // Link the type into the list
         if (current) {
@@ -120,7 +111,7 @@ Type *parser_parse_simple_or_composite_type(ParserState *state) {
 Type *parser_parse_array_type(ParserState *state) {
     if (!matchToken(state, TOKEN_LBRACKET)) {
         // Error handling: Expected '[' but not found
-        return NULL;
+        return null;
     }
     
     Type *arrayType = parser_parse_simple_or_composite_type(state); // Parse the array's element type(s)
@@ -129,7 +120,7 @@ Type *parser_parse_array_type(ParserState *state) {
         // Error handling: Expected ']' but not found
         // Clean up any allocated types
         // Note: You might need a function to recursively free types
-        return NULL;
+        return null;
     }
     
     // Mark the parsed type(s) as array type(s)
@@ -150,91 +141,37 @@ Type *parser_parse_type(ParserState *state) {
     }
 }
 
-//Type *parser_parse_type(ParserState *state) {
-//    Type *head = NULL, *current = NULL, *type = NULL;
-//
-//    do {
-//        // Allocate memory for the type structure
-//        type = platform_allocate(sizeof(Type), false);
-//        if (!type) {
-//            // Memory allocation failed, clean up any previously allocated types
-//            while (head != NULL) {
-//                Type *temp = head;
-//                head = head->next;
-//                platform_free(temp->name, false);
-//                platform_free(temp, false);
-//            }
-//            vtrace("Memory allocation failed for type.");
-//            return NULL; // Return NULL to indicate failure
-//        }
-//
-//        // Initialize the newly allocated type
-//        type->isArray = false;
-//        type->isComposite = false;
-//        type->next = NULL;
-//
-//        // Consume and copy the type name
-//        Token typeNameToken = consumeToken(state, TOKEN_IDENTIFIER);
-//        if (typeNameToken.type != TOKEN_IDENTIFIER) {
-//            // Expected a type identifier but didn't find one, clean up
-//            platform_free(type, false);
-//            // If this isn't the first type in a composite, clean up others
-//            while (head != NULL) {
-//                Type *temp = head;
-//                head = head->next;
-//                platform_free(temp->name, false);
-//                platform_free(temp, false);
-//            }
-//            return NULL; // Error handling
-//        }
-//        type->name = platform_allocate(typeNameToken.length + 1, false);
-//        platform_copy_memory(type->name, typeNameToken.start, typeNameToken.length + 1);
-//        type->name[typeNameToken.length] = '\0'; // Null-terminate the string
-//        // Check for array type '[]'
-//        if (matchToken(state, TOKEN_LBRACKET)) {
-//            if (!matchToken(state, TOKEN_RBRACKET)) {
-//                // Expected ']', but it's missing. Clean up.
-//                platform_free(type->name, false);
-//                platform_free(type, false);
-//                return NULL; // Error handling
-//            }
-//            type->isArray = true;
-//        }
-//
-//        // Link the type into the list
-//        if (current != NULL) {
-//            current->next = type;
-//            current->isComposite = true; // Mark previous node as composite if it's not the first
-//        } else {
-//            head = type; // First type in the list
-//        }
-//        current = type;
-//
-//        // Check if there's a '|' indicating a composite type
-//    } while (matchToken(state, TOKEN_PIPE));
-//
-//    return head;
-//}
-
+/**
+ * @brief Parses a property from the input token stream.
+ *
+ * This function expects a property name (identifier) followed by a colon, and then
+ * parses the type of the property. The property can also be marked as optional by
+ * appending a question mark.
+ *
+ * @param state The parser state.
+ * @return A pointer to the parsed Property structure, or null if an error occurred.
+ *   If null is returned, memory allocated for the Property structure and its fields
+ *   should be freed by the caller.
+ */
 Property *parser_parse_property(ParserState *state) {
     Property *property = platform_allocate(sizeof(Property), false);
-    if (!property) return NULL; // Check for allocation failure
+    if (!property) return null; // Check for allocation failure
     
     // Expect a property name (identifier)
     Token nameToken = consumeToken(state, TOKEN_IDENTIFIER);
     if (nameToken.type != TOKEN_IDENTIFIER) {
         platform_free(property, false);
-        return NULL; // Error handling
+        return null; // Error handling
     }
     property->name = platform_allocate(nameToken.length + 1, false);
     platform_copy_memory(property->name, nameToken.start, nameToken.length + 1);
-    property->name[nameToken.length] = '\0'; // Null-terminate the string
+    property->name[nameToken.length] = '\0'; // null-terminate the string
     
     // Expect a colon separating the name and the type
     if (!matchToken(state, TOKEN_COLON)) {
         platform_free(property->name, false);
         platform_free(property, false);
-        return NULL; // Error handling
+        return null; // Error handling
     }
     
     // Parse the type next
@@ -242,13 +179,13 @@ Property *parser_parse_property(ParserState *state) {
     if (!property->type) {
         platform_free(property->name, false);
         platform_free(property, false);
-        return NULL; // Error handling for type parsing
+        return null; // Error handling for type parsing
     }
     
     // Check if the property is optional (indicated by '?')
     property->isOptional = matchToken(state, TOKEN_QUESTION);
     
-    property->next = NULL; // Initialize next pointer
+    property->next = null; // Initialize next pointer
     return property;
 }
 
@@ -258,7 +195,7 @@ ASTNode *parser_parse_component(ParserState *state) {
     Token nameToken = consumeToken(state, TOKEN_IDENTIFIER); // Assuming the component name follows immediately
     if (nameToken.type != TOKEN_IDENTIFIER) {
         // Handle error: Expected component name
-        return NULL;
+        return null;
     }
     
     // Initialize component
@@ -266,11 +203,11 @@ ASTNode *parser_parse_component(ParserState *state) {
     componentNode->type = AST_COMPONENT;
     componentNode->name = platform_allocate(nameToken.length + 1, false);
     platform_copy_memory(componentNode->name, nameToken.start, nameToken.length + 1);
-    componentNode->name[nameToken.length] = '\0'; // Null-terminate the string
+    componentNode->name[nameToken.length] = '\0'; // null-terminate the string
     componentNode->data.component.name = componentNode->name;
-    componentNode->data.component.properties = NULL;
-    componentNode->data.component.extends = NULL;
-    componentNode->next = NULL;
+    componentNode->data.component.properties = null;
+    componentNode->data.component.extends = null;
+    componentNode->next = null;
     
     //see if we can match a type
     if (matchToken(state, TOKEN_COLON)) {
@@ -280,17 +217,17 @@ ASTNode *parser_parse_component(ParserState *state) {
             platform_free(componentNode->name, false);
             platform_free(componentNode, false);
             verror("Failed to parse component type");
-            return NULL; // Error handling for type parsing
+            return null; // Error handling for type parsing
         }
     }
     
     
     // Expecting an opening brace '{' to start the component definition
     if (!matchToken(state, TOKEN_LBRACE)) {
-        // Free previously allocated resources and return NULL
+        // Free previously allocated resources and return null
         platform_free(componentNode->name, false);
         platform_free(componentNode, false);
-        return NULL; // Error handling
+        return null; // Error handling
     }
     
     // Parse properties until a closing brace '}'
@@ -309,6 +246,8 @@ ASTNode *parser_parse_component(ParserState *state) {
     
     return componentNode;
 }
+
+
 
 ProgramAST parser_parse(ProgramSource *source) {
     ProgramAST result = {0};
@@ -350,120 +289,89 @@ ProgramAST parser_parse(ProgramSource *source) {
 }
 
 
-ProgramAST parser_parse_from_memory(const char *source_code, u64 source_code_length) {
-    ProgramSource source = lexer_analysis_from_mem(source_code, source_code_length);
-    ProgramAST ast = parser_parse(&source);
-    char *program_dump = parser_dump_program(&ast);
-    vinfo("Program dump: %s", program_dump);
-    return ast;
-}
-
-ProgramAST parser_parse_from_file(char *file_name) {
-    if (!vfs_exists(file_name)) {
-        verror("File does not exist: %s", file_name);
-        return (ProgramAST) {0};
-    }
-    fs_node *file = vfs_get(file_name);
-    if (file == null) {
-        verror("Failed to get file: %s", file_name);
-        return (ProgramAST) {0};
-    }
-    const char *source_code = file->data.file.data;
-    u64 source_code_length = file->data.file.size;
-    return parser_parse_from_memory(source_code, source_code_length);
-}
-
+// Function prototypes for readability
+char *generate_json_for_type(const Type *type, int indentLevel);
+char *generate_json_for_property(const Property *property, int indentLevel);
+char *generate_json_for_component(const ASTNode *node, int indentLevel);
+char *create_indent(int indentLevel);
 
 char *parser_dump_program(ProgramAST *result) {
-    size_t bufferSize = 1024; // Initial buffer size
-    char *buffer = platform_allocate(bufferSize, false);
-    if (!buffer) return NULL;
-    
-    size_t cursor = 0; // Tracks the current position in the buffer
-    ASTNode *current = result->statements;
-    while (current) {
-        char *nodeStr = NULL;
-        switch (current->type) {
-            case AST_COMPONENT:
-                nodeStr = dump_component(&current->data.component, 0);
-                break;
-                // Handle other ASTNode types as needed
-            default:
-                nodeStr = "Unknown AST node type\n";
-        }
-        
-        if (nodeStr) {
-            buffer = appendString(&buffer, nodeStr, &cursor, &bufferSize);
-            if (!buffer) {
-                platform_free(nodeStr, false);
-                return NULL;
-            }
-            platform_free(nodeStr, false);
-        }
-        current = current->next;
-    }
-    
-    return buffer;
-}
-
-static char *dump_component(const Component *component, int indentLevel) {
-    // Similar logic to parser_dump_program for component specifics
-    // Example:
-    char *indent = create_indent(indentLevel);
-    size_t bufferSize = 256; // Adjust based on needs
+    size_t bufferSize = 2048; // Adjust buffer size as needed
     char *buffer = platform_allocate(bufferSize, false);
     if (!buffer) return NULL;
     
     size_t cursor = 0;
-    buffer = appendString(&buffer, indent, &cursor, &bufferSize);
-    buffer = appendString(&buffer, "Component: ", &cursor, &bufferSize);
-    buffer = appendString(&buffer, component->name, &cursor, &bufferSize);
-    buffer = appendString(&buffer, "\n", &cursor, &bufferSize);
+    appendString(&buffer, "{\n", &cursor, &bufferSize);
     
-    // Iterate through properties of the component
-    Property *prop = component->properties;
-    while (prop) {
-        char *propStr = dump_property(prop, indentLevel + 1);
-        buffer = appendString(&buffer, propStr, &cursor, &bufferSize);
-        prop = prop->next;
-        platform_free(propStr, false);
+    ASTNode *current = result->statements;
+    while (current) {
+        char *componentStr = generate_json_for_component(current, 1); // Indent components with 1 tab
+        appendString(&buffer, componentStr, &cursor, &bufferSize);
+        platform_free(componentStr, false);
+        
+        current = current->next;
+        if (current) {
+            appendString(&buffer, ",\n", &cursor, &bufferSize); // Separate components with commas
+        }
     }
     
+    appendString(&buffer, "\n}", &cursor, &bufferSize); // Close JSON object
+    return buffer;
+}
+char *generate_json_for_component(const ASTNode *node, int indentLevel) {
+    size_t bufferSize = 512; // Adjust based on needs
+    char *buffer = platform_allocate(bufferSize, false);
+    if (!buffer) return NULL;
+    
+    size_t cursor = 0;
+    char *indent = create_indent(indentLevel);
+    char *componentIndent = create_indent(indentLevel - 1);
+    
+    appendString(&buffer, componentIndent, &cursor, &bufferSize);
+    appendString(&buffer, "\"", &cursor, &bufferSize);
+    appendString(&buffer, node->data.component.name, &cursor, &bufferSize);
+    appendString(&buffer, "\": {\n", &cursor, &bufferSize);
+    
+    Property *prop = node->data.component.properties;
+    while (prop) {
+        char *propStr = generate_json_for_property(prop, indentLevel + 1); // Indent properties
+        appendString(&buffer, propStr, &cursor, &bufferSize);
+        platform_free(propStr, false);
+        
+        prop = prop->next;
+        if (prop) {
+            appendString(&buffer, ",\n", &cursor, &bufferSize);
+        } else {
+            appendString(&buffer, "\n", &cursor, &bufferSize);
+        }
+    }
+    
+    appendString(&buffer, indent, &cursor, &bufferSize);
+    appendString(&buffer, "}", &cursor, &bufferSize);
+    
     platform_free(indent, false);
+    platform_free(componentIndent, false);
     return buffer;
 }
 
-
-char *dump_property(const Property *property, int indentLevel) {
-    // Calculate the buffer size needed. Adjust the size based on your needs.
-    size_t bufferSize = 256;
+char *generate_json_for_property(const Property *property, int indentLevel) {
+    size_t bufferSize = 256; // Adjust based on your needs
     char *buffer = platform_allocate(bufferSize, false);
     if (!buffer) return NULL;
     
     char *indent = create_indent(indentLevel);
-    
-    snprintf(buffer, bufferSize, "%sProperty: %s, Type: ", indent, property->name);
-    char *typeStr = dump_type(property->type, 0); // No additional indent for type
-    if (typeStr) {
-        // Ensure the buffer can hold the additional type string
-        strcat(buffer, typeStr);
-        platform_free(typeStr, false);
-    }
-    
-    if (property->isOptional) {
-        strcat(buffer, ", Optional: true\n");
-    } else {
-        strcat(buffer, ", Optional: false\n");
-    }
+    snprintf(buffer, bufferSize, "%s\"%s\": {\"type\": \"%s\", \"optional\": %s}",
+             indent, property->name, generate_json_for_type(property->type, 0),
+             property->isOptional ? "true" : "false");
     
     platform_free(indent, false);
     return buffer;
 }
 
-static char *dump_type(const Type *type, int indentLevel) {
+char *generate_json_for_type(const Type *type, int indentLevel) {
     size_t bufferSize = 256; // Initial buffer size, adjust as needed
     char *buffer = platform_allocate(bufferSize, false);
-    if (!buffer) return NULL;
+    if (!buffer) return null;
     
     char *currentPos = buffer;
     size_t remainingSize = bufferSize;
@@ -495,9 +403,20 @@ static char *dump_type(const Type *type, int indentLevel) {
         // For array types, close with ']'
         snprintf(currentPos, remainingSize, "]");
     }
-    
     return buffer;
 }
+
+char *create_indent(int indentLevel) {
+    char *indent = platform_allocate(indentLevel * 4 + 1, false); // 4 spaces per tab
+    for (int i = 0; i < indentLevel * 4; i++) {
+        indent[i] = ' '; // Using spaces for indentation, adjust as needed
+    }
+    indent[indentLevel * 4] = '\0';
+    return indent;
+}
+
+
+
 
 static char *appendString(char **dest, const char *src, size_t *cursor, size_t *bufferSize) {
     size_t srcLen = strlen(src);
@@ -511,11 +430,11 @@ static char *appendString(char **dest, const char *src, size_t *cursor, size_t *
         char *newBuffer = platform_allocate(newBufferSize, false);
         if (!newBuffer) {
             verror("Failed to allocate memory for AST dump.");
-            return NULL; // Fail on allocation error
+            return null; // Fail on allocation error
         }
         
         // Copy existing content into new buffer
-        memcpy(newBuffer, *dest, *cursor);
+        platform_copy_memory(newBuffer, *dest, *cursor);
         
         // Free old buffer if it was previously allocated
         if (*dest) {
@@ -528,7 +447,7 @@ static char *appendString(char **dest, const char *src, size_t *cursor, size_t *
     }
     
     // Append new string
-    memcpy(*dest + *cursor, src, srcLen); // Copy string content
+    platform_copy_memory(*dest + *cursor, src, srcLen); // Copy string content
     *cursor += srcLen; // Update cursor position
     (*dest)[*cursor] = '\0'; // Ensure null termination
     

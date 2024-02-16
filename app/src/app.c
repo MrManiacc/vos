@@ -26,7 +26,7 @@
 #include "core/vstring.h"
 #include "core/vinput.h"
 #include "platform/platform.h"
-#include "kernel/vparser.h"
+#include "muil/vmuil.h"
 
 // launch our bootstrap code
 void startup_script_init() {
@@ -40,6 +40,12 @@ void startup_script_init() {
     }
     //run the process
     process_start(proc);
+}
+
+
+void visit_component(ASTNode *node, Visitor *visitor) {
+    vdebug("Visiting component: %s", node->name)
+    
 }
 
 // testing the lexer
@@ -62,6 +68,9 @@ int main(int argc, char **argv) {
     
     ProgramSource lexerResult = lexer_analysis_from_mem(gui->data.file.data, gui->data.file.size);
     ProgramAST ast = parser_parse(&lexerResult);
+    
+    Visitor visitor = muil_create_visitor(visit_component, null, null);
+    muil_traverse(&ast, &visitor);
     
     kernel_result shutdown_result = kernel_shutdown();
     if (!is_kernel_success(shutdown_result.code)) {
