@@ -94,6 +94,16 @@ b8 platform_pump_messages(void);
 void *platform_allocate(u64 size, b8 aligned);
 
 /**
+ * @brief Performs platform-specific memory reallocation of the given block of memory.
+ *
+ * @param block The block of memory to be reallocated.
+ * @param size The new size of the allocation in bytes.
+ * @param aligned Indicates if the allocation should be aligned.
+ * @return A pointer to the reallocated block of memory.
+ */
+void *platform_reallocate(void *block, u64 size, b8 aligned);
+
+/**
  * @brief Frees the given block of memory.
  *
  * @param block The block to be freed.

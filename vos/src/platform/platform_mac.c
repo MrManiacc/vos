@@ -195,6 +195,10 @@ void *platform_allocate(unsigned long long int size, b8 aligned) {
     return malloc(size);
 }
 
+void *platform_reallocate(void *block, unsigned long long int size, b8 aligned) {
+    return realloc(block, size);
+}
+
 void platform_free(void *block, b8 aligned) {
     free(block);
 }
@@ -616,6 +620,29 @@ VFilePathList *platform_collect_files_recursive(const char *path) {
 
 char *platform_path(const char *path) {
     return strdup(path);
+}
+
+char *platform_get_current_home_directory(void) {
+    return strdup(getenv("HOME"));
+}
+
+// gets the current directory of the executable. equivalent to the GetCurrentDirectoryA function in windows
+char *platform_get_current_working_directory(void) {
+    char *buffer = malloc(PATH_MAX);
+    if (getcwd(buffer, PATH_MAX) == NULL) {
+        perror("getcwd");
+        return NULL;
+    }
+    return buffer;
+}
+
+char *platform_parent_directory(const char *path) {
+    char *parent = strdup(path);
+    char *last_slash = strrchr(parent, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+    }
+    return parent;
 }
 
 b8 vsemaphore_create(vsemaphore *out_semaphore, u32 max_count, u32 start_count) {

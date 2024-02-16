@@ -2,10 +2,10 @@
 // Created by jwraynor on 2/15/2024.
 //
 #include <ctype.h>
-#include <malloc.h>
 #include <string.h>
 #include <stdio.h>
 #include "vlexer.h"
+#include "platform/platform.h"
 
 static Token makeToken(ProgramSource *result, TokenType type, const char *start, u32 length, u32 line, u32 column);
 
@@ -161,7 +161,7 @@ static Token makeToken(ProgramSource *result, TokenType type, const char *start,
 // Create a new error token
 static Token errorToken(ProgramSource *result, const char *message, u32 line, u32 column) {
     // Construct a more detailed error message
-    char *detailedMessage = malloc(256); // Ensure this buffer is appropriately sized for your error messages
+    char *detailedMessage = platform_allocate(256, false); // Ensure this buffer is appropriately sized for your error messages
     snprintf(detailedMessage, 256, "Error at line %d, column %d: %s", line, column, message);
     
     Token token = {TOKEN_ERROR, detailedMessage, strlen(detailedMessage), line, column};
@@ -263,10 +263,10 @@ static void ensureCapacity(ProgramSource *result) {
         result->
                 capacity = 8; // Initial capacity
         result->
-                tokens = (Token *) malloc(result->capacity * sizeof(Token));
+                tokens = (Token *) platform_allocate(result->capacity * sizeof(Token), false);
     } else if (result->count >= result->capacity) {
         result->capacity *= 2;
-        result->tokens = (Token *) realloc(result->tokens, result->capacity * sizeof(Token));
+        result->tokens = (Token *) platform_reallocate(result->tokens, result->capacity * sizeof(Token), false);
     }
 }
 
@@ -296,7 +296,7 @@ char *lexer_dump_tokens(ProgramSource *result) {
         bufferSize += 64; // Assume each token description takes up to 64 characters
     }
     
-    char *buffer = (char *) malloc(bufferSize);
+    char *buffer = (char *) platform_allocate(bufferSize, false);
     if (buffer == NULL) return NULL; // Allocation failed
     
     size_t offset = 0; // Current offset in the buffer
@@ -307,7 +307,7 @@ char *lexer_dump_tokens(ProgramSource *result) {
             int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Line: %d, Column: %d\n",
                                    get_token_type_name(token.type), token.line, token.column);
             if (written < 0) {
-                free(buffer);
+                platform_free(buffer, false);
                 return NULL; // Writing error
             }
             offset += written; // Update offset
@@ -317,7 +317,7 @@ char *lexer_dump_tokens(ProgramSource *result) {
         int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Value: '%.*s', Line: %d, Column: %d\n",
                                tokenType, (int) token.length, token.start, token.line, token.column);
         if (written < 0) {
-            free(buffer);
+            platform_free(buffer, false);
             return NULL; // Writing error
         }
         offset += written; // Update offset
