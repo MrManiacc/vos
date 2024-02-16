@@ -8,72 +8,137 @@
 // Includes necessary standard libraries
 #include "vlexer.h"
 
-typedef struct ProgramAST {
-    // The list of statements in the program.
-    struct ASTNode *statements;
-} ProgramAST;
+// Forward declarations to resolve circular dependencies
+typedef struct ASTNode ASTNode;
 
 // Basic AST node types
 typedef enum {
     AST_COMPONENT,
-    AST_PROPERTY,
-    AST_TYPE,
-    AST_ARRAY,
-    AST_ELEMENT,
+    AST_EXPRESSION_STATEMENT,
+    AST_ASSIGNMENT_STATEMENT,
+    AST_FUNCTION_DECLARATION,
+    AST_ARRAY_LITERAL,
     AST_LITERAL,
-    AST_FUNCTION,
-    AST_ASSIGNMENT
-    // Add more as needed
+    AST_PROPERTY_DECLARATION,
+    AST_TYPE_DECLARATION,
 } ASTNodeType;
 
-// A type can be a composite type, i.e., a union of other types.
-// For example, a type can be an Int | Float | String
-// This is represented as a linked list of types
+
+// Expression and Statement types for finer control
+typedef enum {
+    EXP_LITERAL,
+    EXP_FUNCTION_CALL,
+    EXP_VARIABLE_REFERENCE,
+    EXP_ARRAY_ACCESS,
+    EXP_BINARY_OPERATION, // e.g., addition, subtraction
+    // Add more expression types as needed
+} ASTExpressionType;
+
+// Literal types for expressions
+typedef enum {
+    LITERAL_STRING,
+    LITERAL_NUMBER,
+    LITERAL_BOOLEAN,
+    LITERAL_LUA, // Embedding Lua code directly
+} ASTLiteralType;
+
+// Type representation
 typedef struct Type {
-    char *name; // The type name. This should be a unique identifier
-    b8 isArray; // Whether the type is an array
-    b8 isComposite; // Whether the type is a composite type
-    struct Type *next; // If this is a composite type, the next type in the list. I.e., Complex: Int | Float | String
+    char *name; // The type name
+    b8 isArray; // Indicates if the type is an array
+    b8 isComposite; // Indicates if the type is a composite type (union)
+    struct Type *next; // Next type in a composite type chain
 } Type;
 
-// A property is a field in a component
-// For example, a component can have a property called "name" of type "String"
-// Properties are always typed and can be optional
+
+// Property in a component or a type
 typedef struct Property {
-    char *name; // The property name
-    Type *type; // The type of the property
-    b8 isOptional; // Whether the property is optional
-    struct Property *next; // The next property in the list
+    char *name;
+    Type *type;
+    b8 isOptional;
+    struct Property *next;
 } Property;
 
-// A component is a collection of properties
+typedef struct SymbolTableEntry {
+    char *identifier;
+    ASTNode *node; // Points to the variable declaration, function, or assignment
+    struct SymbolTableEntry *next;
+} SymbolTableEntry;
+
+typedef struct SymbolTable {
+    SymbolTableEntry *entries; // Linked list of symbol table entries
+    struct SymbolTable *parent; // Optional: For nested scopes
+} SymbolTable;
+
+// Component or type declaration
 typedef struct Component {
-    char *name; // The component name
-    Property *properties; // The list of properties
-    Type *extends; // The list of super types. I.e., Complex : Base | Derived | Another
-    struct Component *next; // The next component in the list
+    char *name;
+    Property *properties; // Existing property list
+    SymbolTable *symbolTable; // Each component has its own symbol table
+    ASTNode *assignments; // Linked list of assignments
+    Type *extends;
+    struct Component *next;
 } Component;
 
+// Assignment statement
 typedef struct Assignment {
-    char *identifier;
-    struct ASTNode *value; // RHS can be a literal, another component, or a Lua function
+    char *variableName;
+    ASTNode *expression; // The value or expression assigned
 } Assignment;
 
-// AST node for a component or a type
-typedef struct ASTNode {
-    ASTNodeType type;
-    char *name; // For components, types, properties
+// Function declaration
+typedef struct FunctionDeclaration {
+    char *name;
+    ASTNode *body; // Function body (could be a block of statements)
+} FunctionDeclaration;
+
+typedef struct ComponentInstance {
+    Type *type; // Type of the component instance, if needed
+    ASTNode *properties; // Linked list of properties or assignments
+    // Additional fields as needed for instantiation specifics
+} ComponentInstance;
+
+// Literal value expression
+typedef struct Literal {
+    ASTLiteralType type;
+    union {
+        char *stringValue;
+        double numberValue;
+        b8 booleanValue;
+        char *luaCode; // For embedding Lua code
+    } value;
+} Literal;
+
+// Array literal expression
+typedef struct ArrayLiteral {
+    ASTNode *elements; // Linked list of elements in the array
+} ArrayLiteral;
+
+// Generic AST node
+struct ASTNode {
+    ASTNodeType nodeType;
     union {
         Component component;
-        Type type;
+        ComponentInstance componentInstance; // New: For component instances
         Property property;
+        Type type;
         Assignment assignment;
-        struct ASTNode *children; // For arrays of elements or function bodies
-        char *literalValue; // For literals like strings, numbers, or Lua code
-        
+        FunctionDeclaration functionDeclaration;
+        Literal literal;
+        ArrayLiteral arrayLiteral; // Added for array literals
+        struct {
+            ASTNode *left;
+            ASTNode *right;
+        } binaryOperation; // For binary operations
+        // Add more as needed
     } data;
-    struct ASTNode *next; // For linking siblings
-} ASTNode;
+    ASTNode *next; // For linking siblings or statements in a block
+};
+
+// Program representation
+typedef struct ProgramAST {
+    ASTNode *statements; // Root of the AST
+} ProgramAST;
 
 
 /**
@@ -87,8 +152,6 @@ typedef struct ASTNode {
  * @return The parsed ProgramAST.
  */
 ProgramAST parser_parse(ProgramSource *source);
-
-/**
 
 
 /**

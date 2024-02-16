@@ -5,14 +5,14 @@ Root : Element {
     Padding = 0
 
     // Last element is inferred as the return value, so we don't need to specify it
-    [
+    Children = [
         Label {
             Id = "label"
             Value = Text {
                 // Don't need to specify the type of the value, it's inferred. But we can if we want to.
                 // Return type is mapped to last defined type of the value.
                 // We could probably even just use the string "Absolute" here, getting rid of {} because they're not necessary
-                Position = {"Absolute"}
+                 Position = {"Absolute"} //TODO: handle this case
                 Text = "Click count"
                 FontSize = 16
                 // Here we specify the Color type directly, it's not necessary to specify the type of the value
@@ -67,18 +67,18 @@ Root : Element {
                 TextAlign = "center"
                 TextAlignVertical = "center"
                 TextAlignHorizontal = "center"
-                // Can also specify a single value for an element.
-                // This creates a default object if not already specified
-                Hooks.OnClick = function(self)
-                    // Self would be a reference to this button
+                /* Can also specify a single value for an element.
+                 This creates a default object if not already specified
+                 Hooks.OnClick = function(self)
+                     Self would be a reference to this button
                     local value = GetElement("#input").Value
                     value = "You typed: " .. value
                     local label = GetElement("#label")
-                    //Set our value here
+                    Set our value here
                     label.Value = Text {
-                       value // we're inferring the type here because it's the last value.
+                       value  we're inferring the type here because it's the last value.
                     }
-                end
+                end */
             }
         }
     ]

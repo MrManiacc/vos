@@ -26,15 +26,19 @@ VAPI void _visit_component(ASTNode *node, Visitor *visitor) {
 }
 
 VAPI void muil_traverse_ast(ASTNode *node, Visitor *visitor) {
-    switch (node->type) {
+    switch (node->nodeType) {
         case AST_COMPONENT:
             _visit_component(node, visitor);
             break;
-        case AST_PROPERTY:
-            visitor->visit_property(node, visitor);
+        case AST_PROPERTY_DECLARATION:
+            if (visitor->visit_property != null) {
+                visitor->visit_property(node, visitor);
+            }
             break;
-        case AST_TYPE:
-            visitor->visit_type(node, visitor);
+        case AST_TYPE_DECLARATION:
+            if (visitor->visit_type != null) {
+                visitor->visit_type(node, visitor);
+            }
             break;
         default:
             break;

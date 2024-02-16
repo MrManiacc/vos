@@ -13,13 +13,16 @@
 // Function prototypes for readability
 static char *appendString(char **dest, const char *src, size_t *cursor, size_t *bufferSize);
 
+static char *strndup(const char *s, size_t n);
+
 char *generate_json_for_type(const Type *type, int indentLevel);
 
 char *generate_json_for_property(const Property *property, int indentLevel);
 
-char *generate_json_for_component(const ASTNode *node, int indentLevel);
+char *generate_json_for_component(Component *node, int indentLevel);
 
 char *create_indent(int indentLevel);
+
 
 typedef struct ParserState {
     ProgramSource *source;
@@ -66,6 +69,300 @@ static b8 matchToken(ParserState *state, TokenType type) {
         return true;
     }
     return false;
+}
+
+ASTNode *parser_parse_expression(ParserState *state);
+
+ASTNode *parser_parse_property_or_assignment(ParserState *state);
+
+ASTNode *parser_parse_literal(ParserState *state) {
+    Token token = consumeToken(state, peekToken(state).type); // Consume the literal token
+    ASTNode *literalNode = platform_allocate(sizeof(ASTNode), false);
+    if (!literalNode) return NULL; // Allocation failure
+    
+    literalNode->nodeType = AST_LITERAL;
+    
+    switch (token.type) {
+        case TOKEN_NUMBER:
+            literalNode->data.literal.type = LITERAL_NUMBER;
+            // Conversion to number is simplified here; actual implementation may vary
+            literalNode->data.literal.value.numberValue = atof(token.start);
+            break;
+        case TOKEN_STRING:
+            literalNode->data.literal.type = LITERAL_STRING;
+            literalNode->data.literal.value.stringValue = platform_allocate(token.length + 1, false);
+            platform_copy_memory(literalNode->data.literal.value.stringValue, token.start, token.length);
+            literalNode->data.literal.value.stringValue[token.length] = '\0'; // Null-terminate
+            break;
+            // Add cases for other literal types
+        default:
+            platform_free(literalNode, false);
+            verror("Invalid literal token type: %s", get_token_type_name(token.type));
+            return NULL;
+    }
+    
+    return literalNode;
+}
+
+ASTNode *parser_parse_component_instance(ParserState *state) {
+    // Skip delimiters before checking the next token
+    while (peekToken(state).type == TOKEN_DELIMITER) {
+        consumeToken(state, TOKEN_DELIMITER);
+    }
+    Token lookahead = peekToken(state);
+    if (lookahead.type != TOKEN_LBRACE) {
+        verror("Expected '{' at the start of a component instance, but got %s at line %u, column %u",
+               get_token_type_name(lookahead.type), lookahead.line, lookahead.column);
+        return NULL;
+    }
+    // Consume the left brace now that we've verified it's correct
+    consumeToken(state, TOKEN_LBRACE);
+    
+    ASTNode *instanceNode = platform_allocate(sizeof(ASTNode), false);
+    if (!instanceNode) {
+        // Memory allocation failure
+        return NULL;
+    }
+    
+    instanceNode->nodeType = AST_COMPONENT_INSTANCE;
+    
+    // Initialize the component instance properties list
+    instanceNode->data.componentInstance.properties = NULL;
+    ASTNode **currentProperty = &instanceNode->data.componentInstance.properties;
+    
+    while (peekToken(state).type != TOKEN_RBRACE && peekToken(state).type != TOKEN_EOF) {
+        // Parse the next property or assignment within the component instance
+        ASTNode *propertyOrAssignment = parser_parse_property_or_assignment(state);
+        if (!propertyOrAssignment) {
+            // Error handling: Failed to parse a property or assignment within the component instance
+            // Remember to perform cleanup of previously allocated nodes
+            return NULL;
+        }
+        
+        // Link the parsed property or assignment into the component instance's properties list
+        *currentProperty = propertyOrAssignment;
+        currentProperty = &propertyOrAssignment->next;
+        
+        // Optionally, handle delimiters (e.g., commas) between properties or assignments
+        matchToken(state, TOKEN_COMMA);
+    }
+    
+    // Ensure to consume the right brace marking the end of the component instance
+    consumeToken(state, TOKEN_RBRACE);
+    
+    return instanceNode;
+}
+
+ASTNode *parser_parse_component_instance_with_identifier(ParserState *state) {
+    // Consume the identifier token which is expected to be the component's name or type
+    Token identifierToken = consumeToken(state, TOKEN_IDENTIFIER);
+    // Log or process the identifierToken.name as needed here
+    
+    // Now expect and consume the LBRACE, signaling the start of the component's properties
+    Token nextToken = peekToken(state);
+    if (nextToken.type != TOKEN_LBRACE) {
+        verror("Expected '{' after component identifier, but got %s at line %u, column %u",
+               get_token_type_name(nextToken.type), nextToken.line, nextToken.column);
+        return NULL;
+    }
+    
+    // Proceed with parsing the component instance as usual
+    ASTNode *instance = parser_parse_component_instance(state);
+    if (instance) {
+        // Link the identifier into the component instance node
+        instance->data.componentInstance.type = platform_allocate(identifierToken.length + 1, false);
+        instance->data.componentInstance.type->name = platform_allocate(identifierToken.length + 1, false);
+        platform_copy_memory(instance->data.componentInstance.type->name, identifierToken.start,
+                             identifierToken.length);
+        instance->data.componentInstance.type->name[identifierToken.length] = '\0'; // Null-terminate
+    }
+    return instance;
+}
+
+b8 isNextTokenLBrace(ParserState *state) {
+    ParserState tempState = *state; // Create a copy to peek ahead without affecting the original state
+    consumeToken(&tempState, TOKEN_IDENTIFIER); // Consume the identifier in the temp state
+    // Skip delimiters that might be between the identifier and the next significant token
+    while (peekToken(&tempState).type == TOKEN_DELIMITER) {
+        consumeToken(&tempState, TOKEN_DELIMITER);
+    }
+    return peekToken(&tempState).type == TOKEN_LBRACE;
+}
+
+
+ASTNode *parser_parse_expression_or_component_instance(ParserState *state) {
+    // Skip delimiters before checking the next token
+    while (peekToken(state).type == TOKEN_DELIMITER) {
+        consumeToken(state, TOKEN_DELIMITER);
+    }
+    
+    Token lookahead = peekToken(state);
+    
+    if (lookahead.type == TOKEN_IDENTIFIER && isNextTokenLBrace(state)) {
+        // Component instance prefixed by an identifier
+        return parser_parse_component_instance_with_identifier(state);
+    } else if (lookahead.type == TOKEN_LBRACE) {
+        // Component instance starting directly with '{'
+        return parser_parse_component_instance(state);
+    } else {
+        // General expression
+        return parser_parse_expression(state);
+    }
+}
+
+
+ASTNode *parser_parse_array_expression(ParserState *state) {
+    // Check for the start of an array expression
+    if (!matchToken(state, TOKEN_LBRACKET)) {
+        verror("Expected '[' at the start of an array expression");
+        return NULL;
+    }
+    
+    ASTNode *arrayNode = platform_allocate(sizeof(ASTNode), false);
+    arrayNode->nodeType = AST_ARRAY_LITERAL;
+    arrayNode->data.arrayLiteral.elements = NULL;
+    
+    ASTNode **currentElement = &arrayNode->data.arrayLiteral.elements;
+    
+    while (peekToken(state).type != TOKEN_RBRACKET && peekToken(state).type != TOKEN_EOF) {
+        ASTNode *element = parser_parse_expression_or_component_instance(state);
+        if (!element) {
+            // Error handling and cleanup
+            return NULL;
+        }
+        
+        *currentElement = element;
+        currentElement = &element->next;
+        
+        // Optionally skip a comma between elements
+        matchToken(state, TOKEN_COMMA);
+    }
+    
+    consumeToken(state, TOKEN_RBRACKET); // Consume the closing bracket
+    return arrayNode;
+}
+
+ASTNode *parser_parse_expression(ParserState *state) {
+    // Skip any leading delimiters.
+    while (peekToken(state).type == TOKEN_DELIMITER) {
+        consumeToken(state, TOKEN_DELIMITER);
+    }
+    
+    Token token = peekToken(state);
+    ASTNode *exprNode = NULL;
+    
+    switch (token.type) {
+        case TOKEN_NUMBER:
+        case TOKEN_STRING:
+        case TOKEN_TRUE:
+        case TOKEN_FALSE:
+            exprNode = parser_parse_literal(state);
+            break;
+        case TOKEN_IDENTIFIER:
+            // For now, treat identifiers as variable references
+            exprNode = platform_allocate(sizeof(ASTNode), false);
+            if (!exprNode) return NULL; // Allocation failure
+            exprNode->nodeType = AST_LITERAL;
+            exprNode->data.literal.type = LITERAL_STRING; // Adjust based on actual type
+            exprNode->data.literal.value.stringValue = platform_allocate(token.length + 1, false);
+            platform_copy_memory(exprNode->data.literal.value.stringValue, token.start, token.length);
+            exprNode->data.literal.value.stringValue[token.length] = '\0'; // Null-terminate
+            consumeToken(state, TOKEN_IDENTIFIER); // Move past the identifier
+            break;
+            // Add cases for other expression types
+        default:
+            //TODO: we might need to ignore delimiters here
+            verror("Unexpected token in expression: %s", get_token_type_name(token.type));
+            return NULL;
+    }
+    
+    return exprNode;
+}
+
+ASTNode *parser_parse_assignment(ParserState *state) {
+    Token identifierToken = consumeToken(state, TOKEN_IDENTIFIER);
+    if (!matchToken(state, TOKEN_EQUALS)) {
+        verror("Expected '=' after identifier in assignment");
+        return NULL;
+    }
+    
+    // Look ahead to determine if the assignment is to a component instance
+    Token nextToken = peekToken(state);
+    ASTNode *valueNode = NULL;
+    
+    if (nextToken.type == TOKEN_LBRACE || nextToken.type == TOKEN_LBRACKET) {
+        // Handle inline component instance or array of instances/expressions
+        valueNode = (nextToken.type == TOKEN_LBRACE) ?
+                    parser_parse_component_instance(state) :
+                    parser_parse_array_expression(state);
+    } else {
+        // Handle simple expressions
+        valueNode = parser_parse_expression(state);
+    }
+    
+    if (!valueNode) {
+        verror("Failed to parse value in assignment");
+        return NULL;
+    }
+    
+    ASTNode *assignmentNode = platform_allocate(sizeof(ASTNode), false);
+    assignmentNode->nodeType = AST_ASSIGNMENT_STATEMENT;
+    assignmentNode->data.assignment.variableName = platform_allocate(identifierToken.length + 1, false);
+    platform_copy_memory(assignmentNode->data.assignment.variableName, identifierToken.start, identifierToken.length);
+    assignmentNode->data.assignment.variableName[identifierToken.length] = '\0'; // Null-terminate
+    assignmentNode->data.assignment.expression = valueNode;
+    assignmentNode->next = NULL;
+    
+    return assignmentNode;
+}
+
+ASTNode *parser_parse_property_or_assignment(ParserState *state) {
+    // First, skip any delimiters that are not meaningful in this context.
+    while (peekToken(state).type == TOKEN_DELIMITER) {
+        consumeToken(state, TOKEN_DELIMITER);
+    }
+    
+    // Check if the next token is an identifier or the start of a component/array
+    Token lookahead = peekToken(state);
+    if (lookahead.type != TOKEN_IDENTIFIER && lookahead.type != TOKEN_LBRACE && lookahead.type != TOKEN_LBRACKET) {
+        //try to parse an expression
+        ASTNode *expr = parser_parse_expression(state);
+        if (expr) return expr;
+        verror("Expected an identifier, '{', or '[' but got %s, on line %u, column %u",
+               get_token_type_name(lookahead.type), lookahead.line, lookahead.column);
+        return NULL;
+    }
+    
+    // If the next token is an identifier, proceed with parsing a property or assignment
+    if (lookahead.type == TOKEN_IDENTIFIER) {
+        Token identifierToken = consumeToken(state, TOKEN_IDENTIFIER);
+        
+        Token nextToken = peekToken(state);
+        if (nextToken.type == TOKEN_EQUALS) {
+            // It's an assignment. Consume '=' and parse the assignment.
+            consumeToken(state, TOKEN_EQUALS);
+            ASTNode *valueNode = parser_parse_expression_or_component_instance(state);
+            if (!valueNode) {
+                verror("Failed to parse value in assignment");
+                return NULL;
+            }
+            
+            ASTNode *assignmentNode = platform_allocate(sizeof(ASTNode), false);
+            assignmentNode->nodeType = AST_ASSIGNMENT_STATEMENT;
+            assignmentNode->data.assignment.variableName = strndup(identifierToken.start, identifierToken.length);
+            assignmentNode->data.assignment.expression = valueNode;
+            assignmentNode->next = NULL;
+            
+            return assignmentNode;
+        } else {
+            verror("Unexpected token following identifier: %s at line %u, column %u",
+                   get_token_type_name(nextToken.type), nextToken.line, nextToken.column);
+            return NULL;
+        }
+    } else {
+        // For cases starting with '{' or '[', parse as component instance or array without a preceding identifier
+        return parser_parse_expression_or_component_instance(state);
+    }
 }
 
 Type *parser_parse_simple_or_composite_type(ParserState *state) {
@@ -191,58 +488,88 @@ Property *parser_parse_property(ParserState *state) {
 }
 
 ASTNode *parser_parse_component(ParserState *state) {
-    // We might have a delimiter before the component definition
     matchToken(state, TOKEN_DELIMITER);
-    Token nameToken = consumeToken(state, TOKEN_IDENTIFIER); // Assuming the component name follows immediately
+    Token nameToken = consumeToken(state, TOKEN_IDENTIFIER);
     if (nameToken.type != TOKEN_IDENTIFIER) {
-        // Handle error: Expected component name
-        return null;
+        return NULL; // Error handling
     }
     
-    // Initialize component
     ASTNode *componentNode = platform_allocate(sizeof(ASTNode), false);
-    componentNode->type = AST_COMPONENT;
-    componentNode->name = platform_allocate(nameToken.length + 1, false);
-    platform_copy_memory(componentNode->name, nameToken.start, nameToken.length + 1);
-    componentNode->name[nameToken.length] = '\0'; // null-terminate the string
-    componentNode->data.component.name = componentNode->name;
-    componentNode->data.component.properties = null;
-    componentNode->data.component.extends = null;
-    componentNode->next = null;
+    if (!componentNode) return NULL; // Allocation failure
+    componentNode->nodeType = AST_COMPONENT;
+    componentNode->data.component.name = platform_allocate(nameToken.length + 1, false);
+    platform_copy_memory(componentNode->data.component.name, nameToken.start, nameToken.length);
+    componentNode->data.component.name[nameToken.length] = '\0';
     
-    //see if we can match a type
+    componentNode->data.component.symbolTable = platform_allocate(sizeof(SymbolTable), false);
+    if (!componentNode->data.component.symbolTable) {
+        // Cleanup and error handling
+        return NULL;
+    }
+    componentNode->data.component.symbolTable->entries = NULL;
+    componentNode->data.component.assignments = NULL; // Initialize the assignment list
+    componentNode->data.component.extends = NULL;
+    componentNode->next = NULL;
+    
     if (matchToken(state, TOKEN_COLON)) {
-        // Parse the type next
         componentNode->data.component.extends = parser_parse_type(state);
         if (!componentNode->data.component.extends) {
-            platform_free(componentNode->name, false);
-            platform_free(componentNode, false);
-            verror("Failed to parse component type");
-            return null; // Error handling for type parsing
+            // Cleanup and error handling
+            return NULL;
         }
     }
     
-    
-    // Expecting an opening brace '{' to start the component definition
     if (!matchToken(state, TOKEN_LBRACE)) {
-        // Free previously allocated resources and return null
-        platform_free(componentNode->name, false);
-        platform_free(componentNode, false);
-        return null; // Error handling
+        // Cleanup and error handling
+        return NULL;
     }
     
-    // Parse properties until a closing brace '}'
-    Property **currentProperty = &componentNode->data.component.properties;
-    while (!matchToken(state, TOKEN_RBRACE) && state->current_token_index < state->source->count) {
-        matchToken(state, TOKEN_DELIMITER); // Optional delimiter (new line or semicolon)
-        Property *property = parser_parse_property(state);
-        if (!property) break; // Error handling
+    while (!matchToken(state, TOKEN_RBRACE)) {
+        matchToken(state, TOKEN_DELIMITER); // Optional
+        Token nextToken = peekToken(state);
         
-        *currentProperty = property; // Link the property
-        currentProperty = &property->next; // Move to the next
-        
-        // Optionally, handle commas between properties
-        matchToken(state, TOKEN_COMMA);
+        if (nextToken.type == TOKEN_IDENTIFIER) {
+            // Look ahead to distinguish between a property and an assignment
+            ParserState tempState = *state; // Copy state to peek ahead without consuming tokens
+            consumeToken(&tempState, TOKEN_IDENTIFIER); // Consume identifier
+            Token peek = peekToken(&tempState);
+            
+            if (peek.type == TOKEN_COLON) {
+                // It's a property declaration
+                Property *property = parser_parse_property(state);
+                if (!property) break; // Error handling
+                
+                // Link property into the component
+                // Assume a function or logic to link properties exists
+            } else if (peek.type == TOKEN_EQUALS) {
+                // It's an assignment
+                ASTNode *assignment = parser_parse_assignment(state);
+                if (!assignment) break; // Error handling
+                
+                // Link the assignment into the component's symbol table and assignment list
+                SymbolTableEntry *entry = platform_allocate(sizeof(SymbolTableEntry), false);
+                if (!entry) {
+                    // Cleanup and error handling
+                    return NULL;
+                }
+                entry->identifier = assignment->data.assignment.variableName;
+                entry->node = assignment;
+                
+                // Add to symbol table
+                entry->next = componentNode->data.component.symbolTable->entries;
+                componentNode->data.component.symbolTable->entries = entry;
+                
+                // Add to assignments list
+                assignment->next = componentNode->data.component.assignments;
+                componentNode->data.component.assignments = assignment;
+            } else {
+                // Error handling for unexpected token
+                break;
+            }
+        } else {
+            // Handle unexpected tokens
+            break;
+        }
     }
     
     return componentNode;
@@ -288,116 +615,187 @@ ProgramAST parser_parse(ProgramSource *source) {
     return result;
 }
 
-
-char *parser_dump_program(ProgramAST *result) {
-    size_t bufferSize = 2048; // Adjust buffer size as needed
-    char *buffer = platform_allocate(bufferSize, false);
-    if (!buffer) return NULL;
+char *generate_json_for_literal(Literal *literal, int indentLevel) {
+    char *buffer = platform_allocate(1024, false); // Ensure this is appropriately sized
+    char *indent = create_indent(indentLevel);
     
-    size_t cursor = 0;
-    appendString(&buffer, "{\n", &cursor, &bufferSize);
-    
-    ASTNode *current = result->statements;
-    while (current) {
-        char *componentStr = generate_json_for_component(current, 1); // Indent components with 1 tab
-        appendString(&buffer, componentStr, &cursor, &bufferSize);
-        platform_free(componentStr, false);
-        
-        current = current->next;
-        if (current) {
-            appendString(&buffer, ",\n", &cursor, &bufferSize); // Separate components with commas
-        }
+    const char *valueStr;
+    switch (literal->type) {
+        case LITERAL_NUMBER:
+            snprintf(buffer, 1024, "%s\"type\": \"number\", \"value\": %f", indent, literal->value.numberValue);
+            break;
+        case LITERAL_STRING:
+            snprintf(buffer, 1024, "%s\"type\": \"string\", \"value\": \"%s\"", indent, literal->value.stringValue);
+            break;
+            // Handle other literal types...
+        default:
+            snprintf(buffer, 1024, "%s\"type\": \"unknown\"", indent);
+            break;
     }
     
-    appendString(&buffer, "\n}", &cursor, &bufferSize); // Close JSON object
+    platform_free(indent, false);
     return buffer;
 }
 
-char *generate_json_for_component(const ASTNode *node, int indentLevel) {
-    size_t bufferSize = 512; // Adjust based on needs
+char *generate_json_for_component_instance(ComponentInstance *instance, int indentLevel) {
+    size_t bufferSize = 1024; // Adjust based on expected content size.
     char *buffer = platform_allocate(bufferSize, false);
     if (!buffer) return NULL;
     
     size_t cursor = 0;
     char *indent = create_indent(indentLevel);
-    char *componentIndent = create_indent(indentLevel - 1);
+    char *childIndent = create_indent(indentLevel + 1);
     
-    appendString(&buffer, componentIndent, &cursor, &bufferSize);
-    appendString(&buffer, "\"", &cursor, &bufferSize);
-    appendString(&buffer, node->data.component.name, &cursor, &bufferSize);
-    appendString(&buffer, "\": {\n", &cursor, &bufferSize);
+    snprintf(buffer + cursor, bufferSize - cursor, "%s\"ComponentInstance\": {\n", indent);
+    cursor += strlen(buffer + cursor);
     
-    Property *prop = node->data.component.properties;
-    while (prop) {
-        char *propStr = generate_json_for_property(prop, indentLevel + 1); // Indent properties
-        appendString(&buffer, propStr, &cursor, &bufferSize);
-        platform_free(propStr, false);
+    if (instance->type) {
+        char *typeStr = generate_json_for_type(instance->type, 0);
+        snprintf(buffer + cursor, bufferSize - cursor, "%s\"Type\": %s,\n", childIndent, typeStr);
+        cursor += strlen(buffer + cursor);
+        platform_free(typeStr, false);
+    }
+    
+    // Assuming ComponentInstance properties are serialized similarly to Component's properties.
+    // If ComponentInstance has its unique way to handle properties, adjust accordingly.
+    
+    snprintf(buffer + cursor, bufferSize - cursor, "%s}\n", indent);
+    cursor += strlen(buffer + cursor);
+    
+    platform_free(indent, false);
+    platform_free(childIndent, false);
+    
+    return buffer;
+}
+
+char *generate_json_for_assignment(const Assignment *assignment, int indentLevel) {
+    size_t bufferSize = 2048; // Adjust based on needs.
+    char *buffer = platform_allocate(bufferSize, false);
+    if (!buffer) return NULL;
+    
+    char *indent = create_indent(indentLevel);
+    size_t cursor = 0;
+    
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s\"Assignment\": {\n", indent);
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s\"VariableName\": \"%s\",\n", indent, assignment->variableName);
+    // Assuming expression serialization is handled elsewhere. Placeholder here.
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s}\n", indent);
+    
+    platform_free(indent, false);
+    
+    return buffer;
+}
+
+
+char *generate_json_for_node(ASTNode *node, int indentLevel) {
+    switch (node->nodeType) {
+        case AST_COMPONENT:
+            return generate_json_for_component(&node->data.component, indentLevel);
+        case AST_COMPONENT_INSTANCE:
+            return generate_json_for_component_instance(&node->data.componentInstance, indentLevel);
+        case AST_LITERAL:
+            return generate_json_for_literal(&node->data.literal, indentLevel);
+        case AST_ASSIGNMENT_STATEMENT:
+            return generate_json_for_assignment(&node->data.assignment, indentLevel);
+            // Add cases for other ASTNodeTypes...
+        default:
+            return strndup("Unsupported node type", 20); // Placeholder for unsupported types
+    }
+}
+
+char *parser_dump_program(ProgramAST *result) {
+    size_t bufferSize = 4096; // Start with a buffer large enough for most ASTs.
+    char *buffer = platform_allocate(bufferSize, false);
+    if (!buffer) return NULL;
+    
+    size_t cursor = 0;
+    appendString(&buffer, "{\n\"AST\": [\n", &cursor, &bufferSize);
+    
+    for (ASTNode *current = result->statements; current != NULL; current = current->next) {
+        char *nodeStr = generate_json_for_node(current, 1); // Generate JSON for each node
+        appendString(&buffer, nodeStr, &cursor, &bufferSize);
+        platform_free(nodeStr, false);
         
-        prop = prop->next;
-        if (prop) {
-            appendString(&buffer, ",\n", &cursor, &bufferSize);
-        } else {
-            appendString(&buffer, "\n", &cursor, &bufferSize);
+        if (current->next) {
+            appendString(&buffer, ",\n", &cursor, &bufferSize); // Separate nodes with commas
         }
     }
     
-    appendString(&buffer, indent, &cursor, &bufferSize);
-    appendString(&buffer, "}", &cursor, &bufferSize);
+    appendString(&buffer, "\n]\n}", &cursor, &bufferSize); // Close JSON structure
+    return buffer;
+}
+
+char *generate_json_for_component(Component *component, int indentLevel) {
+    // Buffer size may need adjustment based on the complexity of your components.
+    size_t bufferSize = 4096;
+    char *buffer = platform_allocate(bufferSize, false);
+    if (!buffer) return NULL;
+    
+    size_t cursor = 0;
+    char *indent = create_indent(indentLevel);
+    char *propIndent = create_indent(indentLevel + 1);
+    
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s\"Component\": \"%s\",\n", indent, component->name);
+    if (component->extends) {
+        char *extendsType = generate_json_for_type(component->extends, 0);
+        cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s\"Extends\": %s,\n", indent, extendsType);
+        platform_free(extendsType, false);
+    }
+    
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s\"Properties\": {\n", indent);
+    Property *prop = component->properties;
+    while (prop) {
+        char *propJson = generate_json_for_property(prop, indentLevel + 2);
+        cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s", propJson);
+        platform_free(propJson, false);
+        prop = prop->next;
+        if (prop) {
+            cursor += snprintf(buffer + cursor, bufferSize - cursor, ",\n");
+        }
+    }
+    cursor += snprintf(buffer + cursor, bufferSize - cursor, "\n%s}\n", indent);
     
     platform_free(indent, false);
-    platform_free(componentIndent, false);
+    platform_free(propIndent, false);
+    
     return buffer;
 }
 
 char *generate_json_for_property(const Property *property, int indentLevel) {
-    size_t bufferSize = 256; // Adjust based on your needs
+    size_t bufferSize = 1024; // Adjust based on the complexity of type serialization.
     char *buffer = platform_allocate(bufferSize, false);
     if (!buffer) return NULL;
     
     char *indent = create_indent(indentLevel);
-    snprintf(buffer, bufferSize, "%s\"%s\": {\"type\": \"%s\", \"optional\": %s}",
-             indent, property->name, generate_json_for_type(property->type, 0),
+    char *typeJSON = generate_json_for_type(property->type, 0); // Serialize property type.
+    
+    snprintf(buffer, bufferSize, "%s\"%s\": {\"type\": %s, \"optional\": %s}", indent, property->name, typeJSON,
              property->isOptional ? "true" : "false");
     
     platform_free(indent, false);
+    platform_free(typeJSON, false);
+    
     return buffer;
 }
 
+
 char *generate_json_for_type(const Type *type, int indentLevel) {
-    size_t bufferSize = 256; // Initial buffer size, adjust as needed
+    // This is a placeholder. You should adjust this based on the specifics of your Type structure.
+    size_t bufferSize = 512;
     char *buffer = platform_allocate(bufferSize, false);
-    if (!buffer) return null;
+    if (!buffer) return NULL;
     
-    char *currentPos = buffer;
-    size_t remainingSize = bufferSize;
-    size_t written = 0;
-    
-    if (type && type->isArray) {
-        // For array types, start with '['
-        written = snprintf(currentPos, remainingSize, "[");
-        currentPos += written;
-        remainingSize -= written;
+    if (type->isArray) {
+        // Example for array type serialization.
+        snprintf(buffer, bufferSize, "[\"%s\"]", type->name);
+    } else if (type->isComposite) {
+        // Start composite type serialization.
+        snprintf(buffer, bufferSize, "\"%s | ...\"", type->name); // Placeholder for composite type handling.
+    } else {
+        // Simple type serialization.
+        snprintf(buffer, bufferSize, "\"%s\"", type->name);
     }
     
-    while (type) {
-        // Concatenate type names, handle composite types within arrays
-        written = snprintf(currentPos, remainingSize, "%s", type->name);
-        currentPos += written;
-        remainingSize -= written;
-        
-        if (type->next) {
-            written = snprintf(currentPos, remainingSize, " | ");
-            currentPos += written;
-            remainingSize -= written;
-        }
-        
-        type = type->next;
-    }
-    
-    if (buffer[0] == '[') {
-        // For array types, close with ']'
-        snprintf(currentPos, remainingSize, "]");
-    }
     return buffer;
 }
 
@@ -445,4 +843,13 @@ static char *appendString(char **dest, const char *src, size_t *cursor, size_t *
     (*dest)[*cursor] = '\0'; // Ensure null termination
     
     return *dest;
+}
+
+static char *strndup(const char *s, size_t n) {
+    char *copy = platform_allocate(n + 1, false);
+    if (copy) {
+        platform_copy_memory(copy, s, n);
+        copy[n] = '\0';
+    }
+    return copy;
 }

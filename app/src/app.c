@@ -44,7 +44,7 @@ void startup_script_init() {
 
 
 void visit_component(ASTNode *node, Visitor *visitor) {
-    vdebug("Visiting component: %s", node->name)
+    vdebug("Visiting component: %s", node->data.component.name)
     
 }
 
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     }
     startup_script_init();
     
-    FsNode *gui = vfs_node_get("sys/gui/std.mgl");
+    FsNode *gui = vfs_node_get("sys/gui/index.mgl");
     
     if (gui == null) {
         verror("Failed to load gui file")
@@ -67,6 +67,8 @@ int main(int argc, char **argv) {
     }
     
     ProgramSource lexerResult = lexer_analysis_from_mem(gui->data.file.data, gui->data.file.size);
+    char *tokens_dump = lexer_dump_tokens(&lexerResult);
+    vdebug("Tokens: %s", tokens_dump)
     ProgramAST ast = parser_parse(&lexerResult);
     
     Visitor visitor = muil_create_visitor(visit_component, null, null);
