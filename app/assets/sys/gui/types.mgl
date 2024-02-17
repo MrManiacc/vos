@@ -20,7 +20,7 @@ Ancestor : Something {
         Child = Blah : Test | null {
             Grandchild = ["Testing", "testing2", [123, 432]]
         }
-        TestingBaseic{
+        TestingBaseic {
             Test = "Hello"
         }
     }

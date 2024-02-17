@@ -87,13 +87,12 @@ ProgramAST parser_parse(ProgramSource *source) {
 
 ASTNode *parser_parse_component(ParserState *state) {
     skip_delimiters(state);
-    
-    Token nameToken = consume(state, TOKEN_IDENTIFIER);
+    u32 index = state->current_token_index;
+    Token nameToken = peek(state);
     if (nameToken.type != TOKEN_IDENTIFIER) {
-        verror("Expected component name identifier");
         return null;
     }
-    
+    consume(state, TOKEN_IDENTIFIER);
     ASTNode *componentNode = create_node(AST_COMPONENT);
     if (!componentNode) return null; // Error handling within create_node
     
@@ -105,48 +104,18 @@ ASTNode *parser_parse_component(ParserState *state) {
         if (!componentNode->data.component.extends) {
             verror("Failed to parse component super type");
             platform_free(componentNode, false);
+            state->current_token_index = index;
             return null;
         }
     }
     
+    // If there's not a LBRACE, at this point, we return null because it's not a valid component
+    if (!match(state, TOKEN_LBRACE)) {
+        state->current_token_index = index;
+        platform_free(componentNode, false);
+        return null;
+    }
     componentNode->data.component.body = parser_parse_scope(state);
-    
-    // TODO: Allow for a component's body to be a single expression (or a scope)
-
-
-
-
-
-//    ASTNode **currentProperty = &(componentNode->data.component);
-//    while (!match(state, TOKEN_RBRACE) && peek(state).type != TOKEN_EOF) {
-//        skip_delimiters(state);
-//
-//        // Depending on the next token, decide whether to parse a property, a nested component, or an array
-//        Token nextToken = peek(state);
-//        ASTNode *parsedNode = null;
-//        switch (nextToken.type) {
-//            case TOKEN_IDENTIFIER:
-//                // Could be a nested component or a property
-//                parsedNode = parser_parse_property_or_component(
-//                        state); // This function needs to decide based on further lookahead
-//                break;
-//                // Handle other cases such as arrays or literals if applicable
-//            default:
-//                verror("Unexpected token while parsing component body");
-//                break;
-//        }
-//
-//        if (!parsedNode) {
-//            // Handle parsing error, including potential cleanup
-//            break; // Exit the loop on error
-//        }
-//
-//        *currentProperty = parsedNode; // Link the parsed property or nested component
-//        currentProperty = &((*currentProperty)->next); // Prepare for the next property/component
-//
-//        skip_delimiters(state); // Ready for the next property/component or the end of the component
-//    }
-//
     return componentNode;
 }
 
@@ -346,36 +315,39 @@ ASTNode *parser_parse_expression(ParserState *state) {
     skip_delimiters(state);
     Token nextToken = peek(state);
     //parse assignment
+    
+    
     if (nextToken.type == TOKEN_IDENTIFIER) {
-        Token lookahead = peek_distance(state, 1);
+        ASTNode *component = parser_parse_component(state);
+        if (component) {
+            return component;
+        }
+        
+        Token identifierToken = consume(state, TOKEN_IDENTIFIER);
+        Token lookahead = peek(state);
         if (lookahead.type == TOKEN_EQUALS) {
             //parse an assignment
             ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
             if (!assignmentNode) return null; // Error handling within create_node
-            Token identifierToken = consume(state, TOKEN_IDENTIFIER);
             assignmentNode->data.assignment.variableName = string_ndup(identifierToken.start, identifierToken.length);
             consume(state, TOKEN_EQUALS);
             assignmentNode->data.assignment.value = parser_parse_expression(state);
             return assignmentNode;
         } else if (lookahead.type == TOKEN_COLON) {
-            {
-                // parse the type
-                ASTNode *propertyNode = create_node(AST_PROPERTY);
-                if (!propertyNode) return null; // Error handling within create_node
-                Token identifierToken = consume(state, TOKEN_IDENTIFIER);
-                propertyNode->data.variable.name = string_ndup(identifierToken.start, identifierToken.length);
-                consume(state, TOKEN_COLON);
-                propertyNode->data.variable.type = parser_parse_type(state);
-                if (match(state, TOKEN_EQUALS)) {
-                    propertyNode->data.variable.value = parser_parse_expression(state);
-                }
-                return propertyNode;
+            // parse the type
+            ASTNode *propertyNode = create_node(AST_PROPERTY);
+            if (!propertyNode) return null; // Error handling within create_node
+            propertyNode->data.variable.name = string_ndup(identifierToken.start, identifierToken.length);
+            consume(state, TOKEN_COLON);
+            propertyNode->data.variable.type = parser_parse_type(state);
+            if (match(state, TOKEN_EQUALS)) {
+                propertyNode->data.variable.value = parser_parse_expression(state);
             }
+            return propertyNode;
         } else {
             //parse a variable
             ASTNode *variableNode = create_node(AST_PROPERTY);
             if (!variableNode) return null; // Error handling within create_node
-            Token identifierToken = consume(state, TOKEN_IDENTIFIER);
             variableNode->data.variable.name = string_ndup(identifierToken.start, identifierToken.length);
             if (match(state, TOKEN_EQUALS)) {
                 variableNode->data.variable.value = parser_parse_expression(state);
@@ -392,7 +364,12 @@ ASTNode *parser_parse_expression(ParserState *state) {
         consume(state, TOKEN_LBRACE);
         return parser_parse_scope(state);
     } else {
-        verror("Unexpected token while parsing expression");
+        //First we try to parse a component
+        ASTNode *component = parser_parse_component(state);
+        if (component) {
+            return component;
+        }
+        
         return null;
     }
 }
