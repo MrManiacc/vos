@@ -53,6 +53,7 @@ typedef struct {
     char *name; // Component name, null for instances
     Type *extends; // The super component types that this component extends. Can be null.
     ASTNode *body; // A body will typically be a scope node
+    b8 topLevel; // Indicates if this is a top-level component
 } ComponentNode;
 
 typedef struct {
@@ -131,3 +132,5 @@ ProgramAST parser_parse(ProgramSource *source);
  *                  The caller is responsible for freeing the memory when no longer needed.
  */
 char *parser_dump_program(ProgramAST *result);
+
+b8 parser_free_program(ProgramAST *program);

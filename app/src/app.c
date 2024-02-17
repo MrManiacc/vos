@@ -10,6 +10,8 @@
 
 #else
 #include <unistd.h>
+#include <printf.h>
+
 #endif
 
 #include "defines.h"
@@ -59,7 +61,7 @@ int main(int argc, char **argv) {
 //    }
 //    startup_script_init();
     
-    FsNode *gui = vfs_node_get("sys/gui/types.mgl");
+    FsNode *gui = vfs_node_get("sys/gui/index.mgl");
     
     if (gui == null) {
         verror("Failed to load gui file")
@@ -73,9 +75,11 @@ int main(int argc, char **argv) {
     
     char *ast_dump = parser_dump_program(&ast);
     printf("AST: \n%s", ast_dump);
+    parser_free_program(&ast);
+
     KernelResult shutdown_result = kernel_shutdown();
-    
-    
+
+
     if (!kernel_is_result_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
         return 1;

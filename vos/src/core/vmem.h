@@ -86,6 +86,8 @@ VAPI b8 _kis_free(void *block, int line, const char *file);
 #define memory_system_initialize(config) _memory_system_initialize(config, __LINE__, __FILE__)
 #define memory_system_shutdown() _memory_system_shutdown(__LINE__, __FILE__)
 #define kallocate(size, tag) _kallocate(size, tag, __LINE__, __FILE__)
+#define kgimme(size) _kallocate(size, MEMORY_TAG_ENGINE, __LINE__, __FILE__)
+#define kbye(block, size) _kfree(block, size, MEMORY_TAG_ENGINE, __LINE__, __FILE__)
 #define kallocate_aligned(size, alignment, tag) _kallocate_aligned(size, alignment, tag, __LINE__, __FILE__)
 #define kallocate_report(size, tag) _kallocate_report(size, tag, __LINE__, __FILE__)
 #define kfree(block, size, tag) _kfree(block, size, tag, __LINE__, __FILE__)

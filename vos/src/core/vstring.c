@@ -239,10 +239,6 @@ char *string_format(const char *str, ...) {
 }
 
 
-// Append strings with tracking
-char *string_conca(const char *str, const char *append) {
-
-}
 
 char *string_repeat(const char *str, u64 count) {
     if (!str) return null;
@@ -261,7 +257,7 @@ char *string_repeat(const char *str, u64 count) {
     return result;
 }
 
-char *string_append(char **dest, const char *src, size_t *cursor, size_t *bufferSize) {
+char *string_append(char **dest, const char *src, u32 *cursor, u32 *bufferSize) {
     size_t srcLen = strlen(src);
     
     // Ensure there is enough space for the new string and the null terminator
@@ -323,12 +319,12 @@ StringBuilder *sb_new() {
 }
 
 // Ensures the string builder has enough capacity
-void sb_ensure_capacity(StringBuilder *sb, size_t additional_capacity) {
+void sb_ensure_capacity(StringBuilder *sb, u32 additional_capacity) {
     if (sb->length + additional_capacity >= sb->capacity) {
         while (sb->length + additional_capacity >= sb->capacity) {
             sb->capacity *= 2;
         }
-        sb->buffer = (char *) realloc(sb->buffer, sb->capacity * sizeof(char));
+        sb->buffer = (char *) platform_reallocate(sb->buffer, sb->capacity * sizeof(char), false);
     }
 }
 
@@ -336,7 +332,7 @@ void sb_ensure_capacity(StringBuilder *sb, size_t additional_capacity) {
 void sb_appendf(StringBuilder *sb, const char *format, ...) {
     va_list args;
             va_start(args, format);
-    char tmp[1024]; // Temporary buffer for formatted string
+    char tmp[2048]; // Temporary buffer for formatted string
     vsnprintf(tmp, sizeof(tmp), format, args);
             va_end(args);
     size_t tmp_len = strlen(tmp);
@@ -348,9 +344,14 @@ void sb_appendf(StringBuilder *sb, const char *format, ...) {
 // Frees the string builder and returns the built string
 char *sb_build(StringBuilder *sb) {
     char *result = strdup(sb->buffer); // Duplicate the buffer for the result
-    free(sb->buffer); // Free the original buffer
-    free(sb); // Free the string builder itself
+    platform_free(sb->buffer, false); // Free the original buffer
+    platform_free(sb, false); // Free the string builder itself
     return result;
+}
+
+void sb_free(StringBuilder *sb) {
+//    free(sb->buffer); // Free the original buffer
+//    free(sb); // Free the string builder itself
 }
 
 

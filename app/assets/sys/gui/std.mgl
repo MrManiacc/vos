@@ -65,7 +65,7 @@ Element : Style {
     class: String // CSS-like class for applying styles. Do we really need this if we're using a style object?
     id: String // Unique identifier
     hooks: Hooks // Event hooks
-    children: [Element | String] // Child elements. The last element can be inferred without explicit declaration.
+    children: Element[] | String[] // Child elements. The last element can be inferred without explicit declaration.
 }
 
 
