@@ -16,7 +16,7 @@ target_link_libraries(vos PUBLIC ${LUA_LIBRARIES} raylib unofficial::tree-sitter
 # Setup our defines for the target
 target_compile_definitions(vos PUBLIC
         -DUSE_LINE_NUMBER
-        -DUSE_DEBUG_LOG
+#        -DUSE_DEBUG_LOG
         -DKEXPORT
 )
 check_c_compiler_flag(-Wint-to-pointer-cast HAS_INT_TO_POINTER_CAST )

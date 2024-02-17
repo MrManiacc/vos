@@ -1,86 +1,86 @@
 // Color definition with RGBA channels.
 Color {
-    R: Int // Red channel, 0-255
-    G: Int // Green channel, 0-255
-    B: Int // Blue channel, 0-255
-    A: Int // Alpha channel, 0-255 for transparency
+    r: Int // Red channel, 0-255
+    g: Int // Green channel, 0-255
+    b: Int // Blue channel, 0-255
+    a: Int // Alpha channel, 0-255 for transparency
 }
 
 // Border styling for elements.
 Border {
-    Color: Color // Border color
-    Width: Int // Border width in pixels
-    Style: String // Border style (e.g., "solid", "dashed")
-    Radius: Int // Corner radius for rounded borders
+    color: Color // Border color
+    width: Int // Border width in pixels
+    style: String // Border style (e.g., "solid", "dashed")
+    radius: Int // Corner radius for rounded borders
 }
 
 // Image component with source URL and alternative text.
 Image {
-    Source: String // URL of the image
-    Alt: String // Alternative text for accessibility
-    Width: Int // Width of the image (optional)
-    Height: Int // Height of the image (optional)
+    source: String // URL of the image
+    alt: String // Alternative text for accessibility
+    width: Int // Width of the image (optional)
+    height: Int // Height of the image (optional)
 }
 
 // Text element with content and styling.
 Text {
-    FontSize: Int // Font size in pixels
-    FontColor: Color // Text color
-    TextAlign: String // Horizontal alignment ("left", "center", "right")
-    VerticalAlign: String // Vertical alignment ("top", "middle", "bottom")
-    Content: String // Text content. Because it's the last property, it can be inferred without explicit declaration.
+    fontSize: Int // Font size in pixels
+    fontColor: Color // Text color
+    textAlign: String // Horizontal alignment ("left", "center", "right")
+    verticalAlign: String // Vertical alignment ("top", "middle", "bottom")
+    content: String // Text content. Because it's the last variable, it can be inferred without explicit declaration.
 }
 
 Position {
-    Top: Int // Top position in pixels
-    Left: Int // Left position in pixels
-    Right: Int // Right position in pixels
-    Bottom: Int // Bottom position in pixels
-    Type : String // Position type (e.g., "absolute", "relative")
+    top: Int // Top position in pixels
+    left: Int // Left position in pixels
+    right: Int // Right position in pixels
+    bottom: Int // Bottom position in pixels
+    type : String // Position type (e.g., "absolute", "relative")
 }
 
 // Styling properties for visual appearance.
 Style {
-    Background: Color | Image // Background color or image
-    Border: Border // Border styling
-    Margin: Int // Outer spacing in pixels
-    Padding: Int // Inner spacing in pixels
-    Width: Int // Width in pixels (optional)
-    Height: Int // Height in pixels (optional)
-    Position: Position // Positioning properties
+    background: Color | Image // Background color or image
+    border: Border // Border styling
+    margin: Int // Outer spacing in pixels
+    padding: Int // Inner spacing in pixels
+    width: Int // Width in pixels (optional)
+    height: Int // Height in pixels (optional)
+    position: Position // Positioning properties
 }
 
 
 // Event hooks for interactive behavior. Functions are lua functions.
 Hooks {
-    OnClick: Function // Function to call on click events
-    OnHover: Function // Function to call on hover events
-    OnFocus: Function // Function to call on focus events
-    OnBlur: Function // Function to call on blur events
+    onClick: Function // Function to call on click events
+    onHover: Function // Function to call on hover events
+    onFocus: Function // Function to call on focus events
+    onBlur: Function // Function to call on blur events
 }
 
 
 // Base element with common properties and styling.
 Element : Style {
-    Class: String // CSS-like class for applying styles. Do we really need this if we're using a style object?
-    Id: String // Unique identifier
-    Hooks: Hooks // Event hooks
-    Children: [Element | String] // Child elements. The last element can be inferred without explicit declaration.
+    class: String // CSS-like class for applying styles. Do we really need this if we're using a style object?
+    id: String // Unique identifier
+    hooks: Hooks // Event hooks
+    children: [Element | String] // Child elements. The last element can be inferred without explicit declaration.
 }
 
 
 // Button element for user interactions.
 Button : Element {
-    Label: Text | Element // Button label or custom content
-    Enabled: Bool // Whether the button is interactive
+    label: Text | Element // Button label or custom content
+    enabled: Bool // Whether the button is interactive
 }
 
 // Input element for text entry.
 Input : Element {
-    Value: String // Current input value
-    Placeholder: String // Placeholder text
-    Type: String // Input type (e.g., "text", "password")
-    Required: Bool // Whether input is required for form submission
-    Disabled: Bool // Whether the input is disabled
+    value: String // Current input value
+    placeholder: String // Placeholder text
+    type: String // Input type (e.g., "text", "password")
+    required: Bool // Whether input is required for form submission
+    disabled: Bool // Whether the input is disabled
 }
 

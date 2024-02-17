@@ -26,7 +26,7 @@
 #include "core/vstring.h"
 #include "core/vinput.h"
 #include "platform/platform.h"
-#include "muil/vmuil.h"
+#include "muil/vparser.h"
 
 // launch our bootstrap code
 void startup_script_init() {
@@ -43,23 +43,23 @@ void startup_script_init() {
 }
 
 
-void visit_component(ASTNode *node, Visitor *visitor) {
-    vdebug("Visiting component: %s", node->data.component.name)
-    
-}
+//void visit_component(ASTNode *node, Visitor *visitor) {
+//    vdebug("Visiting component: %s", node->data.component.name)
+//
+//}
 
 // testing the lexer
 int main(int argc, char **argv) {
     char *root_path = path_locate_root();
     vdebug("Root path: %s", root_path)
     KernelResult result = kernel_initialize(root_path);
-    if (!kernel_is_result_success(result.code)) {
-        verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
-        return 1;
-    }
-    startup_script_init();
+//    if (!kernel_is_result_success(result.code)) {
+//        verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
+//        return 1;
+//    }
+//    startup_script_init();
     
-    FsNode *gui = vfs_node_get("sys/gui/index.mgl");
+    FsNode *gui = vfs_node_get("sys/gui/types.mgl");
     
     if (gui == null) {
         verror("Failed to load gui file")
@@ -71,10 +71,11 @@ int main(int argc, char **argv) {
     vdebug("Tokens: %s", tokens_dump)
     ProgramAST ast = parser_parse(&lexerResult);
     
-    Visitor visitor = muil_create_visitor(visit_component, null, null);
-    muil_traverse(&ast, &visitor);
-    
+    char *ast_dump = parser_dump_program(&ast);
+    printf("AST: \n%s", ast_dump);
     KernelResult shutdown_result = kernel_shutdown();
+    
+    
     if (!kernel_is_result_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
         return 1;

@@ -5,8 +5,6 @@
 
 #include "defines.h"
 
-// Includes necessary standard libraries
-#include <stddef.h>
 
 // Token types
 typedef enum {

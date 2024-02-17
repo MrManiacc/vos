@@ -54,7 +54,7 @@ VAPI char *string_format(const char *str, ...);
 
 VAPI char *string_to_lower(const char *input);
 
-VAPI char *string_append(const char *str, const char *append);
+VAPI char *string_conca(const char *str, const char *append);
 
 VAPI char *string_prepend(const char *str, const char *prepend);
 
@@ -63,3 +63,23 @@ VAPI char *string_substring(const char *str, u64 start, u64 end);
 VAPI char *string_reverse(const char *str);
 
 VAPI char *string_repeat(const char *str, u64 count);
+
+VAPI char *string_append(char **dest, const char *src, size_t *cursor, size_t *bufferSize);
+
+
+VAPI char *string_ndup(const char *str, u64 n);
+
+
+typedef struct StringBuilder StringBuilder;
+
+// Initializes a new string builder
+StringBuilder *sb_new();
+
+// Ensures the string builder has enough capacity
+void sb_ensure_capacity(StringBuilder *sb, size_t additional_capacity);
+
+// Appends a formatted string to the string builder
+void sb_appendf(StringBuilder *sb, const char *format, ...);
+
+// Frees the string builder and returns the built string
+char *sb_build(StringBuilder *sb);

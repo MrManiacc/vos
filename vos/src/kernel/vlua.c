@@ -273,7 +273,7 @@ int lua_import(lua_State *L) {
     lua_getglobal(L, "sys");
     lua_getfield(L, -1, "path");
     const char *path = lua_tostring(L, -1);
-    char *full_path = string_append(module_name, ".lua");
+    char *full_path = string_conca(module_name, ".lua");
     // get the node data from the file system
     FsNode *node = vfs_node_get(full_path);
 

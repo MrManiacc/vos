@@ -1,0 +1,27 @@
+Primitive : String | Int | Float | Boolean | String[] | Int[] | Float[] | Boolean[] | null {
+    Value {
+        String : String
+        Int : Int
+        Float : Float
+        Boolean : Boolean
+        StringArray : String[]
+        IntArray : Int[]
+        FloatArray : Float[]
+        BooleanArray : Boolean[]
+        null : null
+    }
+    Value2 {
+            String : String
+        }
+}
+
+Ancestor : Something {
+    Parent = Test {
+        Child = Blah : Test | null {
+            Grandchild = ["Testing", "testing2", [123, 432]]
+        }
+    }
+}
+
+
+

@@ -4,6 +4,7 @@
 #include "containers/dict.h"
 #include "containers/ptrhash.h"
 #include "containers/darray.h"
+#include "platform/platform.h"
 
 #include <string.h>
 #include <stdarg.h>
@@ -239,9 +240,8 @@ char *string_format(const char *str, ...) {
 
 
 // Append strings with tracking
-char *string_append(const char *str, const char *append) {
-    if (!str || !append) return null;
-    return string_concat(str, append); // Reuse string_concat for efficiency and tracking
+char *string_conca(const char *str, const char *append) {
+
 }
 
 char *string_repeat(const char *str, u64 count) {
@@ -261,5 +261,96 @@ char *string_repeat(const char *str, u64 count) {
     return result;
 }
 
+char *string_append(char **dest, const char *src, size_t *cursor, size_t *bufferSize) {
+    size_t srcLen = strlen(src);
+    
+    // Ensure there is enough space for the new string and the null terminator
+    while (*cursor + srcLen + 1 > *bufferSize) {
+        // Calculate new buffer size
+        size_t newBufferSize = *bufferSize + 1024; // Increase buffer size
+        
+        // Allocate new buffer
+        char *newBuffer = platform_allocate(newBufferSize, false);
+        if (!newBuffer) {
+            verror("Failed to allocate memory for AST dump.");
+            return null; // Fail on allocation error
+        }
+        
+        // Copy existing content into new buffer
+        platform_copy_memory(newBuffer, *dest, *cursor);
+        
+        // Free old buffer if it was previously allocated
+        if (*dest) {
+            platform_free(*dest, false);
+        }
+        
+        // Update buffer pointer and size
+        *dest = newBuffer;
+        *bufferSize = newBufferSize;
+    }
+    
+    // Append new string
+    platform_copy_memory(*dest + *cursor, src, srcLen); // Copy string content
+    *cursor += srcLen; // Update cursor position
+    (*dest)[*cursor] = '\0'; // Ensure null termination
+    
+    return *dest;
+}
+
+char *string_ndup(const char *str, u64 n) {
+    char *copy = platform_allocate(n + 1, false);
+    if (copy) {
+        platform_copy_memory(copy, str, n);
+        copy[n] = '\0';
+    }
+    return copy;
+}
+
+typedef struct StringBuilder {
+    char *buffer;
+    size_t capacity;
+    size_t length;
+} StringBuilder;
+
+// Initializes a new string builder
+StringBuilder *sb_new() {
+    StringBuilder *sb = (StringBuilder *) malloc(sizeof(StringBuilder));
+    sb->capacity = 256; // Initial capacity
+    sb->length = 0;
+    sb->buffer = (char *) malloc(sb->capacity * sizeof(char));
+    sb->buffer[0] = '\0'; // Ensure it's a valid C-string
+    return sb;
+}
+
+// Ensures the string builder has enough capacity
+void sb_ensure_capacity(StringBuilder *sb, size_t additional_capacity) {
+    if (sb->length + additional_capacity >= sb->capacity) {
+        while (sb->length + additional_capacity >= sb->capacity) {
+            sb->capacity *= 2;
+        }
+        sb->buffer = (char *) realloc(sb->buffer, sb->capacity * sizeof(char));
+    }
+}
+
+// Appends a formatted string to the string builder
+void sb_appendf(StringBuilder *sb, const char *format, ...) {
+    va_list args;
+            va_start(args, format);
+    char tmp[1024]; // Temporary buffer for formatted string
+    vsnprintf(tmp, sizeof(tmp), format, args);
+            va_end(args);
+    size_t tmp_len = strlen(tmp);
+    sb_ensure_capacity(sb, tmp_len + 1);
+    strcpy(sb->buffer + sb->length, tmp);
+    sb->length += tmp_len;
+}
+
+// Frees the string builder and returns the built string
+char *sb_build(StringBuilder *sb) {
+    char *result = strdup(sb->buffer); // Duplicate the buffer for the result
+    free(sb->buffer); // Free the original buffer
+    free(sb); // Free the string builder itself
+    return result;
+}
 
 

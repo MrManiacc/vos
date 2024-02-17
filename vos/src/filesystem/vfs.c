@@ -120,7 +120,7 @@ FsNode *load_file(FsPath path) {
         node->data.file.size = platform_file_size(path);
         node->data.file.data = platform_read_file(path);
         dict_set(fs_context->nodes, node->path, node);
-        vinfo("load_file - Loaded file at path: %s", node->path)
+        vdebug("load_file - Loaded file at path: %s", node->path)
         return node;
     }
     vwarn("load_file - Failed to load file at path: %s", node->path);
@@ -141,7 +141,7 @@ FsNode *load_directory(FsPath path) {
     dir_node->data.directory.child_count = 0; // Initialize count to 0
     
     dict_set(fs_context->nodes, dir_node->path, dir_node);
-    vinfo("load_directory - Loaded directory at path: %s", dir_node->path);
+    vdebug("load_directory - Loaded directory at path: %s", dir_node->path);
     
     // Loads all the files and directories in the directory into memory.
     VFilePathList *child_files = platform_collect_files_direct(path);
@@ -263,9 +263,7 @@ void load_nodes() {
     // Iterate the children of the root node to make sure they are loaded.
     for (u32 i = 0; i < root->data.directory.child_count; i++) {
         FsNode *child = root->data.directory.children[i];
-        vinfo("load_nodes - Loaded child node at path: %s", child->path);
-        //Log the tostring of the root node.
-        vinfo("load_nodes - Loaded node: \n%s", vfs_node_to_string(child));
+        vdebug("load_nodes - Loaded child node at path: %s\n%s", child->path, vfs_node_to_string(child));
     }
     fs_context->root = root;
     
@@ -279,7 +277,7 @@ void unload_nodes() {
         fs_context->root = null;
     }
     
-    vinfo("unload_nodes - Unloaded %d nodes from memory.", count);
+    vdebug("unload_nodes - Unloaded %d nodes from memory.", count);
 }
 
 

@@ -161,7 +161,8 @@ static Token makeToken(ProgramSource *result, TokenType type, const char *start,
 // Create a new error token
 static Token errorToken(ProgramSource *result, const char *message, u32 line, u32 column) {
     // Construct a more detailed error message
-    char *detailedMessage = platform_allocate(256, false); // Ensure this buffer is appropriately sized for your error messages
+    char *detailedMessage = platform_allocate(256,
+                                              false); // Ensure this buffer is appropriately sized for your error messages
     snprintf(detailedMessage, 256, "Error at line %d, column %d: %s", line, column, message);
     
     Token token = {TOKEN_ERROR, detailedMessage, strlen(detailedMessage), line, column};
@@ -248,7 +249,11 @@ static void lexIdentifier(ProgramSource *result, const char **current, u32 *line
     TokenType type = TOKEN_IDENTIFIER; // Default to identifier
     
     // Keyword recognition
-    if (length == 3 && checkKeyword(start, length, "use", TOKEN_IMPORT) == TOKEN_IMPORT) {
+    if (length == 4 && checkKeyword(start, length, "true", TOKEN_TRUE) == TOKEN_TRUE) {
+        type = TOKEN_TRUE;
+    } else if (length == 5 && checkKeyword(start, length, "false", TOKEN_FALSE) == TOKEN_FALSE) {
+        type = TOKEN_FALSE;
+    } else if (length == 6 && checkKeyword(start, length, "import", TOKEN_IMPORT) == TOKEN_IMPORT) {
         type = TOKEN_IMPORT;
     } else if (length == 9 && checkKeyword(start, length, "component", TOKEN_COMPONENT) == TOKEN_COMPONENT) {
         type = TOKEN_COMPONENT;
