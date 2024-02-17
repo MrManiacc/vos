@@ -81,6 +81,6 @@ Input : Element {
     placeholder: String // Placeholder text
     type: String // Input type (e.g., "text", "password")
     required: Bool // Whether input is required for form submission
-    disabled: Bool // Whether the input is disabled
+    bisabled: Bool // Whether the input is disabled
 }
 
