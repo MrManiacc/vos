@@ -14,17 +14,17 @@ typedef struct entry {
     struct entry *next;
 } entry;
 
-typedef struct dict {
+typedef struct Dict {
     u32 size;
     hash_function *hash_func;
     entry **elements;
-} dict;
+} Dict;
 
-typedef struct idict {
-    dict *table;
+typedef struct DictIterator {
+    Dict *table;
     entry *entry;
     u32 index;
-} idict;
+} DictIterator;
 
 /**
  * @brief creates a new dictionary table with the given size and hash function
@@ -32,13 +32,13 @@ typedef struct idict {
  * @param hash_func the hash function to use
  * @return a new dictionary table
  */
-dict *dict_create(u64 size, hash_function *hash_func);
+Dict *dict_create(u64 size, hash_function *hash_func);
 
 /**
  * Creates a new dictionary table with the default size and hash function
  * @return a new dictionary table
  */
-dict *dict_create_default();
+Dict *dict_create_default();
 
 /**
  * @brief Creates a new dictionary with specified size.
@@ -50,13 +50,13 @@ dict *dict_create_default();
  * @param size The size of the dictionary.
  * @return A pointer to the newly created dictionary.
  */
-dict *dict_create_sized(u64 size);
+Dict *dict_create_sized(u64 size);
 
 /**
  * @brief destroys the given dictionary table
  * @param table  the table to destroy
  */
-void dict_destroy(dict *table);
+void dict_destroy(Dict *table);
 
 /**
  * @brief inserts the given key and value into the table
@@ -65,7 +65,7 @@ void dict_destroy(dict *table);
  * @param value the value to insert
  * @return true if the key was inserted, false if the key already exists
  */
-b8 dict_set(dict *table, const char *key, void *value);
+b8 dict_set(Dict *table, const char *key, void *value);
 
 /**
  * @brief looks up the given key in the table
@@ -73,7 +73,7 @@ b8 dict_set(dict *table, const char *key, void *value);
  * @param key the key to look for
  * @return the value associated with the key, or null if the key does not exist
  */
-void *dict_get(dict *table, const char *key);
+void *dict_get(Dict *table, const char *key);
 
 /**
  * @brief Checks if a key is present in the dictionary.
@@ -84,14 +84,14 @@ void *dict_get(dict *table, const char *key);
  * @param key The key to search for.
  * @return True if the key is found, false otherwise.
  */
-b8 dict_contains(dict *table, const char *key);
+b8 dict_contains(Dict *table, const char *key);
 
 /**
  * @brief removes the given key from the table
  * @param table the table to remove from
  * @param key the key to remove
  */
-void *dict_remove(dict *table, const char *key);
+void *dict_remove(Dict *table, const char *key);
 
 
 /**
@@ -102,30 +102,30 @@ void *dict_remove(dict *table, const char *key);
  * @param table A pointer to the dictionary.
  * @return The size of the dictionary.
  */
-u32 dict_size(dict *table);
+u32 dict_size(Dict *table);
 
 /**
  * @brief converts the given table to a string
  * @param table
  * @return
  */
-char *dict_to_string(dict *table);
+char *dict_to_string(Dict *table);
 
 /**
  * @brief clears the given table
  * @param table  the table to check
  */
-void dict_clear(dict *table);
+void dict_clear(Dict *table);
 
 /**
  * @brief creates a new iterator for the given table
  */
-idict dict_iterator(dict *table);
+DictIterator dict_iterator(Dict *table);
 
 /**
  * @brief moves the iterator to the next element
  * @param it the iterator to move
  * @return true if the iterator was moved, false if the iterator is at the end
  */
-b8 dict_next(idict *it);
+b8 dict_next(DictIterator *it);
 

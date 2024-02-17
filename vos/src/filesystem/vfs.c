@@ -16,8 +16,8 @@
 // File System Structure
 typedef struct FSContext {
     FsNode *root; // Root directory node
-    dict *users; // Users loaded in memory
-    dict *nodes;// The nodes that are currently loaded in memory. They can be directories or files.
+    Dict *users; // Users loaded in memory
+    Dict *nodes;// The nodes that are currently loaded in memory. They can be directories or files.
 } FSContext;
 
 static FSContext *fs_context = null;

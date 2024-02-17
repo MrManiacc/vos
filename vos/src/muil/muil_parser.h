@@ -10,7 +10,6 @@
 
 // Forward declarations to resolve circular dependencies
 typedef struct ASTNode ASTNode;
-typedef struct ProgramSource ProgramSource;
 
 
 // Enum to represent different types of AST nodes
@@ -19,11 +18,11 @@ typedef enum {
     AST_PROPERTY, // Represents a property within a component
     AST_LITERAL,
     AST_ASSIGNMENT,
-    AST_EXPRESSION, // General expressions
-    AST_ARRAY, // Represents an array of types or values
-    AST_SCOPE, // Represents a scope of nodes
-    AST_BINARY_OP
+    AST_ARRAY,
+    AST_SCOPE,
+    AST_BINARY_OP,
 } ASTNodeType;
+
 
 // Enum for different types of literals
 typedef enum {
@@ -35,11 +34,26 @@ typedef enum {
 typedef struct ASTNode ASTNode; // Forward declaration for recursive structure
 
 
+// A type represents a component or a property type
+typedef enum {
+    TYPE_BASIC, // Identifier, including primitives and user-defined types
+    TYPE_ARRAY, // Array type
+    TYPE_UNION, // Union type
+    TYPE_INTERSECTION, // Intersection type
+    TYPE_FUNCTION, // Function type
+    TYPE_TUPLE, // Tuple type
+} TypeKind;
+
 typedef struct Type {
-    char *name; // Component name, NULL for instances
-    u8 isComposite; // Indicates if the component is a composite component
-    u8 isArray;
-    struct Type *next; // If this is a composite component, this points to the next component in the list
+    TypeKind kind;
+    char* alias; // The alias name
+    struct Type *next; // For linked lists in unions, intersections, tuples
+    union {
+        char *name; // For basic types
+        struct { struct Type *elementType; } array;
+        struct { struct Type *lhs; struct Type *rhs; } binary; // For union, intersection, function
+        struct Type *tupleTypes; // Pointer to the first type in the tuple
+    } data;
 } Type;
 
 // A scope is a collection of nodes.
@@ -60,7 +74,7 @@ typedef struct {
     char *name; // Property name
     Type *type; // Type of the component
     ASTNode *value; // Can be a type declaration, expression, or array
-} VariableNode;
+} PropertyNode;
 
 typedef struct {
     ASTLiteralType type;
@@ -90,7 +104,7 @@ struct ASTNode {
     ASTNodeType nodeType;
     union {
         ComponentNode component;
-        VariableNode variable;
+        PropertyNode property;
         LiteralNode literal;
         AssignmentNode assignment;
         ArrayNode array;
@@ -99,6 +113,12 @@ struct ASTNode {
     } data;
     ASTNode *next; // Next sibling in the AST
 };
+
+// Type alias specifics
+typedef struct {
+    char *alias; // The alias name
+    Type *actualType; // The actual type definition
+} TypeAliasNode;
 
 
 // Root of the AST for a parsed program
@@ -142,3 +162,4 @@ b8 parser_free_node(ASTNode *node);
  *         if the program argument is NULL
  */
 b8 parser_free_program(ProgramAST *program);
+

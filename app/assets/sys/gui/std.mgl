@@ -28,7 +28,7 @@ Text {
     fontColor: Color // Text color
     textAlign: String // Horizontal alignment ("left", "center", "right")
     verticalAlign: String // Vertical alignment ("top", "middle", "bottom")
-    content: String // Text content. Because it's the last variable, it can be inferred without explicit declaration.
+    content: String // Text content. Because it's the last property, it can be inferred without explicit declaration.
 }
 
 Position {

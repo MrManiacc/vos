@@ -19,15 +19,15 @@ static u64 dict_default_hash(const char *key) {
     return hash;
 }
 
-static u64 has_table_index(dict *dict, const char *key);
+static u64 has_table_index(Dict *dict, const char *key);
 
-static u64 has_table_index(dict *dict, const char *key) {
+static u64 has_table_index(Dict *dict, const char *key) {
     u64 result = dict->hash_func(key) % dict->size;
     return result;
 }
 
-dict *dict_create(u64 size, hash_function *hash_func) {
-    dict *table = kallocate(sizeof(dict), MEMORY_TAG_DICT);
+Dict *dict_create(u64 size, hash_function *hash_func) {
+    Dict *table = kallocate(sizeof(Dict), MEMORY_TAG_DICT);
     table->size = size;
     table->hash_func = hash_func;
     table->elements = kallocate(sizeof(entry *) * size, MEMORY_TAG_DICT);
@@ -41,16 +41,16 @@ dict *dict_create(u64 size, hash_function *hash_func) {
  * Creates a new dictionary table with the default size and hash function
  * @return a new dictionary table
  */
-dict *dict_create_default() {
+Dict *dict_create_default() {
     return dict_create(DEFAULT_DICT_SIZE, dict_default_hash);
 }
 
 
-dict *dict_create_sized(u64 size) {
+Dict *dict_create_sized(u64 size) {
     return dict_create(size, dict_default_hash);
 }
 
-void dict_destroy(dict *table) {
+void dict_destroy(Dict *table) {
     //Delete all keys
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
@@ -62,10 +62,10 @@ void dict_destroy(dict *table) {
         }
     }
     kfree(table->elements, sizeof(entry *) * table->size, MEMORY_TAG_DICT);
-    kfree(table, sizeof(dict), MEMORY_TAG_DICT);
+    kfree(table, sizeof(Dict), MEMORY_TAG_DICT);
 }
 
-char *dict_to_string(dict *table) {
+char *dict_to_string(Dict *table) {
     char *result = string_duplicate("{");
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
@@ -86,7 +86,7 @@ char *dict_to_string(dict *table) {
     return result;
 }
 
-b8 dict_set(dict *table, const char *key, void *value) {
+b8 dict_set(Dict *table, const char *key, void *value) {
     if (key == NULL || value == NULL)
         return false;
     u64 index = has_table_index(table, key);
@@ -103,7 +103,7 @@ b8 dict_set(dict *table, const char *key, void *value) {
     return true;
 }
 
-void *dict_get(dict *table, const char *key) {
+void *dict_get(Dict *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
@@ -117,7 +117,7 @@ void *dict_get(dict *table, const char *key) {
     return temp->value;
 }
 
-void *dict_remove(dict *table, const char *key) {
+void *dict_remove(Dict *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
@@ -142,7 +142,7 @@ void *dict_remove(dict *table, const char *key) {
     return result;
 }
 
-void dict_clear(dict *table) {
+void dict_clear(Dict *table) {
     for (u32 i = 0; i < table->size; i++) {
         entry *e = table->elements[i];
         while (e != NULL) {
@@ -158,10 +158,10 @@ void dict_clear(dict *table) {
 /**
  * @brief creates a new iterator for the given table
  */
-idict dict_iterator(dict *table) {
+DictIterator dict_iterator(Dict *table) {
     if (table == NULL)
-        return (idict) {0};
-    idict it;
+        return (DictIterator) {0};
+    DictIterator it;
     it.table = table;
     it.index = 0;
     it.entry = NULL;
@@ -173,7 +173,7 @@ idict dict_iterator(dict *table) {
  * @param it the iterator to move
  * @return true if the iterator was moved, false if the iterator is at the end
  */
-b8 dict_next(idict *it) {
+b8 dict_next(DictIterator *it) {
     if (it->table == NULL)
         return false;
     while (it->index < it->table->size) {
@@ -185,11 +185,11 @@ b8 dict_next(idict *it) {
     return false; // No more entries left
 }
 
-b8 dict_contains(dict *table, const char *key) {
+b8 dict_contains(Dict *table, const char *key) {
     return dict_get(table, key) != NULL;
 }
 
-u32 dict_size(dict *table) {
+u32 dict_size(Dict *table) {
     //Counts the number of elements in the table
     u32 count = 0;
     for (u32 i = 0; i < table->size; i++) {

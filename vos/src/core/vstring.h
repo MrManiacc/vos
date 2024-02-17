@@ -54,8 +54,6 @@ VAPI char *string_format(const char *str, ...);
 
 VAPI char *string_to_lower(const char *input);
 
-VAPI char *string_conca(const char *str, const char *append);
-
 VAPI char *string_prepend(const char *str, const char *prepend);
 
 VAPI char *string_substring(const char *str, u64 start, u64 end);

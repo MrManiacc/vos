@@ -27,12 +27,13 @@ static void lexIdentifier(ProgramSource *result, const char **current, u32 *line
 
 static void skipComment(ProgramSource *result, const char **current, u32 *line);
 
-const char *get_token_type_name(TokenType type) {
+const char *lexer_token_type_name(TokenType type) {
     switch (type) {
         case TOKEN_EOF:return "EOF";
         case TOKEN_ERROR:return "Error";
         case TOKEN_IDENTIFIER:return "Identifier";
         case TOKEN_STRING:return "String";
+        case TOKEN_ARROW:return "Arrow";
         case TOKEN_NUMBER:return "Number";
         case TOKEN_LPAREN:return "Left Parenthesis";
         case TOKEN_RPAREN:return "Right Parenthesis";
@@ -81,7 +82,12 @@ ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
         switch (c) {
             case '*' :addToken(&result, makeToken(&result, TOKEN_STAR, start, 1, line, column));
                 break;
-            case '/' :addToken(&result, makeToken(&result, TOKEN_SLASH, start, 1, line, column));
+            case '/' :
+                if (*current == '/' || *current == '*')
+                    skipComment(&result, &current, &line);
+                else
+                    // Add the token (it's a slash, not a comment
+                    addToken(&result, makeToken(&result, TOKEN_SLASH, start, 1, line, column));
                 break;
             case '%' :addToken(&result, makeToken(&result, TOKEN_PERCENT, start, 1, line, column));
                 break;
@@ -93,7 +99,12 @@ ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
                 break;
             case '+' :addToken(&result, makeToken(&result, TOKEN_PLUS, start, 1, line, column));
                 break;
-            case '-' :addToken(&result, makeToken(&result, TOKEN_MINUS, start, 1, line, column));
+            case '-' :
+                //Check for arrow
+                if (*current == '>') {
+                    addToken(&result, makeToken(&result, TOKEN_ARROW, start, 2, line, column));
+                    current++;
+                } else addToken(&result, makeToken(&result, TOKEN_MINUS, start, 1, line, column));
                 break;
             case '<' :addToken(&result, makeToken(&result, TOKEN_LT, start, 1, line, column));
                 break;
@@ -314,7 +325,7 @@ char *lexer_dump_tokens(ProgramSource *result) {
         // Don't print the \n value for the delimiter token
         if (token.type == TOKEN_DELIMITER) {
             int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Line: %d, Column: %d\n",
-                                   get_token_type_name(token.type), token.line, token.column);
+                                   lexer_token_type_name(token.type), token.line, token.column);
             if (written < 0) {
                 platform_free(buffer, false);
                 return NULL; // Writing error
@@ -322,7 +333,7 @@ char *lexer_dump_tokens(ProgramSource *result) {
             offset += written; // Update offset
             continue;
         }
-        const char *tokenType = get_token_type_name(token.type);
+        const char *tokenType = lexer_token_type_name(token.type);
         int written = snprintf(buffer + offset, bufferSize - offset, "Token: %s, Value: '%.*s', Line: %d, Column: %d\n",
                                tokenType, (int) token.length, token.start, token.line, token.column);
         if (written < 0) {

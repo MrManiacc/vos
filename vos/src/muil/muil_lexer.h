@@ -102,4 +102,4 @@ char *lexer_dump_tokens(ProgramSource *result);
  * @param type The token type.
  * @return The name of the token type.
  */
-const char *get_token_type_name(TokenType type);
+const char *lexer_token_type_name(TokenType type);

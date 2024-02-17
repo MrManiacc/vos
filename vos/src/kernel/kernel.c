@@ -18,7 +18,7 @@ b8 id_exists_in_stack(ProcPool *pool, ProcID id);
 
 static Kernel *kernel_context = null;
 static b8 kernel_initialized = false;
-static dict *processes_by_name = null;
+static Dict *processes_by_name = null;
 
 KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {

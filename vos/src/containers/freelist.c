@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "freelist.h"
 
 #include "core/vmem.h"
@@ -49,7 +50,7 @@ void freelist_create(u64 total_size, u64 *memory_requirement, void *memory, free
     // The block's layout is head* first, then array of available nodes.
     kzero_memory(out_list->memory, *memory_requirement);
     internal_state *state = out_list->memory;
-    state->nodes = (freelist_node*)((char*)memory + sizeof(internal_state));
+    state->nodes = (freelist_node *) ((char *) memory + sizeof(internal_state));
     state->max_entries = max_entries;
     state->total_size = total_size;
     
@@ -146,7 +147,7 @@ b8 freelist_free_block(freelist *list, u64 size, u64 offset) {
             } else if (node->offset == offset) {
                 // If there is an exact match, this means the exact block of memory
                 // that is already free is being freed again.
-                vfatal("Attempting to free already-freed block of memory at offset %llu", node->offset);
+                printf("Attempting to free already-freed block of memory at offset %llu", node->offset);
                 return false;
             } else if (node->offset > offset) {
                 // Iterated beyond the space to be freed. Need a new node.
@@ -238,7 +239,7 @@ b8 freelist_resize(freelist *list, u64 *memory_requirement, void *new_memory, u6
     
     // Setup the new state.
     internal_state *state = (internal_state *) list->memory;
-    state->nodes = (freelist_node*)((char*)new_memory + sizeof(internal_state));
+    state->nodes = (freelist_node *) ((char *) new_memory + sizeof(internal_state));
     state->max_entries = max_entries;
     state->total_size = new_size;
     

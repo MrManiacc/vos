@@ -100,3 +100,5 @@ VAPI b8 _kis_free(void *block, int line, const char *file);
 #define get_memory_usage_str() _get_memory_usage_str(__LINE__, __FILE__)
 #define get_memory_alloc_count() _get_memory_alloc_count(__LINE__, __FILE__)
 #define kis_free(block) _kis_free(block, __LINE__, __FILE__)
+
+#define vnew(type) (type *) kallocate(sizeof(type), MEMORY_TAG_ENGINE)

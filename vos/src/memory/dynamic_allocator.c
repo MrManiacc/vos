@@ -1,6 +1,7 @@
 /**
  * Created by jraynor on 2/12/2024.
  */
+#include <stdio.h>
 #include "dynamic_allocator.h"
 
 
@@ -27,11 +28,11 @@ typedef struct alloc_header {
 
 b8 dynamic_allocator_create(u64 total_size, u64 *memory_requirement, void *memory, dynamic_allocator *out_allocator) {
     if (total_size < 1) {
-        verror("dynamic_allocator_create cannot have a total_size of 0. Create failed.");
+        printf("dynamic_allocator_create cannot have a total_size of 0. Create failed.");
         return false;
     }
     if (!memory_requirement) {
-        verror("dynamic_allocator_create requires memory_requirement to exist. Create failed.");
+        printf("dynamic_allocator_create requires memory_requirement to exist. Create failed.");
         return false;
     }
     u64 freelist_requirement = 0;
@@ -119,15 +120,15 @@ void *dynamic_allocator_allocate_aligned(dynamic_allocator *allocator, u64 size,
             
             return (void *) aligned_block_offset;
         } else {
-            verror("dynamic_allocator_allocate_aligned no blocks of memory large enough to allocate from.");
+            printf("dynamic_allocator_allocate_aligned no blocks of memory large enough to allocate from.");
             u64 available = freelist_free_space(&state->list);
-            verror("Requested size: %llu, total space available: %llu", size, available);
+            printf("Requested size: %llu, total space available: %llu", size, available);
             // TODO: Report fragmentation?
             return 0;
         }
     }
     
-    verror("dynamic_allocator_allocate_aligned requires a valid allocator, size and alignment.");
+    printf("dynamic_allocator_allocate_aligned requires a valid allocator, size and alignment.");
     return 0;
 }
 
@@ -137,7 +138,7 @@ b8 dynamic_allocator_free(dynamic_allocator *allocator, void *block, u64 size) {
 
 b8 dynamic_allocator_free_aligned(dynamic_allocator *allocator, void *block) {
     if (!allocator || !block) {
-        verror("dynamic_allocator_free_aligned requires both a valid allocator (0x%p) and a block (0x%p) to be freed.",
+        printf("dynamic_allocator_free_aligned requires both a valid allocator (0x%p) and a block (0x%p) to be freed.",
                allocator, block);
         return false;
     }
@@ -155,7 +156,7 @@ b8 dynamic_allocator_free_aligned(dynamic_allocator *allocator, void *block) {
     u64 required_size = header->alignment + sizeof(alloc_header) + KSIZE_STORAGE + *block_size;
     u64 offset = (u64) header->start - (u64) state->memory_block;
     if (!freelist_free_block(&state->list, required_size, offset)) {
-        verror("dynamic_allocator_free_aligned failed.");
+        printf("dynamic_allocator_free_aligned failed.");
         return false;
     }
     

@@ -6,7 +6,7 @@
 #include "core/vmem.h"
 #include "core/vlogger.h"
 
-static void stack_ensure_allocated(stack *s, u32 count) {
+static void stack_ensure_allocated(Stack *s, u32 count) {
     if (s->allocated < s->element_size * count) {
         void *temp = kallocate(count * s->element_size, MEMORY_TAG_ARRAY);
         if (s->memory) {
@@ -18,29 +18,29 @@ static void stack_ensure_allocated(stack *s, u32 count) {
     }
 }
 
-b8 stack_create(stack *out_stack, u32 element_size) {
+b8 stack_create(Stack *out_stack, u32 element_size) {
     if (!out_stack) {
         verror("stack_create requires a pointer to a valid stack.");
         return false;
     }
     
-    kzero_memory(out_stack, sizeof(stack));
+    kzero_memory(out_stack, sizeof(Stack));
     out_stack->element_size = element_size;
     out_stack->element_count = 0;
     stack_ensure_allocated(out_stack, 1);
     return true;
 }
 
-void stack_destroy(stack *s) {
+void stack_destroy(Stack *s) {
     if (s) {
         if (s->memory) {
             kfree(s->memory, s->allocated, MEMORY_TAG_ARRAY);
         }
-        kzero_memory(s, sizeof(stack));
+        kzero_memory(s, sizeof(Stack));
     }
 }
 
-b8 stack_push(stack *s, void *element_data) {
+b8 stack_push(Stack *s, void *element_data) {
     if (!s) {
         verror("stack_push requires a pointer to a valid stack.");
         return false;
@@ -52,7 +52,7 @@ b8 stack_push(stack *s, void *element_data) {
     return true;
 }
 
-b8 stack_peek(const stack *s, void *out_element_data) {
+b8 stack_peek(const Stack *s, void *out_element_data) {
     if (!s || !out_element_data) {
         verror("stack_peek requires a pointer to a valid stack and to hold element data output.");
         return false;
@@ -69,7 +69,7 @@ b8 stack_peek(const stack *s, void *out_element_data) {
     return true;
 }
 
-b8 stack_pop(stack *s, void *out_element_data) {
+b8 stack_pop(Stack *s, void *out_element_data) {
     if (!s || !out_element_data) {
         verror("stack_pop requires a pointer to a valid stack and to hold element data output.");
         return false;

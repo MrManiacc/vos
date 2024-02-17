@@ -1,30 +1,35 @@
-Primitive : String | Int | Float | Boolean | String[] | Int[] | Float[] | Boolean[] | null {
-    Value : Test{
-        String : String = "Hello"
-        Int : Int
-        Float : Float
-        Boolean : Boolean
-        StringArray : String[]
-        IntArray : Int[]
-        FloatArray : Float[]
-        BooleanArray : Boolean[]
-        null : null
-    }
-    Value2 {
-            String : String
-        }
+
+
+
+// Types are defined by the following syntax
+// Type :
+//      | Identifier
+//      | Identifier '[' Type ']'
+//      | Type '|' Type
+//      | Type '& Type'
+//      | Type '->' Type
+//      | '(' Type ')' | '(' Type ',' Type ')'
+
+
+// This is a type that extends all the primitive number types
+Number : Float | Int | Double | Short | Long {}
+
+// This is a subtype of Number, that is used for method argument types to resolve ambiguity
+NumberA : Number{}
+// Another subtype of Number
+NumberB : Number{}
+
+// A function type that takes two Numbers, but the numbers are basically type aliases for the Number type
+// so that we can resolve ambiguity when calling the function.
+Function: (NumberA, NumberB) -> Number {
+    return 5 + 5
 }
 
-Ancestor : Something {
-    Parent = Test {
-        Child = Blah : Test | null {
-            Grandchild = ["Testing", "testing2", [123, 432]]
-        }
-        TestingBaseic {
-            Test = "Hello"
-            Test = test
-        }
-    }
+// This is a bit of syntactic sugar for the above function type.
+// It's the same as the above function type, but it's a bit more concise.
+// It creates two subtypes of Number, NumberA and NumberB, and then uses those subtypes in the function type.
+// TODO: see if we can do return type inferences for inline function declarations
+FunctionTwo : (A : Number, B : Number) -> Number {
+    // Automatically take the last expression as the return value
+    A + B
 }
-
-

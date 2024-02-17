@@ -2,6 +2,7 @@
 #include "vasserts.h"
 #include "platform/platform.h"
 #include "vstring.h"
+#include "vmem.h"
 #include <stdlib.h> // For dynamic memory allocation
 
 // TODO-temporary
@@ -35,7 +36,7 @@ void log_output(log_level level, const char *call_location, const char *message,
             va_end(arg_ptr);
     
     // Allocate buffer dynamically based on required length
-    char *formatted_message = (char *) malloc(required_length);
+    char *formatted_message = (char *) platform_allocate(required_length, false);
     if (!formatted_message) {
         // Handle memory allocation failure
         // For simplicity, we just return here, but you might want to handle this more gracefully
@@ -48,14 +49,9 @@ void log_output(log_level level, const char *call_location, const char *message,
             va_end(arg_ptr);
     
     // Add a newline to the end of the message if it doesn't have one
-    if (formatted_message[strlen(formatted_message) - 1] != '\n') {
-        size_t new_length = required_length + 1; // +1 for the newline
-        formatted_message = (char *) realloc(formatted_message, new_length);
-        if (!formatted_message) {
-            // Handle reallocation failure
-            return;
-        }
-        strcat(formatted_message, "\n");
+    if (formatted_message[required_length - 2] != '\n') {
+        formatted_message[required_length - 1] = '\n';
+        formatted_message[required_length] = '\0';
     }
     
     // Output level with its color
@@ -80,7 +76,7 @@ void log_output(log_level level, const char *call_location, const char *message,
     }
     
     // Free the dynamically allocated memory
-    free(formatted_message);
+    platform_free(formatted_message, false);
 }
 
 void report_assertion_failure(const char *expression, const char *message, const char *file, i32 line) {

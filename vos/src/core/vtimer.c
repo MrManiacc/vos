@@ -10,7 +10,7 @@ typedef struct {
     void *data;
 } TimerData;
 
-static dict *timers = NULL;
+static Dict *timers = NULL;
 
 void initialize_timer() {
     if (timers != NULL) {
@@ -43,7 +43,7 @@ b8 timer_exists(const char *id) {
 void timer_poll() {
     if (!timers) return;
     
-    idict it = dict_iterator(timers);
+    DictIterator it = dict_iterator(timers);
     
     while (dict_next(&it)) {
         time_t current_time;

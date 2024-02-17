@@ -239,7 +239,6 @@ char *string_format(const char *str, ...) {
 }
 
 
-
 char *string_repeat(const char *str, u64 count) {
     if (!str) return null;
     u64 str_len = string_length(str);
@@ -343,15 +342,17 @@ void sb_appendf(StringBuilder *sb, const char *format, ...) {
 
 // Frees the string builder and returns the built string
 char *sb_build(StringBuilder *sb) {
-    char *result = strdup(sb->buffer); // Duplicate the buffer for the result
-    platform_free(sb->buffer, false); // Free the original buffer
-    platform_free(sb, false); // Free the string builder itself
+    char *result = string_duplicate(sb->buffer); // Duplicate the buffer for the result
+    //add null terminator if it's not there
+    if (result[sb->length] != '\0') {
+        result[sb->length] = '\0';
+    }
     return result;
 }
 
 void sb_free(StringBuilder *sb) {
-//    free(sb->buffer); // Free the original buffer
-//    free(sb); // Free the string builder itself
+    platform_free(sb->buffer, false); // Free the original buffer
+    platform_free(sb, false); // Free the string builder itself
 }
 
 

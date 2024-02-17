@@ -40,6 +40,9 @@ VAPI void log_output(log_level level, const char *call_location, const char *mes
 #ifndef verror
 #define verror(message, ...) log_output(LOG_LEVEL_ERROR, LOG_CALL_LOCATION, message, ##__VA_ARGS__);
 #endif
+#ifndef error
+  #define error(message, call_location, ...) log_output(LOG_LEVEL_ERROR, call_location, message, ##__VA_ARGS__);
+#endif
 #if LOG_WARN_ENABLED == 1
 #define vwarn(message, ...) log_output(LOG_LEVEL_WARN, LOG_CALL_LOCATION, message, ##__VA_ARGS__);
 #else
