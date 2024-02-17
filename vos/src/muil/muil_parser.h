@@ -6,7 +6,7 @@
 #include "defines.h"
 
 // Includes necessary standard libraries
-#include "vlexer.h"
+#include "muil_lexer.h"
 
 // Forward declarations to resolve circular dependencies
 typedef struct ASTNode ASTNode;
@@ -121,16 +121,24 @@ ProgramAST parser_parse(ProgramSource *source);
 
 
 /**
- * @brief Generates a string representation of a ProgramAST.
+ * @brief Frees memory allocated for an ASTNode object.
  *
- * This function takes a ProgramAST pointer as input and returns a dynamically allocated
- * string representing the structure and content of the ProgramAST. The string is generated
- * in a format suitable for debugging or display purposes.
+ * This function frees the memory allocated for an ASTNode object and its associated data.
  *
- * @param result    A pointer to the ProgramAST structure to be converted to a string.
- * @return          A pointer to a dynamically allocated string representation of the ProgramAST.
- *                  The caller is responsible for freeing the memory when no longer needed.
+ * @param node The ASTNode object to be freed.
+ * @return true if the memory was successfully freed, false otherwise.
  */
-char *parser_dump_program(ProgramAST *result);
+b8 parser_free_node(ASTNode *node);
 
+/**
+ * @brief Frees the memory allocated for a ProgramAST structure.
+ *
+ * This function frees the memory allocated for a ProgramAST structure and
+ * all of its associated AST nodes. If the program argument is NULL, no
+ * action is taken.
+ *
+ * @param program The ProgramAST structure to free
+ * @return Returns true if the memory was successfully freed, or false
+ *         if the program argument is NULL
+ */
 b8 parser_free_program(ProgramAST *program);

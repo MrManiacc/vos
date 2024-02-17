@@ -456,6 +456,7 @@ static void report_memory_leaks() {
     ptr_hash_table_destroy(state_ptr->stats.allocations);
     kmutex_unlock(&state_ptr->allocation_mutex);
 }
+
 //static void report_memory_leaks() {
 //    if (!state_ptr) {
 //        return;

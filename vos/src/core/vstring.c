@@ -310,10 +310,10 @@ typedef struct StringBuilder {
 
 // Initializes a new string builder
 StringBuilder *sb_new() {
-    StringBuilder *sb = (StringBuilder *) malloc(sizeof(StringBuilder));
+    StringBuilder *sb = (StringBuilder *) platform_allocate(sizeof(StringBuilder), false);
     sb->capacity = 256; // Initial capacity
     sb->length = 0;
-    sb->buffer = (char *) malloc(sb->capacity * sizeof(char));
+    sb->buffer = (char *) platform_allocate(sb->capacity * sizeof(char), false);
     sb->buffer[0] = '\0'; // Ensure it's a valid C-string
     return sb;
 }

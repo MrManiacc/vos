@@ -170,7 +170,6 @@ ProcID *kernel_lookup_process_id(const char *name) {
     return &process->pid;
 }
 
-
 ProcID id_pool_next_id() {
     ProcPool *pool = kernel_context->id_pool;
     // Check if we are overflowing the pool.

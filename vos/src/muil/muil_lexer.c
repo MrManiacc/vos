@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
-#include "vlexer.h"
+#include "muil_lexer.h"
 #include "platform/platform.h"
 
 static Token makeToken(ProgramSource *result, TokenType type, const char *start, u32 length, u32 line, u32 column);
@@ -29,45 +29,37 @@ static void skipComment(ProgramSource *result, const char **current, u32 *line);
 
 const char *get_token_type_name(TokenType type) {
     switch (type) {
-        case TOKEN_EOF:
-            return "EOF";
-        case TOKEN_ERROR:
-            return "Error";
-        case TOKEN_IDENTIFIER:
-            return "Identifier";
-        case TOKEN_STRING:
-            return "String";
-        case TOKEN_NUMBER:
-            return "Number";
-        case TOKEN_LPAREN:
-            return "Left Parenthesis";
-        case TOKEN_RPAREN:
-            return "Right Parenthesis";
-        case TOKEN_LBRACE:
-            return "Left Brace";
-        case TOKEN_RBRACE:
-            return "Right Brace";
-        case TOKEN_COMMA:
-            return "Comma";
-        case TOKEN_IMPORT:
-            return "Import";
-        case TOKEN_COMPONENT:
-            return "Component";
+        case TOKEN_EOF:return "EOF";
+        case TOKEN_ERROR:return "Error";
+        case TOKEN_IDENTIFIER:return "Identifier";
+        case TOKEN_STRING:return "String";
+        case TOKEN_NUMBER:return "Number";
+        case TOKEN_LPAREN:return "Left Parenthesis";
+        case TOKEN_RPAREN:return "Right Parenthesis";
+        case TOKEN_LBRACE:return "Left Brace";
+        case TOKEN_RBRACE:return "Right Brace";
+        case TOKEN_LT:return "Less Than";
+        case TOKEN_GT:return "Greater Than";
+        case TOKEN_DOT:return "Dot";
+        case TOKEN_COMMA:return "Comma";
+        case TOKEN_IMPORT:return "Import";
+        case TOKEN_COMPONENT:return "Component";
             // Add more token types here as needed
-        case TOKEN_COLON:
-            return "Colon";
-        case TOKEN_DELIMITER:
-            return "Delimiter";
-        case TOKEN_EQUALS:
-            return "Equals";
-        case TOKEN_PIPE:
-            return "Pipe";
-        case TOKEN_LBRACKET:
-            return "Left Bracket";
-        case TOKEN_RBRACKET:
-            return "Right Bracket";
-        default:
-            return "Unknown";
+        case TOKEN_COLON:return "Colon";
+        case TOKEN_DELIMITER:return "Delimiter";
+        case TOKEN_EQUALS:return "Equals";
+        case TOKEN_PIPE:return "Pipe";
+        case TOKEN_LBRACKET:return "Left Bracket";
+        case TOKEN_RBRACKET:return "Right Bracket";
+        case TOKEN_STAR:return "Asterisk";
+        case TOKEN_SLASH:return "Slash";
+        case TOKEN_PERCENT:return "Percent";
+        case TOKEN_AMPERSAND:return "Ampersand";
+        case TOKEN_BANG:return "Bang";
+        case TOKEN_QUESTION:return "Question";
+        case TOKEN_PLUS:return "Plus";
+        case TOKEN_MINUS:return "Minus";
+        default:return "Unknown";
     }
 }
 
@@ -87,38 +79,49 @@ ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
         char c = *current++;
         u32 column = (u32) (current - lineStart) + 1;
         switch (c) {
-            case '(':
-                addToken(&result, makeToken(&result, TOKEN_LPAREN, start, 1, line, column));
+            case '*' :addToken(&result, makeToken(&result, TOKEN_STAR, start, 1, line, column));
                 break;
-            case ')':
-                addToken(&result, makeToken(&result, TOKEN_RPAREN, start, 1, line, column));
+            case '/' :addToken(&result, makeToken(&result, TOKEN_SLASH, start, 1, line, column));
                 break;
-            case '{':
-                addToken(&result, makeToken(&result, TOKEN_LBRACE, start, 1, line, column));
+            case '%' :addToken(&result, makeToken(&result, TOKEN_PERCENT, start, 1, line, column));
                 break;
-            case '}':
-                addToken(&result, makeToken(&result, TOKEN_RBRACE, start, 1, line, column));
+            case '&' :addToken(&result, makeToken(&result, TOKEN_AMPERSAND, start, 1, line, column));
                 break;
-            case '[':
-                addToken(&result, makeToken(&result, TOKEN_LBRACKET, start, 1, line, column));
+            case '!' :addToken(&result, makeToken(&result, TOKEN_BANG, start, 1, line, column));
                 break;
-            case ']':
-                addToken(&result, makeToken(&result, TOKEN_RBRACKET, start, 1, line, column));
+            case '?' :addToken(&result, makeToken(&result, TOKEN_QUESTION, start, 1, line, column));
                 break;
-            case ',':
-                addToken(&result, makeToken(&result, TOKEN_COMMA, start, 1, line, column));
+            case '+' :addToken(&result, makeToken(&result, TOKEN_PLUS, start, 1, line, column));
                 break;
-            case ':':
-                addToken(&result, makeToken(&result, TOKEN_COLON, start, 1, line, column));
+            case '-' :addToken(&result, makeToken(&result, TOKEN_MINUS, start, 1, line, column));
                 break;
-            case '=':
-                addToken(&result, makeToken(&result, TOKEN_EQUALS, start, 1, line, column));
+            case '<' :addToken(&result, makeToken(&result, TOKEN_LT, start, 1, line, column));
                 break;
-            case '|':
-                addToken(&result, makeToken(&result, TOKEN_PIPE, start, 1, line, column));
+            case '>' :addToken(&result, makeToken(&result, TOKEN_GT, start, 1, line, column));
                 break;
-            case '"':
-                lexString(&result, &current, &line, &column);
+            case '.' :addToken(&result, makeToken(&result, TOKEN_DOT, start, 1, line, column));
+                break;
+            case '(':addToken(&result, makeToken(&result, TOKEN_LPAREN, start, 1, line, column));
+                break;
+            case ')':addToken(&result, makeToken(&result, TOKEN_RPAREN, start, 1, line, column));
+                break;
+            case '{':addToken(&result, makeToken(&result, TOKEN_LBRACE, start, 1, line, column));
+                break;
+            case '}':addToken(&result, makeToken(&result, TOKEN_RBRACE, start, 1, line, column));
+                break;
+            case '[':addToken(&result, makeToken(&result, TOKEN_LBRACKET, start, 1, line, column));
+                break;
+            case ']':addToken(&result, makeToken(&result, TOKEN_RBRACKET, start, 1, line, column));
+                break;
+            case ',':addToken(&result, makeToken(&result, TOKEN_COMMA, start, 1, line, column));
+                break;
+            case ':':addToken(&result, makeToken(&result, TOKEN_COLON, start, 1, line, column));
+                break;
+            case '=':addToken(&result, makeToken(&result, TOKEN_EQUALS, start, 1, line, column));
+                break;
+            case '|':addToken(&result, makeToken(&result, TOKEN_PIPE, start, 1, line, column));
+                break;
+            case '"':lexString(&result, &current, &line, &column);
                 break;
             case ';':
             case '\n':

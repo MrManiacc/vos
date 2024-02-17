@@ -1,0 +1,23 @@
+Foo{
+
+    Bar : Teste | Blach {
+        test = 5 + (34 * 4)
+    }
+}
+
+
+Number : Float | Int | Double | Short | Long {}
+
+Fibonacci  {
+    Args : Number[]
+    Result : Number
+
+    Calc : Args -> Result {
+        if Args.length < 2 {
+            return 0
+        }
+        else {
+            return Calc(Args[0] - 1) + Calc(Args[0] - 2)
+        }
+    }
+}
