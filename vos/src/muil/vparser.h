@@ -22,6 +22,7 @@ typedef enum {
     AST_EXPRESSION, // General expressions
     AST_ARRAY, // Represents an array of types or values
     AST_SCOPE, // Represents a scope of nodes
+    AST_BINARY_OP
 } ASTNodeType;
 
 // Enum for different types of literals
@@ -78,6 +79,12 @@ typedef struct {
     ASTNode *elements; // Elements of the array, can be types or values
 } ArrayNode;
 
+typedef struct {
+    ASTNode *left;
+    ASTNode *right;
+    TokenType operator;
+} BinaryOpNode;
+
 struct ASTNode {
     ASTNodeType nodeType;
     union {
@@ -87,9 +94,11 @@ struct ASTNode {
         AssignmentNode assignment;
         ArrayNode array;
         ScopeNode scope;
+        BinaryOpNode binaryOp;
     } data;
     ASTNode *next; // Next sibling in the AST
 };
+
 
 // Root of the AST for a parsed program
 typedef struct ProgramAST {

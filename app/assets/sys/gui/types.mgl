@@ -1,6 +1,6 @@
 Primitive : String | Int | Float | Boolean | String[] | Int[] | Float[] | Boolean[] | null {
-    Value {
-        String : String
+    Value : Test{
+        String : String = "Hello"
         Int : Int
         Float : Float
         Boolean : Boolean
@@ -19,6 +19,9 @@ Ancestor : Something {
     Parent = Test {
         Child = Blah : Test | null {
             Grandchild = ["Testing", "testing2", [123, 432]]
+        }
+        TestingBaseic{
+            Test = "Hello"
         }
     }
 }

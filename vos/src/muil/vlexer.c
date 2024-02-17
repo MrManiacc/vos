@@ -81,7 +81,7 @@ ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
     const char *start = source;
     const char *current = source;
     const char *lineStart = source; // Track the start of the current line
-    int line = 0;
+    int line = 1;
     while (current - source < length) {
         start = current; // Start of the new token
         char c = *current++;
@@ -127,6 +127,7 @@ ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
                     addToken(&result, makeToken(&result, TOKEN_DELIMITER, start, 1, line, column));
                 if (c == '\n') {
                     line++;
+                    lineStart = current; // Point to the start of the new line
                     column = 0; // Reset column for the new line
                 }
                 break;

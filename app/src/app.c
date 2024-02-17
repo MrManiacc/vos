@@ -86,9 +86,9 @@ int main(int argc, char **argv) {
 //int main(int argc, char **argv) {
 //    char *root_path = path_locate_root();
 //    vdebug("Root path: %s", root_path)
-//    kernel_result result = kernel_initialize(root_path);
-//    if (!is_kernel_success(result.code)) {
-//        verror("Failed to initialize kernel: %s", get_kernel_result_message(result))
+//    KernelResult result = kernel_initialize(root_path);
+//    if (!kernel_is_result_success(result.code)) {
+//        verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
 //        return 1;
 //    }
 //    startup_script_init();
@@ -106,11 +106,11 @@ int main(int argc, char **argv) {
 //        window_end_frame();
 //    }
 //    window_shutdown();
-//    kernel_result shutdown_result = kernel_shutdown();
-//    if (!is_kernel_success(shutdown_result.code)) {
-//        verror("Failed to shutdown kernel: %s", get_kernel_result_message(shutdown_result))
+//    KernelResult shutdown_result = kernel_shutdown();
+//    if (!kernel_is_result_success(shutdown_result.code)) {
+//        verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
 //        return 1;
 //    }
 //    return 0;
 //}
-
+//

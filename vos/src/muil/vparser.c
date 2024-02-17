@@ -45,8 +45,6 @@ ASTNode *parser_parse_scope(ParserState *state);
 // Parses a literal value (number, string, boolean)
 ASTNode *parser_parse_literal(ParserState *state);
 
-// Parses an assignment statement
-ASTNode *parser_parse_assignment(ParserState *state);
 
 // Parses an array literal
 ASTNode *parser_parse_array(ParserState *state);
@@ -55,7 +53,7 @@ ASTNode *parser_parse_array(ParserState *state);
 ASTNode *parser_parse_expression(ParserState *state);
 
 // Helper to parse either a property or a nested component
-ASTNode *parser_parse_property_or_component(ParserState *state);
+ASTNode *parser_parse_body(ParserState *state);
 
 //Parses a type. A type can be a single identifier a compound type or an array type.
 //I.e. "string", "int", "string | int", "string[]", "int[]", "string | int[]"
@@ -68,12 +66,10 @@ Type *parser_parse_type(ParserState *state);
 ProgramAST parser_parse(ProgramSource *source) {
     ParserState state = {source, 0};
     ProgramAST result = {null};
-    
     ASTNode **current = &(result.root);
     
-    skip_delimiters(&state);
     while (state.current_token_index < source->count && peek(&state).type != TOKEN_EOF) {
-        ASTNode *componentNode = parser_parse_component(&state);
+        ASTNode *componentNode = parser_parse_expression(&state);
         if (!componentNode) {
             verror("Failed to parse top-level component");
             // Perform any necessary cleanup
@@ -83,7 +79,6 @@ ProgramAST parser_parse(ProgramSource *source) {
         *current = componentNode;
         current = &((*current)->next);
         
-        skip_delimiters(&state);
     }
     
     return result;
@@ -114,16 +109,7 @@ ASTNode *parser_parse_component(ParserState *state) {
         }
     }
     
-    Token next = peek(state);
-    
-    if (next.type == TOKEN_LBRACE) {
-        //Parse scope
-        consume(state, TOKEN_LBRACE);
-        componentNode->data.component.body = parser_parse_scope(state);
-    } else {
-        // Parse a expression
-        componentNode->data.component.body = parser_parse_expression(state);
-    }
+    componentNode->data.component.body = parser_parse_scope(state);
     
     // TODO: Allow for a component's body to be a single expression (or a scope)
 
@@ -169,11 +155,14 @@ ASTNode *parser_parse_scope(ParserState *state) {
     if (!scopeNode) return null; // Error handling within create_node
     
     ASTNode **current = &(scopeNode->data.scope.nodes);
-    
+    if (match(state, TOKEN_RBRACE)) {
+        return scopeNode;
+    }
     while (!match(state, TOKEN_RBRACE) && peek(state).type != TOKEN_EOF) {
         skip_delimiters(state);
-        
-        ASTNode *childNode = parser_parse_property_or_component(state);
+        Token now = peek(state);
+//        ASTNode *childNode = parser_parse_body(state);
+        ASTNode *childNode = parser_parse_expression(state);
         if (!childNode) {
             // Handle parsing error, including potential cleanup
             break; // Exit the loop on error
@@ -189,15 +178,10 @@ ASTNode *parser_parse_scope(ParserState *state) {
 }
 
 
-ASTNode *parser_parse_property_or_component(ParserState *state) {
-    skip_delimiters(state);
-    
+ASTNode *parser_parse_body(ParserState *state) {
     
     // Expect an identifier for a property or component
     Token identifierToken = consume(state, TOKEN_IDENTIFIER);
-    
-    
-    
     // Look ahead to determine if this is a property assignment or a nested component
     Token lookaheadToken = peek(state); // We need to look ahead to decide the next step
     if (lookaheadToken.type == TOKEN_EQUALS) { // It's a property assignment
@@ -321,33 +305,6 @@ ASTNode *parser_parse_literal(ParserState *state) {
     return node;
 }
 
-ASTNode *parser_parse_assignment(ParserState *state) {
-    skip_delimiters(state); // Skip any leading delimiters
-    
-    Token identifierToken = consume(state, TOKEN_IDENTIFIER);
-    if (identifierToken.type != TOKEN_IDENTIFIER) {
-        verror("Expected identifier in assignment");
-        return null;
-    }
-    
-    if (!match(state, TOKEN_EQUALS)) {
-        verror("Expected '=' after identifier");
-        return null;
-    }
-    
-    ASTNode *valueNode = parser_parse_expression(state); // Assuming parser_parse_expression is implemented
-    if (!valueNode) {
-        verror("Failed to parse right-hand side of assignment");
-        return null;
-    }
-    
-    ASTNode *assignmentNode = (ASTNode *) platform_allocate(sizeof(ASTNode), false);
-    assignmentNode->nodeType = AST_ASSIGNMENT;
-    assignmentNode->data.assignment.variableName = string_ndup(identifierToken.start, identifierToken.length);
-    assignmentNode->data.assignment.value = valueNode;
-    
-    return assignmentNode;
-}
 
 ASTNode *parser_parse_array(ParserState *state) {
     skip_delimiters(state); // Skip leading delimiters
@@ -388,14 +345,55 @@ ASTNode *parser_parse_array(ParserState *state) {
 ASTNode *parser_parse_expression(ParserState *state) {
     skip_delimiters(state);
     Token nextToken = peek(state);
-    if (nextToken.type == TOKEN_NUMBER || nextToken.type == TOKEN_STRING || nextToken.type == TOKEN_TRUE ||
-        nextToken.type == TOKEN_FALSE) {
+    //parse assignment
+    if (nextToken.type == TOKEN_IDENTIFIER) {
+        Token lookahead = peek_distance(state, 1);
+        if (lookahead.type == TOKEN_EQUALS) {
+            //parse an assignment
+            ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
+            if (!assignmentNode) return null; // Error handling within create_node
+            Token identifierToken = consume(state, TOKEN_IDENTIFIER);
+            assignmentNode->data.assignment.variableName = string_ndup(identifierToken.start, identifierToken.length);
+            consume(state, TOKEN_EQUALS);
+            assignmentNode->data.assignment.value = parser_parse_expression(state);
+            return assignmentNode;
+        } else if (lookahead.type == TOKEN_COLON) {
+            {
+                // parse the type
+                ASTNode *propertyNode = create_node(AST_PROPERTY);
+                if (!propertyNode) return null; // Error handling within create_node
+                Token identifierToken = consume(state, TOKEN_IDENTIFIER);
+                propertyNode->data.variable.name = string_ndup(identifierToken.start, identifierToken.length);
+                consume(state, TOKEN_COLON);
+                propertyNode->data.variable.type = parser_parse_type(state);
+                if (match(state, TOKEN_EQUALS)) {
+                    propertyNode->data.variable.value = parser_parse_expression(state);
+                }
+                return propertyNode;
+            }
+        } else {
+            //parse a variable
+            ASTNode *variableNode = create_node(AST_PROPERTY);
+            if (!variableNode) return null; // Error handling within create_node
+            Token identifierToken = consume(state, TOKEN_IDENTIFIER);
+            variableNode->data.variable.name = string_ndup(identifierToken.start, identifierToken.length);
+            if (match(state, TOKEN_EQUALS)) {
+                variableNode->data.variable.value = parser_parse_expression(state);
+            }
+            return variableNode;
+        }
+    } else if (nextToken.type == TOKEN_NUMBER || nextToken.type == TOKEN_STRING || nextToken.type == TOKEN_TRUE ||
+               nextToken.type == TOKEN_FALSE) {
         return parser_parse_literal(state);
     } else if (nextToken.type == TOKEN_LBRACKET) {
         //Parse an array
         return parser_parse_array(state);
+    } else if (nextToken.type == TOKEN_LBRACE) {
+        consume(state, TOKEN_LBRACE);
+        return parser_parse_scope(state);
     } else {
-        return parser_parse_component(state);
+        verror("Unexpected token while parsing expression");
+        return null;
     }
 }
 
@@ -548,8 +546,8 @@ static char *createIndent(int level) {
         return indent;
     }
     
-    char *indent = (char *) platform_allocate(level + 1, false);
-    memset(indent, ' ', level); // Fill with spaces
+    char *indent = (char *) platform_allocate(2 * level + 1, false);
+    memset(indent, ' ', level * 2); // Fill with spaces
     indent[level] = '\0';
     return indent;
 }
@@ -562,15 +560,25 @@ char *parser_dump_program(ProgramAST *result) {
     if (!result || !result->root) {
         return string_ndup("Empty AST", 9);
     }
-    
-    char *dump = dumpASTNode(result->root, 0, false);
-    return dump;
+    ASTNode *node = result->root;
+    StringBuilder *builder = sb_new();
+    while (node) {
+        char *dump = dumpASTNode(node, 0, false);
+        sb_appendf(builder, "%s", dump);
+        platform_free(dump, false);
+        node = node->next;
+        if (node) {
+            sb_appendf(builder, ",\n");
+        }
+    }
+    sb_appendf(builder, "\n");
+    return sb_build(builder);
 }
 
 static char *dumpType(Type *type) {
     if (!type) return NULL;
     
-    char *buffer = (char *) platform_allocate(1024, false); // Initial buffer size
+    char *buffer = (char *) platform_allocate(2048, false); // Initial buffer size
     size_t bufferSize = 1024;
     size_t cursor = 0;
     
@@ -625,11 +633,11 @@ static char *dumpASTNode(ASTNode *node, int indentLevel, b8 onlyPassIndent) {
             }
             break;
         case AST_SCOPE:
-            cursor += snprintf(buffer + cursor, bufferSize - cursor, "%sScope {\n", indent);
+            cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s{\n", indent);
             ASTNode *child = node->data.scope.nodes;
             while (child) {
                 // Recursively dump child nodes with increased indent level
-                char *childDump = dumpASTNode(child, indentLevel + 1, false);
+                char *childDump = dumpASTNode(child, indentLevel + 3, false);
                 cursor += snprintf(buffer + cursor, bufferSize - cursor, "%s", childDump);
                 platform_free(childDump, false);
                 child = child->next;
@@ -715,14 +723,6 @@ static char *dumpASTNode(ASTNode *node, int indentLevel, b8 onlyPassIndent) {
         
     }
     
-    // Recursively dump next sibling
-    if (node->next && node->nodeType == AST_COMPONENT) {
-        char *nextDump = dumpASTNode(node->next, indentLevel, false);
-        cursor += snprintf(buffer + cursor, bufferSize - cursor, ",\n\n%s", nextDump);
-        platform_free(nextDump, false);
-        // if not last, add comma and new line
-
-    }
     
     platform_free(indent, false);
     
