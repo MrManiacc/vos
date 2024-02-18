@@ -196,7 +196,7 @@ static Type *evalExpressionType(TypeCheckingVisitor *self, ASTNode *node) {
             return evalExpressionType(self, assignmentNode.value);
         } else {
             stack_push(self->errorStack, "Assignment has no value");
-            return null;
+            return dict_get(self->typeTable, "void");
         }
     } else if (node->nodeType == AST_FUNCTION_CALL) {
         FunctionCallNode functionCallNode = node->data.functionCall;
@@ -242,11 +242,13 @@ static b8 validateType(TypeCheckingVisitor *self, Type *type) {
     }
     // Depending on type kind, we perform different visitations or actions
     switch (type->kind) {
-        case TYPE_BASIC:b8 result = dict_contains(self->typeTable, type->data.name);
-            if (!result) {
-                stack_push(self->errorStack, string_format("Type not found in type table: %s", type->data.name));
-            }
-            return result;
+        case TYPE_BASIC:
+//            b8 result = dict_contains(self->typeTable, type->data.name);
+//            if (!result) {
+//                stack_push(self->errorStack, string_format("Type not found in type table: %s", type->data.name));
+//            }
+//            return result;
+        return dict_contains(self->typeTable, type->data.name);
         case TYPE_ARRAY:
             // Recursively validate the element type of the array
             return validateType(self, type->data.array.elementType);

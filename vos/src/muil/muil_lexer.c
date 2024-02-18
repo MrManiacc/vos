@@ -69,7 +69,7 @@ static Token *lastToken = NULL;
 
 
 // LexerResult lexInput implementation
-ProgramSource lexer_analysis_from_mem(const char *source, size_t length) {
+ProgramSource lexer_analysis_from_mem(const char *source, u32 length) {
     ProgramSource result = {NULL, 0, 0};
     const char *start = source;
     const char *current = source;

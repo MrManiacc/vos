@@ -64,8 +64,8 @@ typedef struct {
 // Lexer output structure
 typedef struct ProgramSource {
     Token *tokens; // Dynamic array of tokens
-    size_t count; // Number of tokens
-    size_t capacity; // Capacity of the tokens array
+    u32 count; // Number of tokens
+    u32 capacity; // Capacity of the tokens array
     // Any additional fields for error handling, etc.
 } ProgramSource;
 
@@ -78,7 +78,7 @@ typedef struct ProgramSource {
  * @param length The length of the source code.
  * @return The result of the lexical analysis, which includes the list of tokens and any errors encountered.
  */
-ProgramSource lexer_analysis_from_mem(const char *source, size_t length);
+ProgramSource lexer_analysis_from_mem(const char *source, u32 length);
 
 
 

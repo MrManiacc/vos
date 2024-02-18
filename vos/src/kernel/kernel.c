@@ -29,7 +29,7 @@ KernelResult kernel_initialize(char *root_path) {
         return result;
     }
     memory_system_configuration config;
-    config.heap_size = MEGABYTES(512);
+    config.heap_size = GIBIBYTES(2);
     if (!memory_system_initialize(config)) {
         verror("Failed to initialize memory system; shutting down.");
         return (KernelResult) {KERNEL_ERROR_OUT_OF_MEMORY, null};

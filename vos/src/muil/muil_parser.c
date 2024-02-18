@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include "muil_parser.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"

@@ -214,7 +214,6 @@ void *platform_copy_memory(void *dest, const void *source, unsigned long long in
 void *platform_set_memory(void *dest, int value, unsigned long long int size) {
     return memset(dest, value, size);
 }
-
 void platform_console_write(const char *message, u8 colour) {
     // ANSI Color Codes
     static const char *colour_strings[] = {
@@ -234,7 +233,11 @@ void platform_console_write(const char *message, u8 colour) {
     printf("%s%s\033[0m", colour_code, message); // Reset color at the end
 }
 
-
+#include <assert.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/sysctl.h>
 // Linux version https://stackoverflow.com/questions/3596781/how-to-detect-if-the-console-is-a-terminal-in-unix-in-c
 // Mac version https://stackoverflow.com/questions/2200277/detecting-debugger-on-mac-os-x
 b8 platform_is_debugger_attached(void) {
@@ -751,6 +754,23 @@ b8 kmutex_unlock(kmutex *mutex) {
     if (!mutex) return false;
 //    return pthread_mutex_unlock(mutex->internal_data) == 0;
     return true;
+}
+
+/**
+ * @brief Initializes the platform layer.
+ */
+b8 platform_initialize(){
+    return true;
+
+}
+
+/**
+ * @brief Shuts down the platform layer.
+ *
+ * @param plat_state A pointer to the platform layer state.
+ */
+void platform_shutdown(){
+    return;
 }
 
 #endif // __APPLE__
