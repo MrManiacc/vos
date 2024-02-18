@@ -13,13 +13,13 @@
 void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast);
 
 
-// Utility function to append indentation
 void append_indent(StringBuilder *sb, int indentLevel, int isLast) {
     for (int i = 0; i < indentLevel; ++i) {
-        sb_appendf(sb, "│   ");
+        sb_appendf(sb, "│   "); // Vertical line remains the same for simplicity
     }
     if (indentLevel > 0) {
-        sb_appendf(sb, "%s── ", isLast ? "└" : "├");
+        // Using DEC Line Drawing characters directly
+        sb_appendf(sb, "%s── ", isLast ? "└" : "├"); // Modify these as needed based on your terminal's encoding support
     }
 }
 
@@ -89,11 +89,11 @@ void dump_property(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast
 
 void dump_component(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    sb_appendf(sb, "Component: %s\n", node->data.component.name);
-    if (node->data.component.extends) {
+    sb_appendf(sb, "Compound: %s\n", node->data.component.name);
+    if (node->data.component.super) {
         append_indent(sb, indentLevel + 1, 0);
-        sb_appendf(sb, "Extends: ");
-        dump_type(node->data.component.extends, sb);
+        sb_appendf(sb, "Type: ");
+        dump_type(node->data.component.super, sb);
         sb_appendf(sb, "\n");
     }
     if (node->data.component.body) {
@@ -102,10 +102,10 @@ void dump_component(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
 }
 
 void dump_scope(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
-//    append_indent(sb, indentLevel, isLast);
-//    sb_appendf(sb, "Scope:\n"); // No need to print the scope node itself, just its children
+    append_indent(sb, indentLevel, isLast);
+    sb_appendf(sb, "Scope:\n"); // No need to print the scope node itself, just its children
     for (ASTNode *stmt = node->data.scope.nodes; stmt != null; stmt = stmt->next) {
-        dump_ast_node(stmt, sb, indentLevel, stmt->next == null);
+        dump_ast_node(stmt, sb, indentLevel + 1, stmt->next == null);
     }
 }
 
@@ -130,6 +130,29 @@ void dump_binary_op(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
     dump_ast_node(node->data.binaryOp.right, sb, indentLevel + 1, 1);
 }
 
+void dump_reference(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
+    append_indent(sb, indentLevel, isLast);
+    sb_appendf(sb, "Reference: %s, Type: ", node->data.reference.name);
+    dump_type(node->data.reference.type, sb);
+    sb_appendf(sb, "\n");
+    if (node->data.reference.reference) {
+        dump_ast_node(node->data.reference.reference, sb, indentLevel + 1, 1); // Property value is always last
+    }
+}
+
+void dump_function_call(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
+    append_indent(sb, indentLevel, isLast);
+    sb_appendf(sb, "Function Call: %s\n", node->data.functionCall.name);
+    if (node->data.functionCall.reference) {
+        dump_ast_node(node->data.functionCall.reference, sb, indentLevel + 1, 0);
+    }
+    ASTNode *args = node->data.functionCall.arguments;
+    while (args) {
+        dump_ast_node(args, sb, indentLevel + 1, args->next == null);
+        args = args->next;
+    }
+}
+
 // Main recursive function to dump AST nodes
 void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     if (!node) return;
@@ -148,7 +171,10 @@ void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast
         case AST_ARRAY:dump_array(node, sb, indentLevel, isLast);
             break;
         case AST_BINARY_OP:dump_binary_op(node, sb, indentLevel, isLast);
-            // Add other cases as necessary
+            break;
+        case AST_REFERENCE:dump_reference(node, sb, indentLevel, isLast);
+            break;
+        case AST_FUNCTION_CALL:dump_function_call(node, sb, indentLevel, isLast);
             break;
     }
 

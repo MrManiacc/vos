@@ -5,7 +5,7 @@
 
 #include "defines.h"
 #include "muil_parser.h"
-#include "muil_ir.h"
+#include "muil_visitor.h"
 
 typedef struct TypeCheckingVisitor TypeCheckingVisitor;
 

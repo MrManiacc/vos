@@ -93,7 +93,7 @@ b8 _memory_system_initialize(memory_system_configuration config, int line, const
     
     // Figure out how much space the dynamic allocator needs.
     u64 alloc_requirement = 0;
-    dynamic_allocator_create(config.total_alloc_size, &alloc_requirement, 0, 0);
+    dynamic_allocator_create(config.heap_size, &alloc_requirement, 0, 0);
     
     // Call the platform allocator to get the memory for the whole system, including the state.
     void *block = platform_allocate(state_memory_requirement + alloc_requirement, true);
@@ -112,7 +112,7 @@ b8 _memory_system_initialize(memory_system_configuration config, int line, const
     state_ptr->allocator_block = ((char *) block + state_memory_requirement);
     state_ptr->stats.allocations = ptr_hash_table_create(100);
     if (!dynamic_allocator_create(
-            config.total_alloc_size,
+            config.heap_size,
             &state_ptr->allocator_memory_requirement,
             state_ptr->allocator_block,
             &state_ptr->allocator)) {
@@ -125,7 +125,7 @@ b8 _memory_system_initialize(memory_system_configuration config, int line, const
         return false;
     }
     
-    vdebug("%s:%d Memory system successfully allocated %llu bytes.", file, line, config.total_alloc_size);
+    vdebug("%s:%d Memory system successfully allocated %llu bytes.", file, line, config.heap_size);
     return true;
 }
 
@@ -443,7 +443,7 @@ static void report_memory_leaks() {
             char location[1024]; // Ensure this is large enough for your paths
             snprintf(location, sizeof(location), "%s:%d", metadata->file, metadata->line);
 //
-            printf("%-50s %-10s %-15s\n",
+            vdebug("%-50s %-10s %-15s\n",
                    location,
                    memory_tag_strings[metadata->tag],
                    formattedSize);

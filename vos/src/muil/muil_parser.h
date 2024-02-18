@@ -21,6 +21,8 @@ typedef enum {
     AST_ARRAY,
     AST_SCOPE,
     AST_BINARY_OP,
+    AST_REFERENCE,
+    AST_FUNCTION_CALL
 } ASTNodeType;
 
 
@@ -46,18 +48,23 @@ typedef enum {
 
 typedef struct Type {
     TypeKind kind;
-    char* alias; // The alias name
+    char *alias; // The alias name
     struct Type *next; // For linked lists in unions, intersections, tuples
     union {
         char *name; // For basic types
-        struct { struct Type *elementType; } array;
-        struct { struct Type *lhs; struct Type *rhs; } binary; // For union, intersection, function
+        struct {
+            struct Type *elementType;
+        } array;
+        struct {
+            struct Type *lhs;
+            struct Type *rhs;
+        } binary; // For union, intersection, function
         struct Type *tupleTypes; // Pointer to the first type in the tuple
     } data;
 } Type;
 
 // A scope is a collection of nodes.
-typedef struct ScopeNode {
+typedef struct {
     ASTNode *nodes; // Nodes in the scope
     struct ScopeNode *parent; // Parent scope
 } ScopeNode;
@@ -65,7 +72,7 @@ typedef struct ScopeNode {
 // Separate data structures for each node type
 typedef struct {
     char *name; // Component name, null for instances
-    Type *extends; // The super component types that this component extends. Can be null.
+    Type *super; // The super component types that this component extends. Can be null.
     ASTNode *body; // A body will typically be a scope node
     b8 topLevel; // Indicates if this is a top-level component
 } ComponentNode;
@@ -100,6 +107,18 @@ typedef struct {
     TokenType operator;
 } BinaryOpNode;
 
+typedef struct {
+    char *name; // The name of the reference
+    Type *type; // The type of the reference. Can be null if the type is not known/inferred from reference
+    ASTNode *reference; // The reference node
+} ReferenceNode;
+
+typedef struct {
+    char *name; // The name of the function
+    ASTNode *reference; // The reference to the function
+    ASTNode *arguments; // The arguments to the function
+} FunctionCallNode;
+
 struct ASTNode {
     ASTNodeType nodeType;
     union {
@@ -110,6 +129,8 @@ struct ASTNode {
         ArrayNode array;
         ScopeNode scope;
         BinaryOpNode binaryOp;
+        ReferenceNode reference;
+        FunctionCallNode functionCall;
     } data;
     ASTNode *next; // Next sibling in the AST
 };
@@ -162,4 +183,7 @@ b8 parser_free_node(ASTNode *node);
  *         if the program argument is NULL
  */
 b8 parser_free_program(ProgramAST *program);
+
+
+ASTNode *parser_get_node(void *node);
 

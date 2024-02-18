@@ -58,23 +58,16 @@ typedef struct VFilePathList {
 } VFilePathList;
 
 /**
- * @brief Performs startup routines within the platform layer. Should be called twice,
- * once to obtain the memory requirement (with state=0), then a second time passing
- * an allocated block of memory to state.
- *
- * @param memory_requirement A pointer to hold the memory requirement in bytes.
- * @param state A pointer to a block of memory to hold state. If obtaining memory requirement only, pass 0.
- * @param config A pointer to a configuration platform_system_config structure required by this system.
- * @return True on success; otherwise false.
+ * @brief Initializes the platform layer.
  */
-b8 platform_system_startup(u64 *memory_requirement, void *state, void *config);
+b8 platform_initialize();
 
 /**
  * @brief Shuts down the platform layer.
  *
  * @param plat_state A pointer to the platform layer state.
  */
-void platform_system_shutdown(void *plat_state);
+void platform_shutdown();
 
 /**
  * @brief Performs any platform-specific message pumping that is required
@@ -373,5 +366,15 @@ char *platform_get_current_home_directory(void);
  * @note The returned string may be the same as the input path if it does not contain a directory separator (i.e., it's a file name in the root directory).
  * @note This function does not modify the input path.
  */
-char* platform_parent_directory(const char* path);
+char *platform_parent_directory(const char *path);
 
+
+/**
+ * @brief Check if a debugger is attached to the current process.
+ *
+ * This function checks if a debugger is attached to the current process.
+ * It returns a boolean value indicating whether a debugger is attached or not.
+ *
+ * @return A boolean value indicating whether a debugger is attached (true) or not (false).
+ */
+b8 platform_is_debugger_attached(void);

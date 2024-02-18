@@ -4,13 +4,11 @@
 
 #define LOG_WARN_ENABLED 1
 #define LOG_INFO_ENABLED 1
-#define LOG_DEBUG_ENABLED 1
-#define LOG_TRACE_ENABLED 1
 
 // Disable debug and trace logging for release builds.
-#ifndef USE_DEBUG_LOG
-#define LOG_DEBUG_ENABLED 0
-#define LOG_TRACE_ENABLED 0
+#ifdef USE_DEBUG_LOG
+#define LOG_DEBUG_ENABLED 1
+#define LOG_TRACE_ENABLED 1
 #endif
 
 typedef enum log_level {

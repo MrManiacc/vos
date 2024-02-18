@@ -5,6 +5,10 @@
 
 #include "muil_parser.h"
 
+/**
+ * @brief The A symbol table
+ */
+
 typedef struct IRVisitor {
     /**
      * @brief Function pointer to visit a ComponentNode.
@@ -114,7 +118,7 @@ typedef struct IRVisitor {
  * @param visitor A pointer to the IRVisitor object.
  * @param node    A pointer to the ComponentNode to be visited.
  */
-VAPI void ir_visit_component_node(IRVisitor *visitor, ComponentNode *node);
+VAPI void muil_visit_component_node(IRVisitor *visitor, ComponentNode *node);
 
 /**
  * @brief Visit the ScopeNode in the Intermediate Representation (IR) using the given visitor.
@@ -126,7 +130,7 @@ VAPI void ir_visit_component_node(IRVisitor *visitor, ComponentNode *node);
  * @param visitor A pointer to the IRVisitor object that will visit the ScopeNode.
  * @param node A pointer to the ScopeNode that needs to be visited.
  */
-VAPI void ir_visit_scope_node(IRVisitor *visitor, ScopeNode *node);
+VAPI void muil_visit_scope_node(IRVisitor *visitor, ScopeNode *node);
 
 /**
  * @brief Visits a VariableNode in the IR tree.
@@ -137,7 +141,7 @@ VAPI void ir_visit_scope_node(IRVisitor *visitor, ScopeNode *node);
  * @param visitor A pointer to the IRVisitor object.
  * @param node A pointer to the VariableNode to be visited.
  */
-VAPI void ir_visit_property_node(IRVisitor *visitor, PropertyNode *node);
+VAPI void muil_visit_property_node(IRVisitor *visitor, PropertyNode *node);
 
 /**
  * @brief Visits a literal node in an intermediate representation (IR) and performs an operation.
@@ -145,7 +149,7 @@ VAPI void ir_visit_property_node(IRVisitor *visitor, PropertyNode *node);
  * @param visitor The IR visitor object.
  * @param node The literal node to be visited.
  */
-VAPI void ir_visit_literal_node(IRVisitor *visitor, LiteralNode *node);
+VAPI void muil_visit_literal_node(IRVisitor *visitor, LiteralNode *node);
 
 /**
  * @brief Visits an assignment node.
@@ -155,7 +159,7 @@ VAPI void ir_visit_literal_node(IRVisitor *visitor, LiteralNode *node);
  * @param visitor The IRVisitor instance.
  * @param node The AssignmentNode to be visited.
  */
-VAPI void ir_visit_assignment_node(IRVisitor *visitor, AssignmentNode *node);
+VAPI void muil_visit_assignment_node(IRVisitor *visitor, AssignmentNode *node);
 
 /**
  * @brief Visits an array node in an intermediate representation (IR).
@@ -169,7 +173,7 @@ VAPI void ir_visit_assignment_node(IRVisitor *visitor, AssignmentNode *node);
  * @see IRVisitor
  * @see ArrayNode
  */
-VAPI void ir_visit_array_node(IRVisitor *visitor, ArrayNode *node);
+VAPI void muil_visit_array_node(IRVisitor *visitor, ArrayNode *node);
 
 /**
  * @brief Visits a binary operation node in the intermediate representation (IR).
@@ -180,7 +184,7 @@ VAPI void ir_visit_array_node(IRVisitor *visitor, ArrayNode *node);
  * @param visitor The IR visitor object responsible for visiting the node.
  * @param node The binary operation node to visit.
  */
-VAPI void ir_visit_binary_op_node(IRVisitor *visitor, BinaryOpNode *node);
+VAPI void muil_visit_binary_op_node(IRVisitor *visitor, BinaryOpNode *node);
 
 /**
  * @brief Visits a given type.
@@ -190,7 +194,7 @@ VAPI void ir_visit_binary_op_node(IRVisitor *visitor, BinaryOpNode *node);
  * @param visitor A pointer to the IRVisitor object to use for visiting the type.
  * @param type A pointer to the Type object to be visited.
  */
-VAPI void ir_visit_type(IRVisitor *visitor, Type *type);
+VAPI void muil_visit_type(IRVisitor *visitor, Type *type);
 
 /**
  * \brief Visits the ProgramAST node.
@@ -206,5 +210,5 @@ VAPI void ir_visit_type(IRVisitor *visitor, Type *type);
  * \sa IRVisitor
  * \sa ProgramAST
  */
-VAPI void ir_visit_tree(IRVisitor *visitor, ProgramAST *node);
+VAPI void muil_visit_tree(IRVisitor *visitor, ProgramAST *node);
 

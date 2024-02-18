@@ -57,29 +57,26 @@ void clock_setup(void) {
     QueryPerformanceCounter(&start_time);
 }
 
-b8 platform_system_startup(u64 *memory_requirement, void *state, void *config) {
-    platform_system_config *typed_config = (platform_system_config *) config;
-    *memory_requirement = sizeof(platform_state);
-    if (state == 0) {
-        return true;
+
+b8 platform_initialize() {
+    if (state_ptr) {
+        return false;
     }
-    state_ptr = state;
-    state_ptr->handle.h_instance = GetModuleHandleA(0);
-    
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &state_ptr->std_output_csbi);
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_ERROR_HANDLE), &state_ptr->err_output_csbi);
-    
-    state_ptr->device_pixel_ratio = 1.0f;
-    
+    SetConsoleOutputCP(65001);
     clock_setup();
+    
     
     return true;
 }
 
-void platform_system_shutdown(void *plat_state) {
+void platform_shutdown() {
     if (state_ptr && state_ptr->handle.hwnd) {
         DestroyWindow(state_ptr->handle.hwnd);
         state_ptr->handle.hwnd = 0;
+    }
+    if (state_ptr) {
+        platform_free(state_ptr, false);
+        state_ptr = 0;
     }
 }
 
@@ -117,24 +114,29 @@ void *platform_set_memory(void *dest, i32 value, u64 size) {
     return memset(dest, value, size);
 }
 
+b8 platform_is_debugger_attached(void) {
+    return IsDebuggerPresent();
+}
+
 void platform_console_write(const char *message, u8 colour) {
-    HANDLE console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE console_handle = GetStdHandle(STD_ERROR_HANDLE);
     
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (state_ptr) {
         csbi = state_ptr->std_output_csbi;
     } else {
-        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        GetConsoleScreenBufferInfo(console_handle, &csbi);
     }
-    
-    // FATAL,ERROR,WARN,INFO,DEBUG,TRACE, NONE
+    // FATAL,ERROR,WARN,INFO,DEBUG,TRACE
     static u8 levels[7] = {64, 4, 6, 2, 1, 8, 15};
     SetConsoleTextAttribute(console_handle, levels[colour]);
     OutputDebugStringA(message);
     u64 length = strlen(message);
     DWORD number_written = 0;
-    WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), message, (DWORD) length, &number_written, 0);
+    WriteConsoleA(console_handle, message, (DWORD) length, &number_written, 0);
+    
     SetConsoleTextAttribute(console_handle, csbi.wAttributes);
+    
 }
 
 void platform_console_write_error(const char *message, u8 colour) {
@@ -144,7 +146,7 @@ void platform_console_write_error(const char *message, u8 colour) {
     if (state_ptr) {
         csbi = state_ptr->err_output_csbi;
     } else {
-        GetConsoleScreenBufferInfo(GetStdHandle(STD_ERROR_HANDLE), &csbi);
+        GetConsoleScreenBufferInfo(console_handle, &csbi);
     }
     
     // FATAL,ERROR,WARN,INFO,DEBUG,TRACE
@@ -153,7 +155,7 @@ void platform_console_write_error(const char *message, u8 colour) {
     OutputDebugStringA(message);
     u64 length = strlen(message);
     DWORD number_written = 0;
-    WriteConsoleA(GetStdHandle(STD_ERROR_HANDLE), message, (DWORD) length, &number_written, 0);
+    WriteConsoleA(console_handle, message, (DWORD) length, &number_written, 0);
     
     SetConsoleTextAttribute(console_handle, csbi.wAttributes);
 }
@@ -320,8 +322,7 @@ b8 kmutex_lock(kmutex *mutex) {
             return true;
             
             // The thread got ownership of an abandoned mutex.
-        case WAIT_ABANDONED:
-            verror("Mutex lock failed.");
+        case WAIT_ABANDONED:verror("Mutex lock failed.");
             return false;
     }
     // KTRACE("Mutex locked.");
@@ -379,21 +380,18 @@ b8 vsemaphore_wait(vsemaphore *semaphore, u64 timeout_ms) {
     
     DWORD result = WaitForSingleObject(semaphore->internal_data, timeout_ms);
     switch (result) {
-        case WAIT_ABANDONED:
-            verror("The specified object is a mutex object that was not released by the thread that owned the mutex object before the owning thread terminated. Ownership of the mutex object is granted to the calling thread and the mutex state is set to nonsignaled. If the mutex was protecting persistent state information, you should check it for consistency.");
+        case WAIT_ABANDONED:verror(
+                    "The specified object is a mutex object that was not released by the thread that owned the mutex object before the owning thread terminated. Ownership of the mutex object is granted to the calling thread and the mutex state is set to nonsignaled. If the mutex was protecting persistent state information, you should check it for consistency.");
             return false;
         case WAIT_OBJECT_0:
             // The state is signaled.
             return true;
-        case WAIT_TIMEOUT:
-            verror("Semaphore wait timeout occurred.");
+        case WAIT_TIMEOUT:verror("Semaphore wait timeout occurred.");
             return false;
-        case WAIT_FAILED:
-            verror("WaitForSingleObject failed.");
+        case WAIT_FAILED:verror("WaitForSingleObject failed.");
             // TODO: GetLastError and print message.
             return false;
-        default:
-            verror("An unknown error occurred while waiting on a semaphore.");
+        default:verror("An unknown error occurred while waiting on a semaphore.");
             // TODO: GetLastError and print message.
             return false;
     }

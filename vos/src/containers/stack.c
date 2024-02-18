@@ -87,3 +87,24 @@ b8 stack_pop(Stack *s, void *out_element_data) {
     
     return true;
 }
+
+Stack *stack_new() {
+    Stack *s = kallocate(sizeof(Stack), MEMORY_TAG_ARRAY);
+    stack_create(s, sizeof(void *));
+    return s;
+}
+
+b8 stack_is_empty(const Stack *s) {
+    if (!s) {
+        verror("stack_is_empty requires a pointer to a valid stack.");
+        return true;
+    }
+    
+    return s->element_count == 0;
+}
+
+Stack *stack_new_sized(u32 element_size) {
+    Stack *s = kallocate(sizeof(Stack), MEMORY_TAG_ARRAY);
+    stack_create(s, element_size);
+    return s;
+}

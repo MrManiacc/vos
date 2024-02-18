@@ -1,28 +1,23 @@
-
-
-
-// Types are defined by the following syntax
-// Type :
-//      | Identifier
-//      | Identifier '[' Type ']'
-//      | Type '|' Type
-//      | Type '& Type'
-//      | Type '->' Type
-//      | '(' Type ')' | '(' Type ',' Type ')'
-
-
-// This is a type that extends all the primitive number types
-Number : Float | Int | Double | Short | Long {}
+Number : float | int{};
 
 // This is a subtype of Number, that is used for method argument types to resolve ambiguity
 NumberA : Number{}
+
+blah {}
+
 // Another subtype of Number
-NumberB : Number{}
+NumberB : float | int {
+    // The NumberB is the self type. You can use it like this or like the next example.
+    ToString : (NumberB) -> string = NumberB.toString(42, 69 * 420 + NumberB)
+    // This is the same as the above example, but it's a bit more explicit.
+    ToStringTwo : (Self : NumberB) -> string = Self.toString
+}
+
 
 // A function type that takes two Numbers, but the numbers are basically type aliases for the Number type
 // so that we can resolve ambiguity when calling the function.
 Function: (NumberA, NumberB) -> Number {
-    return 5 + 5
+    foo =  5 + 5
 }
 
 // This is a bit of syntactic sugar for the above function type.
@@ -30,6 +25,6 @@ Function: (NumberA, NumberB) -> Number {
 // It creates two subtypes of Number, NumberA and NumberB, and then uses those subtypes in the function type.
 // TODO: see if we can do return type inferences for inline function declarations
 FunctionTwo : (A : Number, B : Number) -> Number {
-    // Automatically take the last expression as the return value
-    A + B
+    Test : Number = A + B
 }
+

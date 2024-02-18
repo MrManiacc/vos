@@ -8,6 +8,7 @@
 #include "containers/dict.h"
 #include "core/vstring.h"
 #include "filesystem/paths.h"
+#include "platform/platform.h"
 
 // Get the next available ID from the pool.
 ProcID id_pool_next_id();
@@ -20,18 +21,20 @@ static Kernel *kernel_context = null;
 static b8 kernel_initialized = false;
 static Dict *processes_by_name = null;
 
+
 KernelResult kernel_initialize(char *root_path) {
+    
     if (kernel_initialized) {
         KernelResult result = {KERNEL_ALREADY_INITIALIZED, null};
         return result;
     }
-    // Memory system must be the first thing to be stood up.
-    memory_system_configuration memory_system_config;
-    memory_system_config.total_alloc_size = GIBIBYTES(2);
-    if (!memory_system_initialize(memory_system_config)) {
+    memory_system_configuration config;
+    config.heap_size = MEGABYTES(512);
+    if (!memory_system_initialize(config)) {
         verror("Failed to initialize memory system; shutting down.");
         return (KernelResult) {KERNEL_ERROR_OUT_OF_MEMORY, null};
     }
+    platform_initialize();
     strings_initialize();
     vfs_initialize(root_path);
     initialize_logging();
@@ -46,7 +49,7 @@ KernelResult kernel_initialize(char *root_path) {
     kernel_context->id_pool->max_id = 0;
     initialize_timer();
     kernel_initialized = true;
-    processes_by_name = dict_create_default();
+    processes_by_name = dict_new();
     event_initialize();
     intrinsics_initialize();
     vinfo("Kernel initialized")
@@ -81,6 +84,7 @@ KernelResult kernel_shutdown() {
     event_shutdown();
     dict_destroy(processes_by_name);
     strings_shutdown();
+    platform_shutdown();
     vtrace("Mem usage: %s", get_memory_usage_str())
     memory_system_shutdown();
     KernelResult result = {KERNEL_SUCCESS, null};

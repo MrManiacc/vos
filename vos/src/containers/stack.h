@@ -25,12 +25,25 @@ typedef struct Stack {
  * @return True on success; otherwise false.
  */
 VAPI b8 stack_create(Stack *out_stack, u32 element_size);
+
+#define Stack(type) *stack_new_sized(sizeof (type);
+
+VAPI Stack *stack_new();
+
+VAPI Stack *stack_new_sized(u32 element_size);
 /**
  * @brief Destroys the given stack.
  *
  * @param s A pointer to the stack to be destroyed.
  */
 VAPI void stack_destroy(Stack *s);
+
+/**
+ * @brief Clears the given stack.
+ *
+ * @param s A pointer to the stack to be cleared.
+ */
+VAPI b8 stack_is_empty(const Stack *s);
 
 /**
  * @brief Pushes an element (a copy of the element data) onto the stack.
@@ -62,3 +75,21 @@ VAPI b8 stack_peek(const Stack *s, void *out_element_data);
  * @return True on succcess; otherwise false.
  */
 VAPI b8 stack_pop(Stack *s, void *out_element_data);
+
+
+
+/**
+ * @brief Returns the current element count of the stack.
+ *
+ * @param s A pointer to the stack to get the count of.
+ * @return The current element count of the stack.
+ */
+#define stack_count(s) ((s)->element_count)
+
+/**
+ * @brief Returns the current allocated memory of the stack.
+ *
+ * @param s A pointer to the stack to get the allocated memory of.
+ * @return The current allocated memory of the stack.
+ */
+#define stack_allocated(s) ((s)->allocated)

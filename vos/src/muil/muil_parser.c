@@ -10,10 +10,15 @@
 #include "core/vstring.h"
 #include "core/vmem.h"
 #include "platform/platform.h"
+#include "containers/stack.h"
 
+#ifndef MAX_ERROR_MESSAGE
+#define MAX_ERROR_MESSAGE 256
+#endif
 typedef struct ParserState {
     ProgramSource *source;
     u32 current_token_index;
+    Stack *error_stack;
 } ParserState;
 
 // =============================================================================//
@@ -59,14 +64,8 @@ ASTNode *parser_parse_literal(ParserState *state);
 // Parses a primary expression (variable, literal, array, scope, etc.), with precedence
 ASTNode *parser_parse_primary(ParserState *state);
 
-// Parses an assignment (variable assignment)
-ASTNode *parser_parse_assignment(ParserState *state);
-
 // Parses an array literal
 ASTNode *parser_parse_array(ParserState *state);
-
-//Parse a binary operation
-ASTNode *parser_parse_binary_op(ParserState *state);
 
 // Parses an expression
 ASTNode *parser_parse_expression(ParserState *state);
@@ -86,7 +85,7 @@ Type *parser_parse_single_type(ParserState *state);
 // =============================================================================
 
 ProgramAST parser_parse(ProgramSource *source) {
-    ParserState state = {source, 0};
+    ParserState state = {source, 0, stack_new()};
     ProgramAST result = {null};
     ASTNode **current = &(result.root);
     
@@ -106,6 +105,10 @@ ProgramAST parser_parse(ProgramSource *source) {
     return result;
 }
 
+// =============================================================================
+// Parser API
+// =============================================================================
+
 
 ASTNode *parser_parse_component(ParserState *state) {
     skip_delimiters(state);
@@ -122,8 +125,8 @@ ASTNode *parser_parse_component(ParserState *state) {
     
     // Potentially parse the super type if applicable
     if (match(state, TOKEN_COLON)) {
-        componentNode->data.component.extends = parser_parse_type(state);
-        if (!componentNode->data.component.extends) {
+        componentNode->data.component.super = parser_parse_type(state);
+        if (!componentNode->data.component.super) {
             verror("Failed to parse component super type");
             kbye(componentNode, sizeof(ASTNode));
             state->current_token_index = index;
@@ -281,16 +284,59 @@ ASTNode *parser_parse_expression(ParserState *state) {
     return parser_parse_expression_with_precedence(state, 0);
 }
 
+ASTNode *parser_parse_function_call(ParserState *state) {
+    ASTNode *functionCallNode = create_node(AST_FUNCTION_CALL);
+    if (!functionCallNode) return null; // Error handling within create_node
+    
+    //If last token was identifier, it's the function name
+    Token lastToken = peek_distance(state, -1);
+    if (lastToken.type != TOKEN_IDENTIFIER) {
+        if (peek(state).type == TOKEN_IDENTIFIER) {
+            functionCallNode->data.functionCall.name = string_ndup(lastToken.start, lastToken.length);
+            goto skip_name;
+        }
+        verror("Expected identifier before '(' in function call");
+        kbye(functionCallNode, sizeof(ASTNode));
+        return null;
+    }
+    
+    // Parse the function name
+//    Token nameToken = consume(state, TOKEN_IDENTIFIER);
+    functionCallNode->data.functionCall.name = string_ndup(lastToken.start, lastToken.length);
+    skip_name:
+    // Parse the function arguments
+    consume(state, TOKEN_LPAREN);
+    ASTNode **currentArgument = &(functionCallNode->data.functionCall.arguments);
+    while (!match(state, TOKEN_RPAREN)) {
+        ASTNode *argument = parser_parse_expression(state);
+        if (!argument) {
+            // Handle parsing error, clean up
+            // It's a zero-argument function call
+            expect(state, TOKEN_RPAREN, "Expected ')' after function call arguments");
+            break;
+        }
+        *currentArgument = argument;
+        currentArgument = &((*currentArgument)->next);
+        if (match(state, TOKEN_COMMA)) {
+            // Consume the comma and continue parsing arguments
+        }
+    }
+    
+    return functionCallNode;
+}
+
 ASTNode *parser_parse_primary(ParserState *state) {
     Token token = peek(state);
+    // Lookahead to check for assignment or function call
+    Token nextToken = peek_distance(state, 1); // Ensure peek_distance correctly skips delimiters
+    // if the next token is a dot, it's it's a reference
+    
     switch (token.type) {
         case TOKEN_NUMBER:
         case TOKEN_STRING:
         case TOKEN_TRUE:
         case TOKEN_FALSE:return parser_parse_literal(state);
         case TOKEN_IDENTIFIER: {
-            // Lookahead to check for assignment or function call
-            Token nextToken = peek_distance(state, 1); // Ensure peek_distance correctly skips delimiters
             consume(state, TOKEN_IDENTIFIER);
             if (nextToken.type == TOKEN_EQUALS) {
                 ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
@@ -314,18 +360,40 @@ ASTNode *parser_parse_primary(ParserState *state) {
                 propertyNode->data.property.name = string_ndup(token.start, token.length);
                 consume(state, TOKEN_COLON);
                 propertyNode->data.property.type = parser_parse_type(state);
-                if (match(state, TOKEN_EQUALS) || peek(state).type == TOKEN_LBRACE) {
-                    propertyNode->data.property.value = parser_parse_expression(state);
+                if (match(state, TOKEN_EQUALS)) {
+                    // delete the property node and create an  node
+                    
+                    ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
+                    if (!assignmentNode) return null; // Error handling within create_node
+                    assignmentNode->data.assignment.variableName = string_ndup(token.start, token.length);
+                    assignmentNode->data.assignment.value = parser_parse_expression(state);
+                    propertyNode->data.property.value = assignmentNode;
+                    return propertyNode;
                 }
                 return propertyNode;
+            } else if (nextToken.type == TOKEN_LPAREN) {
+                return parser_parse_function_call(state);
+            } else if (nextToken.type == TOKEN_DOT) {
+                ASTNode *referenceNode = create_node(AST_REFERENCE);
+                if (!referenceNode) return null; // Error handling within create_node
+                referenceNode->data.reference.name = string_ndup(token.start, token.length);
+                consume(state, TOKEN_DOT);
+                referenceNode->data.reference.reference = parser_parse_primary(state);
+                return referenceNode;
             } else {
                 // It's a variable
+                if (match(state, TOKEN_EQUALS)) {
+                    // create assignment node
+                    ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
+                    if (!assignmentNode) return null; // Error handling within create_node
+                    assignmentNode->data.assignment.variableName = string_ndup(token.start, token.length);
+                    assignmentNode->data.assignment.value = parser_parse_expression(state);
+                    return assignmentNode;
+                }
                 ASTNode *variableNode = create_node(AST_PROPERTY);
                 if (!variableNode) return null; // Error handling within create_node
                 variableNode->data.property.name = string_ndup(token.start, token.length);
-                if (match(state, TOKEN_EQUALS)) {
-                    variableNode->data.property.value = parser_parse_expression(state);
-                }
+                // Maybe parse type here
                 return variableNode;
             }
         }
@@ -335,13 +403,20 @@ ASTNode *parser_parse_primary(ParserState *state) {
             consume(state, TOKEN_RPAREN);
             return subExpr;
         }
-        
         case TOKEN_LBRACE:consume(state, TOKEN_LBRACE);
             return parser_parse_scope(state);
+        case TOKEN_LBRACKET:return parser_parse_array(state);
         
         default:
-            // Error handling for unexpected token
-            verror("Unexpected token '%s' in expression", lexer_token_type_name(token.type));
+//            if (match(state, TOKEN_DOT)) {
+//                ASTNode *lhs = parser_parse_primary(state);
+//                consume(state, TOKEN_DOT);
+//                ASTNode *referenceNode = create_node(AST_REFERENCE);
+//                if (!referenceNode) return null; // Error handling within create_node
+//                referenceNode->data.reference.name = string_ndup(token.start, token.length);
+//                referenceNode->data.reference.reference = parser_parse_primary(state);
+//                return referenceNode;
+//            }
             return NULL;
 //            return parser_parse_scope(state);
     }
@@ -463,64 +538,13 @@ Type *parser_parse_single_type(ParserState *state) {
         expect(state, TOKEN_RBRACKET, "Expected ']' after array type");
         return create_array_type(elementType);
     } else {
-        verror("Unexpected token in type at line %d, column %d", peek(state).line, peek(state).column);
-        return NULL;
-    }
-    if (peek(state).type == TOKEN_IDENTIFIER) {
-        // Check if this is an array type by looking ahead
-        if (peek_distance(state, 1).type == TOKEN_LBRACKET) {
-            Token identifierToken = consume(state, TOKEN_IDENTIFIER);
-            Type *elementType = kgimme(sizeof(Type));
-            elementType->kind = TYPE_BASIC;
-            elementType->data.name = string_ndup(identifierToken.start, identifierToken.length);
-            elementType->next = NULL;
-            expect(state, TOKEN_LBRACKET, "Expected '[' after array type");
-            expect(state, TOKEN_RBRACKET, "Expected ']' after array type");
-            return create_array_type(elementType);
-        } else if (peek_distance(state, 1).type == TOKEN_COLON) {
-            Token aliasToken = consume(state, TOKEN_IDENTIFIER);
-            expect(state, TOKEN_COLON, "Expected ':' after type alias");
-            Type *type = create_basic_type(aliasToken);
-            type->alias = string_ndup(aliasToken.start, aliasToken.length);
-            return type;
-        }
-        return create_basic_type(consume(state, TOKEN_IDENTIFIER));
-    } else if (match(state, TOKEN_LPAREN)) {
-        Type *firstType = parser_parse_type(state);
-        
-        // Check if the next token is a comma, indicating a tuple
-        if (match(state, TOKEN_COMMA)) {
-            // Create the tuple type
-            Type *tupleType = create_tuple_type();
-            
-            // Add the first type to the tuple
-            add_type_to_tuple(tupleType, firstType);
-            
-            // Continue parsing and adding types to the tuple
-            do {
-                Type *nextType = parser_parse_type(state);
-                add_type_to_tuple(tupleType, nextType);
-            } while (match(state, TOKEN_COMMA));
-            
-            expect(state, TOKEN_RPAREN, "Expected ')' after tuple");
-            return tupleType;
-        } else {
-            expect(state, TOKEN_RPAREN, "Expected ')' after type");
-            return firstType;
-        }
-    } else if (match(state, TOKEN_LBRACKET)) {
-        Type *elementType = parser_parse_type(state);
-        expect(state, TOKEN_RBRACKET, "Expected ']' after array type");
-        return create_array_type(elementType);
-    } else {
-        verror("Unexpected token in type '%s' at line %d, column %d", lexer_token_type_name(peek(state).type),
-               peek(state).line, peek(state).column);
-        return NULL; // Error handling
+//        verror("Unexpected token in type at line %d, column %d", peek(state).line, peek(state).column);
+        return null;
     }
 }
 
 Type *parser_parse_tuple_element(ParserState *state) {
-    char *alias = NULL;
+    char *alias = null;
     if (peek(state).type == TOKEN_IDENTIFIER && peek_distance(state, 1).type == TOKEN_COLON) {
         Token aliasToken = consume(state, TOKEN_IDENTIFIER);
         consume(state, TOKEN_COLON); // consume the colon
@@ -541,6 +565,10 @@ Type *parser_parse_tuple_type(ParserState *state) {
     Type *tupleType = create_tuple_type();
     do {
         Type *elementType = parser_parse_tuple_element(state);
+        if (!elementType) {
+            //Not an error, just a tuple with no elements
+            break;
+        }
         add_type_to_tuple(tupleType, elementType);
         // Only expect a comma if there's another tuple element
         if (!match(state, TOKEN_COMMA)) {
@@ -697,8 +725,8 @@ void parser_free_component_node(ComponentNode *component) {
     if (component->name) {
         kbye(component->name, strlen(component->name) + 1);
     }
-    if (component->extends) {
-        parser_free_type(component->extends);
+    if (component->super) {
+        parser_free_type(component->super);
     }
     parser_free_node(component->body);
 }
@@ -749,6 +777,21 @@ void parser_free_scope_node(ScopeNode *scope) {
     }
 }
 
+void parser_free_reference_node(ReferenceNode *reference) {
+    if (reference->name) {
+        kbye(reference->name, strlen(reference->name) + 1);
+    }
+    parser_free_node(reference->reference);
+}
+
+void parser_free_function_call_node(FunctionCallNode *functionCall) {
+    if (functionCall->name) {
+        kbye(functionCall->name, strlen(functionCall->name) + 1);
+    }
+    parser_free_node(functionCall->reference);
+    parser_free_node(functionCall->arguments);
+}
+
 b8 parser_free_node(ASTNode *node) {
     if (node == NULL) return false;
     ASTNode *current = node;
@@ -769,6 +812,10 @@ b8 parser_free_node(ASTNode *node) {
                 break;
             case AST_BINARY_OP:parser_free_binary_op_node(&current->data.binaryOp);
                 break;
+            case AST_REFERENCE:parser_free_reference_node(&current->data.reference);
+                break;
+            case AST_FUNCTION_CALL:parser_free_function_call_node(&current->data.functionCall);
+                break;
             default:vwarn("Unhandled node type in parser_free_node");
                 return false;
         }
@@ -783,4 +830,12 @@ b8 parser_free_program(ProgramAST *program) {
     if (!program) return false;
     parser_free_node(program->root);
     return true;
+}
+
+ASTNode *parser_get_node(void *node) {
+    // This is a pointer to one of the union members of the ASTNode struct
+    // We can use this to get the actual type of the node
+    size_t offset = offsetof(ASTNode, data);
+    ASTNode *astNode = (ASTNode *) ((char *) node - offset);
+    return astNode;
 }

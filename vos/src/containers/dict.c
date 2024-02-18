@@ -41,7 +41,7 @@ Dict *dict_create(u64 size, hash_function *hash_func) {
  * Creates a new dictionary table with the default size and hash function
  * @return a new dictionary table
  */
-Dict *dict_create_default() {
+Dict *dict_new() {
     return dict_create(DEFAULT_DICT_SIZE, dict_default_hash);
 }
 

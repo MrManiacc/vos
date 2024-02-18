@@ -52,14 +52,14 @@ const char *lexer_token_type_name(TokenType type) {
         case TOKEN_PIPE:return "Pipe";
         case TOKEN_LBRACKET:return "Left Bracket";
         case TOKEN_RBRACKET:return "Right Bracket";
-        case TOKEN_STAR:return "Asterisk";
-        case TOKEN_SLASH:return "Slash";
-        case TOKEN_PERCENT:return "Percent";
-        case TOKEN_AMPERSAND:return "Ampersand";
-        case TOKEN_BANG:return "Bang";
-        case TOKEN_QUESTION:return "Question";
-        case TOKEN_PLUS:return "Plus";
-        case TOKEN_MINUS:return "Minus";
+        case TOKEN_STAR:return "*";
+        case TOKEN_SLASH:return "/";
+        case TOKEN_PERCENT:return "%";
+        case TOKEN_AMPERSAND:return "&";
+        case TOKEN_BANG:return "!";
+        case TOKEN_QUESTION:return "?";
+        case TOKEN_PLUS:return "+";
+        case TOKEN_MINUS:return "-";
         default:return "Unknown";
     }
 }

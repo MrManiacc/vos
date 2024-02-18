@@ -1,15 +1,18 @@
-Number : Int | Float {}
-
-Primitive : String | Number | Boolean | String[] | Int[] | Float[] | Boolean[] | null {}
-
-
-// Essentially the same as Number, but with a different name. This shows that the type system is not just a simple aliasing system.
-// It allows for the creation of types that matches types based on their structure
-ConvolutedNumber : Primitive & String & Boolean & String[] & Int[] & Float[] & Boolean[] & null {}
-
-
-// The type of A and type of B would be resolved as the same value when drilling down into the type
-FunctionTwo : (A : Number, B : ConvolutedNumber) -> Number | Null{
-    // Assert(A is Number && B is Number)
-    result = A + B
+Number: int | float {
+    ToString : (self: Number) -> string
 }
+
+Primitive : string | Number | void  | bool {
+
+    ToString : (self: Primitive) -> string = { // This is a scope function
+        Test = 5
+        print("Test is equal to " + Test)
+        Test2 : Primitive = 5
+    }
+}
+
+Temper: Primitive | void {
+    Foo = Temper.Bar + 42
+    Print("Foo is equal to " + Primitive.ToString(Foo))
+}
+

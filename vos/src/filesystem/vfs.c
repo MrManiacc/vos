@@ -76,8 +76,8 @@ b8 vfs_initialize(FsPath root) {
     //Setup the root path to be normalized to the platform
     initialize_paths(path_normalize(root));
     fs_context = kallocate(sizeof(FSContext), MEMORY_TAG_RESOURCE);
-    fs_context->users = dict_create_default();
-    fs_context->nodes = dict_create_default();
+    fs_context->users = dict_new();
+    fs_context->nodes = dict_new();
     load_nodes();
     //Collect the total nodes and tell the user how many nodes were loaded.
     u32 total_nodes = dict_size(fs_context->nodes);

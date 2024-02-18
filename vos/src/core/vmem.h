@@ -48,7 +48,7 @@ typedef enum memory_tag {
 /** @brief The configuration for the memory system. */
 typedef struct memory_system_configuration {
     /** @brief The total memory size in byes used by the internal allocator for this system. */
-    u64 total_alloc_size;
+    u64 heap_size;
 } memory_system_configuration;
 
 // Modified function signatures with _ prefix, line, and file parameters

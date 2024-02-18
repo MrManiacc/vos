@@ -18,7 +18,7 @@ void initialize_timer() {
         vwarn("Timer was already initialized, cleaning up old timer");
         return;
     }
-    timers = dict_create_default();
+    timers = dict_new();
 }
 
 void timer_set(const char *id, u32 delay, TimerCallback callback, void *raw_data) {

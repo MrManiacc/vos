@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 //    }
 //    startup_script_init();
     
-    FsNode *gui = vfs_node_get("sys/gui/types.mgl");
+    FsNode *gui = vfs_node_get("sys/gui/testing.mgl");
     
     if (gui == null) {
         verror("Failed to load gui file")
@@ -69,11 +69,11 @@ int main(int argc, char **argv) {
     ProgramAST ast = parser_parse(&lexerResult);
     
     char *ast_dump = parser_dump(&ast);
-    printf("AST: \n%s", ast_dump);
+    vinfo("AST: \n%s", ast_dump);
     
     
     TypeCheckingVisitor *visitor = typechecker_new();
-    ir_visit_tree((IRVisitor *) visitor, &ast);
+    muil_visit_tree((IRVisitor *) visitor, &ast);
     parser_free_program(&ast);
     type_checker_free(visitor);
     
@@ -85,6 +85,8 @@ int main(int argc, char **argv) {
         verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
         return 1;
     }
+    // wait for input
+//    getchar();
     return 0;
 }
 
