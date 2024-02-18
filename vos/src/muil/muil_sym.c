@@ -134,11 +134,11 @@ static Type *evalExpressionType(TypeCheckingVisitor *self, ASTNode *node) {
         // resolve the reference to a type
         ASTNode *current = node;
         ReferenceNode ref = current->data.reference;
-        while (ref.reference->nodeType == AST_REFERENCE) {
-            current = ref.reference;
-            ref = current->data.reference;
+        if (ref.reference == null) {
+            stack_push(self->errorStack, "Reference has no reference");
+            return null;
         }
-        return dict_get(self->typeTable, ref.name);
+        return evalExpressionType(self, ref.reference);
     }
     if (node->nodeType == AST_BINARY_OP) {
         BinaryOpNode binaryOpNode = node->data.binaryOp;
@@ -186,6 +186,8 @@ static Type *evalExpressionType(TypeCheckingVisitor *self, ASTNode *node) {
         if (propertyNode.value != null) {
             return evalExpressionType(self, propertyNode.value);
         }
+        // If it has neither, return null
+        stack_push(self->errorStack, string_format("Property %s has no type or value", propertyNode.name));
         
     } else if (node->nodeType == AST_ASSIGNMENT) {
         AssignmentNode assignmentNode = node->data.assignment;

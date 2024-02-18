@@ -7,6 +7,12 @@ blah {}
 
 // Another subtype of Number
 NumberB : float | int {
+    + : (NumberB, NumberB) -> NumberB = NumberB.add
+    - : (NumberB, NumberB) -> NumberB = NumberB.subtract
+    * : (NumberB, NumberB) -> NumberB = NumberB.multiply
+    / : (NumberB, NumberB) -> NumberB = NumberB.divide
+    % : (NumberB, NumberB) -> NumberB = NumberB.mod
+
     // The NumberB is the self type. You can use it like this or like the next example.
     ToString : (NumberB) -> string = NumberB.toString(42, 69 * 420 + NumberB)
     // This is the same as the above example, but it's a bit more explicit.
