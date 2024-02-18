@@ -54,4 +54,4 @@ char *parser_dump_node(ASTNode *node);
  * free(typeString); // Free the memory allocated for the string
  * @endcode
  */
-char *parser_dump_type(Type *type);
+char *parser_dump_type(TypeAST *type);

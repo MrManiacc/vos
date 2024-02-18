@@ -3,212 +3,108 @@
  */
 #pragma once
 
-#include "muil_parser.h"
+#include "muil/muil_parser.h"
+
+typedef enum VisitorTypeMask {
+    VISITOR_TYPE_MASK_NONE = 0,
+    VISITOR_TYPE_MASK_PROGRAM = 1 << 0,
+    VISITOR_TYPE_MASK_COMPONENT = 1 << 1,
+    VISITOR_TYPE_MASK_PROPERTY = 1 << 2,
+    VISITOR_TYPE_MASK_LITERAL = 1 << 3,
+    VISITOR_TYPE_MASK_ASSIGNMENT = 1 << 4,
+    VISITOR_TYPE_MASK_ARRAY = 1 << 5,
+    VISITOR_TYPE_MASK_SCOPE = 1 << 6,
+    VISITOR_TYPE_MASK_BINARY_OP = 1 << 7,
+    VISITOR_TYPE_MASK_REFERENCE = 1 << 8,
+    VISITOR_TYPE_MASK_FUNCTION_CALL = 1 << 9,
+    VISITOR_TYPE_MASK_TYPE = 1 << 10,
+    VISITOR_TYPE_MASK_ALL = 0x7FF
+} VisitorTypeMask;
 
 /**
  * @brief The A symbol table
  */
-
-typedef struct IRVisitor {
-    /**
-     * @brief Function pointer to visit a ComponentNode.
-     *
-     * This function pointer is used in the IRVisitor struct to specify the method to visit a ComponentNode.
-     *
-     * @param self A pointer to the IRVisitor instance.
-     * @param node A pointer to the ComponentNode to be visited.
-     */
-    void (*visitComponentNode)(struct IRVisitor *self, ComponentNode *node);
-    
-    /**
-     * @brief Function pointer to visit a VariableNode.
-     *
-     * This function pointer is used in the IRVisitor struct to define a visit function for VariableNode.
-     * The visit function takes an IRVisitor object and a VariableNode object as parameters.
-     *
-     * @param self Pointer to the IRVisitor object.
-     * @param node Pointer to the VariableNode object.
-     */
-    void (*visitPropertyNode)(struct IRVisitor *self, PropertyNode *node);
-    
-    /**
-     * @brief Function pointer to visit a LiteralNode in the IRVisitor.
-     *
-     * This function pointer is used to visit a LiteralNode in the IRVisitor.
-     * It takes a pointer to the IRVisitor object and a pointer to the LiteralNode object as arguments.
-     * The purpose of this function is to allow different behaviors when visiting different types of nodes in the IRVisitor.
-     *
-     * @param self Pointer to the IRVisitor object.
-     * @param node Pointer to the LiteralNode object.
-     */
-    void (*visitLiteralNode)(struct IRVisitor *self, LiteralNode *node);
-    
-    /**
-     * @brief Function pointer to visitAssignmentNode.
-     *
-     * This function pointer is a member of the IRVisitor struct. It is used to visit an AssignmentNode in the IR structure.
-     *
-     * @param self A pointer to the IRVisitor struct.
-     * @param node A pointer to the AssignmentNode being visited.
-     *
-     */
-    void (*visitAssignmentNode)(struct IRVisitor *self, AssignmentNode *node);
-    
-    /**
-     * @brief Function pointer to visit an ArrayNode.
-     *
-     * This function pointer is a member of the IRVisitor struct. It represents a function
-     * that visits an ArrayNode object.
-     *
-     * @param self A pointer to the IRVisitor struct.
-     * @param node A pointer to the ArrayNode object to be visited.
-     * @return void
-     */
-    void (*visitArrayNode)(struct IRVisitor *self, ArrayNode *node);
-    
-    /**
-    *
-    */
-    void (*visitScopeNode)(struct IRVisitor *self, ScopeNode *node);
-    
-    /**
-     * @brief Function pointer to visit a BinaryOpNode in the IRVisitor.
-     *
-     * This function pointer is used to visit a BinaryOpNode in the IRVisitor.
-     * It takes a pointer to the IRVisitor object and a pointer to the BinaryOpNode object as arguments.
-     * The purpose of this function is to allow different behaviors when visiting different types of nodes in the IRVisitor.
-     *
-     * @param self Pointer to the IRVisitor object.
-     * @param node Pointer to the BinaryOpNode object.
-     */
-    void (*visitBinaryOpNode)(struct IRVisitor *self, BinaryOpNode *node);
+typedef struct ASTVisitor {
     
     
-    /**
-     * @brief Function pointer to visit a Type node in the IRVisitor.
-     *
-     * This function pointer is used in the IRVisitor struct to define a visit function for Type nodes.
-     * The visit function takes a pointer to the IRVisitor object and a pointer to the Type object as parameters.
-     * It allows for different behaviors when visiting different types of nodes in the IRVisitor.
-     *
-     * @param self Pointer to the IRVisitor object.
-     * @param type Pointer to the Type object.
-     */
-    void (*visitType)(struct IRVisitor *self, Type *type);
+    void (*enterProgramNode)(struct ASTVisitor *self, ProgramAST *node);
     
-    /**
-     * @brief Function pointer to visit the ProgramAST node in the AST.
-     *
-     * This function pointer is used by the IRVisitor class to visit the ProgramAST node.
-     * It takes in a pointer to an IRVisitor object and a pointer to a ProgramAST object as arguments.
-     *
-     * @param self A pointer to the IRVisitor object.
-     * @param node A pointer to the ProgramAST node to be visited.
-     */
-    void (*visitProgramAST)(struct IRVisitor *self, ProgramAST *node);
+    void (*exitProgramNode)(struct ASTVisitor *self, ProgramAST *node);
     
-} IRVisitor;
-
+    void (*enterComponentNode)(struct ASTVisitor *self, ComponentNode *node);
+    
+    void (*exitComponentNode)(struct ASTVisitor *self, ComponentNode *node);
+    
+    void (*enterPropertyNode)(struct ASTVisitor *self, PropertyNode *node);
+    
+    void (*exitPropertyNode)(struct ASTVisitor *self, PropertyNode *node);
+    
+    void (*enterLiteralNode)(struct ASTVisitor *self, LiteralNode *node);
+    
+    void (*exitLiteralNode)(struct ASTVisitor *self, LiteralNode *node);
+    
+    void (*enterAssignmentNode)(struct ASTVisitor *self, AssignmentNode *node);
+    
+    void (*exitAssignmentNode)(struct ASTVisitor *self, AssignmentNode *node);
+    
+    void (*enterArrayNode)(struct ASTVisitor *self, ArrayNode *node);
+    
+    void (*exitArrayNode)(struct ASTVisitor *self, ArrayNode *node);
+    
+    void (*enterScopeNode)(struct ASTVisitor *self, ScopeNode *node);
+    
+    void (*exitScopeNode)(struct ASTVisitor *self, ScopeNode *node);
+    
+    void (*enterBinaryOpNode)(struct ASTVisitor *self, BinaryOpNode *node);
+    
+    void (*exitBinaryOpNode)(struct ASTVisitor *self, BinaryOpNode *node);
+    
+    void (*enterReferenceNode)(struct ASTVisitor *self, ReferenceNode *node);
+    
+    void (*exitReferenceNode)(struct ASTVisitor *self, ReferenceNode *node);
+    
+    void (*enterFunctionCallNode)(struct ASTVisitor *self, FunctionCallNode *node);
+    
+    void (*exitFunctionCallNode)(struct ASTVisitor *self, FunctionCallNode *node);
+    
+    void (*enterType)(struct ASTVisitor *self, TypeAST *type);
+    
+    void (*exitType)(struct ASTVisitor *self, TypeAST *type);
+    
+    //because msvc sets it to 0xcccccccccc when it's copied into the darray
+    i32 type_mask;
+} ASTVisitor;
 
 /**
- * @brief Visits a component node in the intermediate representation (IR).
+ * @brief Visits the nodes of the given ProgramAST using the provided ASTVisitor.
  *
- * This function is used to visit a component node in the IR structure.
+ * This function traverses the AST nodes in a depth-first manner, calling the appropriate
+ * enter and exit functions on the ASTVisitor for each node type.
  *
- * @param visitor A pointer to the IRVisitor object.
- * @param node    A pointer to the ComponentNode to be visited.
+ * @param program The ProgramAST to visit.
+ * @param visitor The ASTVisitor to use for visiting the nodes.
  */
-VAPI void muil_visit_component_node(IRVisitor *visitor, ComponentNode *node);
+VAPI void muil_visit(ASTVisitor *visitor, ProgramAST *program);
+
+VAPI void muil_set_visitor(ASTVisitor *visitor, VisitorTypeMask mask, void *enter, void *exit);
+
+VAPI void *muil_get_visitor_enter(ASTVisitor *visitor, VisitorTypeMask mask);
+
+VAPI void *muil_get_visitor_exit(ASTVisitor *visitor, VisitorTypeMask mask);
+
+VAPI b8 muil_has_visitor(ASTVisitor *visitor, VisitorTypeMask mask);
 
 /**
- * @brief Visit the ScopeNode in the Intermediate Representation (IR) using the given visitor.
+ * @brief Visits the given ASTNode using the provided ASTVisitor.
  *
- * This function is responsible for visiting a ScopeNode in the Intermediate Representation (IR)
- * using the provided visitor. The visitor can perform different actions on the visited ScopeNode,
- * such as analyzing, transforming, or gathering information.
+ * This function visits the given ASTNode using the provided ASTVisitor.
+ * It checks the node's type and calls the corresponding visit function in the visitor.
+ * If the node is null, an error is logged and the function returns.
  *
- * @param visitor A pointer to the IRVisitor object that will visit the ScopeNode.
- * @param node A pointer to the ScopeNode that needs to be visited.
+ * @param visitor A pointer to the ASTVisitor instance.
+ * @param node A pointer to the ASTNode to be visited.
  */
-VAPI void muil_visit_scope_node(IRVisitor *visitor, ScopeNode *node);
+VAPI void muil_visit_node(ASTVisitor *visitor, ASTNode *node);
 
-/**
- * @brief Visits a VariableNode in the IR tree.
- *
- * This function is called by the IRVisitor to visit a VariableNode in the IR tree.
- * It receives a pointer to the IRVisitor object and a pointer to the VariableNode to be visited.
- *
- * @param visitor A pointer to the IRVisitor object.
- * @param node A pointer to the VariableNode to be visited.
- */
-VAPI void muil_visit_property_node(IRVisitor *visitor, PropertyNode *node);
-
-/**
- * @brief Visits a literal node in an intermediate representation (IR) and performs an operation.
- *
- * @param visitor The IR visitor object.
- * @param node The literal node to be visited.
- */
-VAPI void muil_visit_literal_node(IRVisitor *visitor, LiteralNode *node);
-
-/**
- * @brief Visits an assignment node.
- *
- * This function is used by the IRVisitor to visit an assignment node.
- *
- * @param visitor The IRVisitor instance.
- * @param node The AssignmentNode to be visited.
- */
-VAPI void muil_visit_assignment_node(IRVisitor *visitor, AssignmentNode *node);
-
-/**
- * @brief Visits an array node in an intermediate representation (IR).
- *
- * This function is used by an IRVisitor to visit an ArrayNode in the IR. It allows
- * the visitor to perform operations and/or extract information from the array node.
- *
- * @param visitor A pointer to the IRVisitor object visiting the array node.
- * @param node A pointer to the ArrayNode being visited.
- *
- * @see IRVisitor
- * @see ArrayNode
- */
-VAPI void muil_visit_array_node(IRVisitor *visitor, ArrayNode *node);
-
-/**
- * @brief Visits a binary operation node in the intermediate representation (IR).
- *
- * This function is responsible for visiting a binary operation node in the IR.
- * It allows an IR visitor to perform specific operations when encountering a binary operation node.
- *
- * @param visitor The IR visitor object responsible for visiting the node.
- * @param node The binary operation node to visit.
- */
-VAPI void muil_visit_binary_op_node(IRVisitor *visitor, BinaryOpNode *node);
-
-/**
- * @brief Visits a given type.
- *
- * This function is responsible for visiting a given type using a provided IRVisitor object.
- *
- * @param visitor A pointer to the IRVisitor object to use for visiting the type.
- * @param type A pointer to the Type object to be visited.
- */
-VAPI void muil_visit_type(IRVisitor *visitor, Type *type);
-
-/**
- * \brief Visits the ProgramAST node.
- *
- * This function is responsible for visiting the ProgramAST node in the
- * Intermediate Representation (IR). It takes an IRVisitor object and
- * a ProgramAST object as parameters and performs the necessary actions
- * needed to visit this node.
- *
- * \param visitor The IRVisitor object used for visiting the AST nodes.
- * \param node The ProgramAST node to be visited.
- *
- * \sa IRVisitor
- * \sa ProgramAST
- */
-VAPI void muil_visit_tree(IRVisitor *visitor, ProgramAST *node);
-
+// A special visitor for the type, because it's not an ASTNode
+VAPI void muil_visit_type(ASTVisitor *visitor, TypeAST *type);

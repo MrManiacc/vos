@@ -42,7 +42,8 @@ VAPI u64 _darray_find(void *array, void *value_ptr);
 
 VAPI u64 _darray_remove(void *array, void *value_ptr);
 
-#define DARRAY_DEFAULT_CAPACITY 1
+
+#define DARRAY_DEFAULT_CAPACITY 16
 #define DARRAY_RESIZE_FACTOR 2
 
 #define darray_find(array, value_ptr) \
@@ -99,4 +100,12 @@ VAPI u64 _darray_remove(void *array, void *value_ptr);
 
 #define darray_remove(array, value_ptr) \
     _darray_remove(array, value_ptr)
-    
+
+
+// NOTE: This macro is not safe to use with break or continue
+// does some pretty weird stuff with the loop control flow.
+#define darray_for_each(type, array, it) \
+    for (type *it = (type *)_darray_get(array, 0), \
+        *__end_it = (type *)((char *)array + darray_length(array) * darray_stride(array)); \
+        it < __end_it; \
+        it = (type *)((char *)it + darray_stride(array)))

@@ -158,20 +158,7 @@ typedef struct AllocationMetadata {
 // Modify dict to support void* keys
 // This requires adjustments in dict's implementation to directly handle void* keys without converting them to strings.
 
-void kallocate_record(void *ptr, u64 size, const char *file, int line, memory_tag tag) {
-    if (!ptr) return;
-//    vdebug("%s:%d kallocate_aligned successfully allocated %llu bytes.", file, line, size);
-    AllocationMetadata *metadata = (AllocationMetadata *) platform_allocate(sizeof(AllocationMetadata), false);
-    metadata->file = file;
-    metadata->line = line;
-    metadata->size = size;
-    metadata->tag = tag;
-    
-    // Lock the mutex before modifying the dictionary
-    kmutex_lock(&state_ptr->allocation_mutex);
-    ptr_hash_table_set(state_ptr->stats.allocations, ptr, metadata);
-    kmutex_unlock(&state_ptr->allocation_mutex);
-}
+
 
 void kfree_record(void *ptr) {
     if (!ptr) return;
@@ -193,7 +180,20 @@ void kfree_record(void *ptr) {
 
 // Modify _kallocate_aligned and _kfree_aligned to call _kallocate_record and _kfree_record respectively.
 
-
+void kallocate_record(void *ptr, u64 size, const char *file, int line, memory_tag tag) {
+    if (!ptr) return;
+//    vdebug("%s:%d kallocate_aligned successfully allocated %llu bytes.", file, line, size);
+    AllocationMetadata *metadata = (AllocationMetadata *) platform_allocate(sizeof(AllocationMetadata), false);
+    metadata->file = file;
+    metadata->line = line;
+    metadata->size = size;
+    metadata->tag = tag;
+    
+    // Lock the mutex before modifying the dictionary
+    kmutex_lock(&state_ptr->allocation_mutex);
+    ptr_hash_table_set(state_ptr->stats.allocations, ptr, metadata);
+    kmutex_unlock(&state_ptr->allocation_mutex);
+}
 
 void *_kallocate(u64 size, memory_tag tag, int line, const char *file) {
     return _kallocate_aligned(size, 1, tag, line, file);

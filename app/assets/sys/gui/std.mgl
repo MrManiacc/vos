@@ -36,7 +36,7 @@ Position {
     left: Int // Left position in pixels
     right: Int // Right position in pixels
     bottom: Int // Bottom position in pixels
-    type : String // Position type (e.g., "absolute", "relative")
+    typeNode : String // Position typeNode (e.g., "absolute", "relative")
 }
 
 // Styling properties for visual appearance.
@@ -79,7 +79,7 @@ Button : Element {
 Input : Element {
     value: String // Current input value
     placeholder: String // Placeholder text
-    type: String // Input type (e.g., "text", "password")
+    typeNode: String // Input typeNode (e.g., "text", "password")
     required: Bool // Whether input is required for form submission
     bisabled: Bool // Whether the input is disabled
 }

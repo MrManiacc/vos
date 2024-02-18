@@ -71,11 +71,13 @@ int main(int argc, char **argv) {
     char *ast_dump = parser_dump(&ast);
     vinfo("AST: \n%s", ast_dump);
     
-    
-    TypeCheckingVisitor *visitor = typechecker_new();
-    muil_visit_tree((IRVisitor *) visitor, &ast);
+    PassManager *state = muil_pass_manager_new();
+    muil_pass_manager_add(state, muil_pass_type_check_new());
+    muil_pass_manager_add(state, muil_pass_symbol_new());
+    muil_pass_manager_run(state, &ast);
+    muil_pass_manager_destroy(state);
     parser_free_program(&ast);
-    type_checker_free(visitor);
+//    analyzer_free_type_checker(visitor);
     
     
     KernelResult shutdown_result = kernel_shutdown();

@@ -24,7 +24,7 @@ void append_indent(StringBuilder *sb, int indentLevel, int isLast) {
 }
 
 // Utility function for type dumping (handles composite types)
-void dump_type(Type *type, StringBuilder *sb) {
+void dump_type(TypeAST *type, StringBuilder *sb) {
     if (!type) {
         sb_appendf(sb, "null");
         return;
@@ -51,7 +51,7 @@ void dump_type(Type *type, StringBuilder *sb) {
             dump_type(type->data.binary.rhs, sb);
             break;
         case TYPE_TUPLE:sb_appendf(sb, "(");
-            Type *current = type->data.tupleTypes;
+            TypeAST *current = type->data.tupleTypes;
             while (current) {
                 dump_type(current, sb);
                 current = current->next;
@@ -104,7 +104,7 @@ void dump_component(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
 void dump_scope(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
     sb_appendf(sb, "Scope:\n"); // No need to print the scope node itself, just its children
-    for (ASTNode *stmt = node->data.scope.nodes; stmt != null; stmt = stmt->next) {
+    for (ASTNode *stmt = node->data.scope.body; stmt != null; stmt = stmt->next) {
         dump_ast_node(stmt, sb, indentLevel + 1, stmt->next == null);
     }
 }
@@ -132,11 +132,13 @@ void dump_binary_op(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
 
 void dump_reference(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    sb_appendf(sb, "Reference: %s, Type: ", node->data.reference.name);
-    dump_type(node->data.reference.type, sb);
-    sb_appendf(sb, "\n");
-    if (node->data.reference.reference) {
-        dump_ast_node(node->data.reference.reference, sb, indentLevel + 1, 1); // Property value is always last
+    sb_appendf(sb, "Reference: %s, Type: \n", node->data.reference.name);
+    ASTNode *ref = node->data.reference.reference;
+    if (ref) {
+        dump_ast_node(ref, sb, indentLevel + 1, 1);
+//        dump_type(&ref->data.type, sb);
+    } else {
+        sb_appendf(sb, "null");
     }
 }
 
@@ -179,7 +181,7 @@ void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast
     }
 
 //     Uncomment if siblings are handled outside of child nodes
-    if (node->next && node->nodeType == AST_COMPONENT) {
+    if (node->next && node->nodeType == AST_SCOPE) {
         dump_ast_node(node->next, sb, indentLevel, !node->next->next);
     }
 }
@@ -197,7 +199,7 @@ char *parser_dump(ProgramAST *root) {
     return parser_dump_node(root->root);
 }
 
-char *parser_dump_type(Type *type) {
+char *parser_dump_type(TypeAST *type) {
     StringBuilder *sb = sb_new();
     dump_type(type, sb);
     char *result = sb_build(sb);

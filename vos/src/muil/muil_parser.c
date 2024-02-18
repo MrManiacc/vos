@@ -73,13 +73,13 @@ ASTNode *parser_parse_expression(ParserState *state);
 
 //Parses a type. A type can be a single identifier a compound type or an array type.
 //I.e. "string", "int", "string | int", "string[]", "int[]", "string | int[]"
-Type *parser_parse_type(ParserState *state);
+TypeAST *parser_parse_type(ParserState *state);
 
-Type *parser_parse_tuple_element(ParserState *state);
+TypeAST *parser_parse_tuple_element(ParserState *state);
 
-Type *parser_parse_tuple_type(ParserState *state);
+TypeAST *parser_parse_tuple_type(ParserState *state);
 
-Type *parser_parse_single_type(ParserState *state);
+TypeAST *parser_parse_single_type(ParserState *state);
 
 // =============================================================================
 // Parser API
@@ -88,20 +88,21 @@ Type *parser_parse_single_type(ParserState *state);
 ProgramAST parser_parse(ProgramSource *source) {
     ParserState state = {source, 0, stack_new()};
     ProgramAST result = {null};
-    ASTNode **current = &(result.root);
-    
-    while (state.current_token_index < source->count && peek(&state).type != TOKEN_EOF) {
-        ASTNode *componentNode = parser_parse_component(&state);
-        if (!componentNode) {
-            verror("Failed to parse top-level component");
-            // Perform any necessary cleanup
-            break;
-        }
-        
-        *current = componentNode;
-        current = &((*current)->next);
-        
-    }
+    result.root = parser_parse_scope(&state);
+//    ASTNode **current = &(root_scope->data.scope.body);
+//
+//    while (state.current_token_index < source->count && peek(&state).type != TOKEN_EOF) {
+//        ASTNode *componentNode = parser_parse_component(&state);
+//        if (!componentNode) {
+//            verror("Failed to parse top-level component");
+//            // Perform any necessary cleanup
+//            break;
+//        }
+//
+//        *current = componentNode;
+//        current = &((*current)->next);
+//
+//    }
     
     return result;
 }
@@ -149,7 +150,7 @@ ASTNode *parser_parse_scope(ParserState *state) {
     ASTNode *scopeNode = create_node(AST_SCOPE);
     if (!scopeNode) return null; // Error handling within create_node
     
-    ASTNode **current = &(scopeNode->data.scope.nodes);
+    ASTNode **current = &(scopeNode->data.scope.body);
     if (match(state, TOKEN_RBRACE)) {
         return scopeNode;
     }
@@ -356,22 +357,55 @@ ASTNode *parser_parse_primary(ParserState *state) {
                 assignmentNode->data.property.value = scope;
                 return assignmentNode;
             } else if (nextToken.type == TOKEN_COLON) {
-                ASTNode *propertyNode = create_node(AST_PROPERTY);
-                if (!propertyNode) return null; // Error handling within create_node
-                propertyNode->data.property.name = string_ndup(token.start, token.length);
                 consume(state, TOKEN_COLON);
-                propertyNode->data.property.type = parser_parse_type(state);
                 if (match(state, TOKEN_EQUALS)) {
                     // delete the property node and create an  node
-                    
+                    ASTNode *propertyNode = create_node(AST_PROPERTY);
+                    if (!propertyNode) return null; // Error handling within create_node
+                    propertyNode->data.property.name = string_ndup(token.start, token.length);
+                    propertyNode->data.property.type = parser_parse_type(state);
                     ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
                     if (!assignmentNode) return null; // Error handling within create_node
                     assignmentNode->data.assignment.variableName = string_ndup(token.start, token.length);
                     assignmentNode->data.assignment.value = parser_parse_expression(state);
                     propertyNode->data.property.value = assignmentNode;
                     return propertyNode;
+                } else {
+                    //This is a component type definition
+                    ASTNode *componentNOde = create_node(AST_COMPONENT);
+                    if (!componentNOde) return null; // Error handling within create_node
+                    componentNOde->data.component.name = string_ndup(token.start, token.length);
+                    componentNOde->data.component.super = parser_parse_type(state);
+                    if (match(state, TOKEN_LBRACE)) {
+                        ASTNode *body = parser_parse_scope(state);
+                        if (body == null) {
+                            verror("Failed to parse component body");
+                            kbye(componentNOde, sizeof(ASTNode));
+                            return null;
+                        }
+                        componentNOde->data.component.body = body;
+                        // Sets the parent of the scope node
+                        body->data.scope.parent = componentNOde;
+                        return componentNOde;
+                    } // If we're here, it's a sub component's property definition
+                    else if (match(state, TOKEN_EQUALS)) {
+                        // Deletes the previously allocated component node, after copying the name and super type
+                        ASTNode *propertyNode = create_node(AST_PROPERTY);
+                        if (!propertyNode) return null; // Error handling within create_node
+                        propertyNode->data.property.name = string_ndup(token.start, token.length);
+                        // Copys the actual value of type into the property node from the component so the components type pointer can be freed
+                        kcopy_memory(&propertyNode->data.property.type, &componentNOde->data.component.super,
+                                     sizeof(TypeAST *));
+                        // Frees the component node
+                        kbye(componentNOde, sizeof(ASTNode));
+                        ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
+                        if (!assignmentNode) return null; // Error handling within create_node
+                        assignmentNode->data.assignment.variableName = string_ndup(token.start, token.length);
+                        assignmentNode->data.assignment.value = parser_parse_expression(state);
+                        propertyNode->data.property.value = assignmentNode;
+                        return propertyNode;
+                    }
                 }
-                return propertyNode;
             } else if (nextToken.type == TOKEN_LPAREN) {
                 return parser_parse_function_call(state);
             } else if (nextToken.type == TOKEN_DOT) {
@@ -418,13 +452,14 @@ ASTNode *parser_parse_primary(ParserState *state) {
 //                referenceNode->data.reference.reference = parser_parse_primary(state);
 //                return referenceNode;
 //            }
+            verror("Unexpected token in primary expression at line %d, column %d", token.line, token.column);
             return NULL;
 //            return parser_parse_scope(state);
     }
 }
 
-Type *create_basic_type(Token token) {
-    Type *type = (Type *) kgimme(sizeof(Type));
+TypeAST *create_basic_type(Token token) {
+    TypeAST *type = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!type) {
         verror("Allocation failure for Type");
         return null;
@@ -435,7 +470,7 @@ Type *create_basic_type(Token token) {
     return type;
 }
 
-void add_type_to_tuple(Type *tupleType, Type *newType) {
+void add_type_to_tuple(TypeAST *tupleType, TypeAST *newType) {
     // Ensure the tupleType is actually a tuple
     if (tupleType->kind != TYPE_TUPLE) {
         verror("Trying to add a type to a non-tuple type");
@@ -447,7 +482,7 @@ void add_type_to_tuple(Type *tupleType, Type *newType) {
         tupleType->data.tupleTypes = newType;
     } else {
         // Find the end of the list and add the new type there
-        Type *current = tupleType->data.tupleTypes;
+        TypeAST *current = tupleType->data.tupleTypes;
         while (current->next) {
             current = current->next;
         }
@@ -455,9 +490,9 @@ void add_type_to_tuple(Type *tupleType, Type *newType) {
     }
 }
 
-Type *create_tuple_type() {
+TypeAST *create_tuple_type() {
     // Allocate memory for the tuple type itself
-    Type *tupleType = (Type *) kgimme(sizeof(Type));
+    TypeAST *tupleType = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!tupleType) {
         verror("Allocation failure for Tuple Type");
         return NULL;
@@ -471,8 +506,8 @@ Type *create_tuple_type() {
 }
 
 
-Type *create_union_type(Type *firstType, Type *secondType) {
-    Type *type = (Type *) kgimme(sizeof(Type));
+TypeAST *create_union_type(TypeAST *firstType, TypeAST *secondType) {
+    TypeAST *type = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!type) {
         verror("Allocation failure for Type");
         return null;
@@ -483,8 +518,8 @@ Type *create_union_type(Type *firstType, Type *secondType) {
     return type;
 }
 
-Type *create_intersection_type(Type *firstType, Type *secondType) {
-    Type *type = (Type *) kgimme(sizeof(Type));
+TypeAST *create_intersection_type(TypeAST *firstType, TypeAST *secondType) {
+    TypeAST *type = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!type) {
         verror("Allocation failure for Type");
         return null;
@@ -497,8 +532,8 @@ Type *create_intersection_type(Type *firstType, Type *secondType) {
     return type;
 }
 
-Type *create_function_type(Type *inputType, Type *outputType) {
-    Type *type = (Type *) kgimme(sizeof(Type));
+TypeAST *create_function_type(TypeAST *inputType, TypeAST *outputType) {
+    TypeAST *type = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!type) {
         verror("Allocation failure for Type");
         return null;
@@ -509,8 +544,8 @@ Type *create_function_type(Type *inputType, Type *outputType) {
     return type;
 }
 
-Type *create_array_type(Type *elementType) {
-    Type *type = (Type *) kgimme(sizeof(Type));
+TypeAST *create_array_type(TypeAST *elementType) {
+    TypeAST *type = (TypeAST *) kgimme(sizeof(TypeAST));
     if (!type) {
         verror("Allocation failure for Type");
         return null;
@@ -521,7 +556,7 @@ Type *create_array_type(Type *elementType) {
 }
 
 
-Type *parser_parse_single_type(ParserState *state) {
+TypeAST *parser_parse_single_type(ParserState *state) {
     if (peek(state).type == TOKEN_LPAREN) {
         return parser_parse_tuple_type(state);
     }
@@ -535,7 +570,7 @@ Type *parser_parse_single_type(ParserState *state) {
         // Basic type
         return create_basic_type(token);
     } else if (match(state, TOKEN_LBRACKET)) {
-        Type *elementType = parser_parse_type(state);
+        TypeAST *elementType = parser_parse_type(state);
         expect(state, TOKEN_RBRACKET, "Expected ']' after array type");
         return create_array_type(elementType);
     } else {
@@ -544,7 +579,7 @@ Type *parser_parse_single_type(ParserState *state) {
     }
 }
 
-Type *parser_parse_tuple_element(ParserState *state) {
+TypeAST *parser_parse_tuple_element(ParserState *state) {
     char *alias = null;
     if (peek(state).type == TOKEN_IDENTIFIER && peek_distance(state, 1).type == TOKEN_COLON) {
         Token aliasToken = consume(state, TOKEN_IDENTIFIER);
@@ -552,7 +587,7 @@ Type *parser_parse_tuple_element(ParserState *state) {
         alias = string_ndup(aliasToken.start, aliasToken.length);
     }
     
-    Type *type = parser_parse_single_type(state);
+    TypeAST *type = parser_parse_single_type(state);
     if (alias) {
         type->alias = alias; // Assign the alias to the type
     }
@@ -560,12 +595,12 @@ Type *parser_parse_tuple_element(ParserState *state) {
     return type;
 }
 
-Type *parser_parse_tuple_type(ParserState *state) {
+TypeAST *parser_parse_tuple_type(ParserState *state) {
     expect(state, TOKEN_LPAREN, "Expected '(' to start a tuple");
     
-    Type *tupleType = create_tuple_type();
+    TypeAST *tupleType = create_tuple_type();
     do {
-        Type *elementType = parser_parse_tuple_element(state);
+        TypeAST *elementType = parser_parse_tuple_element(state);
         if (!elementType) {
             //Not an error, just a tuple with no elements
             break;
@@ -583,8 +618,8 @@ Type *parser_parse_tuple_type(ParserState *state) {
 
 //Parses a type. A type can be a single identifier a compound type or an array type.
 //I.e. "string", "int", "string | int", "string[]", "int[]", "string | int[]"
-Type *parser_parse_type(ParserState *state) {
-    Type *type = parser_parse_single_type(state); // Parse the initial type part
+TypeAST *parser_parse_type(ParserState *state) {
+    TypeAST *type = parser_parse_single_type(state); // Parse the initial type part
     
     while (true) {
         if (match(state, TOKEN_PIPE)) {
@@ -697,9 +732,9 @@ static ASTNode *create_node(ASTNodeType type) {
 // Memory cleanup functions
 // =============================================================================
 
-void parser_free_type(Type *type) {
+void parser_free_type(TypeAST *type) {
     while (type) {
-        Type *next = type->next; // Preserve next pointer before freeing
+        TypeAST *next = type->next; // Preserve next pointer before freeing
         
         switch (type->kind) {
             case TYPE_BASIC:if (type->data.name) kbye(type->data.name, strlen(type->data.name) + 1);
@@ -717,7 +752,7 @@ void parser_free_type(Type *type) {
                 break;
         }
         
-        kbye(type, sizeof(Type));
+        kbye(type, sizeof(TypeAST));
         type = next; // Move to next type in the list (if any)
     }
 }
@@ -770,7 +805,7 @@ void parser_free_binary_op_node(BinaryOpNode *binaryOp) {
 }
 
 void parser_free_scope_node(ScopeNode *scope) {
-    ASTNode *current = scope->nodes;
+    ASTNode *current = scope->body;
     while (current != NULL) {
         ASTNode *next = current->next;
         parser_free_node(current);

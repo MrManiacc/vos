@@ -291,7 +291,6 @@ b8 kmutex_create(kmutex *out_mutex) {
     if (!out_mutex) {
         return false;
     }
-    
     out_mutex->internal_data = CreateMutex(0, 0, 0);
     if (!out_mutex->internal_data) {
         verror("Unable to create mutex.");

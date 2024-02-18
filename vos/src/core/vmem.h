@@ -102,3 +102,5 @@ VAPI b8 _kis_free(void *block, int line, const char *file);
 #define kis_free(block) _kis_free(block, __LINE__, __FILE__)
 
 #define vnew(type) (type *) kallocate(sizeof(type), MEMORY_TAG_ENGINE)
+
+#define vdelete(block) kfree(block, sizeof(*block), MEMORY_TAG_ENGINE)
