@@ -14,7 +14,7 @@
  * @param visitor A pointer to the IRVisitor object.
  * @param node    A pointer to the ComponentNode to be visited.
  */
-void muil_visit_component_node(ASTVisitor *visitor, ComponentNode *node);
+void muil_visit_component_node(SemanticsPass *visitor, ComponentNode *node);
 
 /**
  * @brief Visit the ScopeNode in the Intermediate Representation (IR) using the given visitor.
@@ -26,7 +26,7 @@ void muil_visit_component_node(ASTVisitor *visitor, ComponentNode *node);
  * @param visitor A pointer to the IRVisitor object that will visit the ScopeNode.
  * @param node A pointer to the ScopeNode that needs to be visited.
  */
-void muil_visit_scope_node(ASTVisitor *visitor, ScopeNode *node);
+void muil_visit_scope_node(SemanticsPass *visitor, ScopeNode *node);
 
 /**
  * @brief Visits a VariableNode in the IR tree.
@@ -37,7 +37,7 @@ void muil_visit_scope_node(ASTVisitor *visitor, ScopeNode *node);
  * @param visitor A pointer to the IRVisitor object.
  * @param node A pointer to the VariableNode to be visited.
  */
-void muil_visit_property_node(ASTVisitor *visitor, PropertyNode *node);
+void muil_visit_property_node(SemanticsPass *visitor, PropertyNode *node);
 
 /**
  * @brief Visits a literal node in an intermediate representation (IR) and performs an operation.
@@ -45,7 +45,7 @@ void muil_visit_property_node(ASTVisitor *visitor, PropertyNode *node);
  * @param visitor The IR visitor object.
  * @param node The literal node to be visited.
  */
-void muil_visit_literal_node(ASTVisitor *visitor, LiteralNode *node);
+void muil_visit_literal_node(SemanticsPass *visitor, LiteralNode *node);
 
 /**
  * @brief Visits an assignment node.
@@ -55,7 +55,7 @@ void muil_visit_literal_node(ASTVisitor *visitor, LiteralNode *node);
  * @param visitor The IRVisitor instance.
  * @param node The AssignmentNode to be visited.
  */
-void muil_visit_assignment_node(ASTVisitor *visitor, AssignmentNode *node);
+void muil_visit_assignment_node(SemanticsPass *visitor, AssignmentNode *node);
 
 /**
  * @brief Visits an array node in an intermediate representation (IR).
@@ -69,7 +69,7 @@ void muil_visit_assignment_node(ASTVisitor *visitor, AssignmentNode *node);
  * @see IRVisitor
  * @see ArrayNode
  */
-void muil_visit_array_node(ASTVisitor *visitor, ArrayNode *node);
+void muil_visit_array_node(SemanticsPass *visitor, ArrayNode *node);
 
 /**
  * @brief Visits a binary operation node in the intermediate representation (IR).
@@ -80,7 +80,7 @@ void muil_visit_array_node(ASTVisitor *visitor, ArrayNode *node);
  * @param visitor The IR visitor object responsible for visiting the node.
  * @param node The binary operation node to visit.
  */
-void muil_visit_binary_op_node(ASTVisitor *visitor, BinaryOpNode *node);
+void muil_visit_binary_op_node(SemanticsPass *visitor, BinaryOpNode *node);
 
 /**
  * @brief Visit a ReferenceNode and process it using the given visitor.
@@ -92,7 +92,7 @@ void muil_visit_binary_op_node(ASTVisitor *visitor, BinaryOpNode *node);
  * @param visitor The ASTVisitor instance responsible for processing the node.
  * @param node The ReferenceNode to be visited and processed.
  */
-void muil_visit_reference_node(ASTVisitor *visitor, ReferenceNode *node);
+void muil_visit_reference_node(SemanticsPass *visitor, ReferenceNode *node);
 
 /**
  * @brief Visits a FunctionCallNode in the AST.
@@ -104,7 +104,7 @@ void muil_visit_reference_node(ASTVisitor *visitor, ReferenceNode *node);
  * @param node A pointer to the FunctionCallNode object to be visited.
  * @return void
  */
-void muil_visit_function_call_node(ASTVisitor *visitor, FunctionCallNode *node);
+void muil_visit_function_call_node(SemanticsPass *visitor, FunctionCallNode *node);
 
 
 /**
@@ -115,13 +115,13 @@ void muil_visit_function_call_node(ASTVisitor *visitor, FunctionCallNode *node);
  * @param visitor A pointer to the IRVisitor object to use for visiting the type.
  * @param type A pointer to the Type object to be visited.
  */
-void muil_visit_type(ASTVisitor *visitor, TypeAST *type);
+void muil_visit_type(SemanticsPass *visitor, TypeAST *type);
 
 //Declared here because it assumes the visitor has been set
 #define has(mask) muil_has_visitor(visitor, mask)
 
 
-void muil_visit_component_node(ASTVisitor *visitor, ComponentNode *node) {
+void muil_visit_component_node(SemanticsPass *visitor, ComponentNode *node) {
 //    vinfo("Visiting component: %s", node->name)
     if (!node) {
         verror("ComponentNode is null")
@@ -130,7 +130,7 @@ void muil_visit_component_node(ASTVisitor *visitor, ComponentNode *node) {
     if (node->super) {
         muil_visit_type(visitor, node->super);
     }
-    if (has(VISITOR_TYPE_MASK_COMPONENT)) {
+    if (has(SEMANTICS_MASK_COMPONENT)) {
         visitor->enterComponentNode(visitor, node);
     }
     
@@ -138,36 +138,36 @@ void muil_visit_component_node(ASTVisitor *visitor, ComponentNode *node) {
         muil_visit_node(visitor, node->body);
     }
     
-    if (has(VISITOR_TYPE_MASK_COMPONENT)) {
+    if (has(SEMANTICS_MASK_COMPONENT)) {
         visitor->exitComponentNode(visitor, node);
     }
 }
 
-void muil_visit_scope_node(ASTVisitor *visitor, ScopeNode *node) {
+void muil_visit_scope_node(SemanticsPass *visitor, ScopeNode *node) {
 //    vinfo("Visiting scope")
     if (!node) {
         verror("ScopeNode is null")
         return;
     }
-    if (has(VISITOR_TYPE_MASK_SCOPE)) {
+    if (has(SEMANTICS_MASK_SCOPE)) {
         visitor->enterScopeNode(visitor, node);
     }
     for (ASTNode *stmt = node->body; stmt != null; stmt = stmt->next) {
         muil_visit_node(visitor, stmt);
     }
-    if (has(VISITOR_TYPE_MASK_SCOPE)) {
+    if (has(SEMANTICS_MASK_SCOPE)) {
         visitor->exitScopeNode(visitor, node);
     }
 }
 
-void muil_visit_property_node(ASTVisitor *visitor, PropertyNode *node) {
+void muil_visit_property_node(SemanticsPass *visitor, PropertyNode *node) {
 //    vinfo("Visiting property: %s", node->name)
     if (!node) {
         verror("PropertyNode is null")
         return;
     }
     
-    if (has(VISITOR_TYPE_MASK_PROPERTY)) {
+    if (has(SEMANTICS_MASK_PROPERTY)) {
         visitor->enterPropertyNode(visitor, node);
     }
     if (node->type) {
@@ -176,12 +176,12 @@ void muil_visit_property_node(ASTVisitor *visitor, PropertyNode *node) {
     if (node->value) {
         muil_visit_node(visitor, node->value);
     }
-    if (has(VISITOR_TYPE_MASK_PROPERTY)) {
+    if (has(SEMANTICS_MASK_PROPERTY)) {
         visitor->exitPropertyNode(visitor, node);
     }
 }
 
-void muil_visit_literal_node(ASTVisitor *visitor, LiteralNode *node) {
+void muil_visit_literal_node(SemanticsPass *visitor, LiteralNode *node) {
 //    switch (node->type) {
 //        case LITERAL_STRING:vinfo("Literal: %s", node->value.stringValue);
 //            break;
@@ -194,69 +194,69 @@ void muil_visit_literal_node(ASTVisitor *visitor, LiteralNode *node) {
         verror("LiteralNode is null")
         return;
     }
-    if (has(VISITOR_TYPE_MASK_LITERAL)) {
+    if (has(SEMANTICS_MASK_LITERAL)) {
         visitor->enterLiteralNode(visitor, node);
     }
     //TODO: Do we need to visit the type of the literal?
-    if (has(VISITOR_TYPE_MASK_LITERAL)) {
+    if (has(SEMANTICS_MASK_LITERAL)) {
         visitor->exitLiteralNode(visitor, node);
     }
 }
 
-void muil_visit_assignment_node(ASTVisitor *visitor, AssignmentNode *node) {
+void muil_visit_assignment_node(SemanticsPass *visitor, AssignmentNode *node) {
 //    vinfo("Visiting assignment: %s", node->variableName)
     if (!node) {
         verror("AssignmentNode is null")
         return;
     }
-    if (has(VISITOR_TYPE_MASK_ASSIGNMENT)) {
+    if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->enterAssignmentNode(visitor, node);
     }
     muil_visit_node(visitor, node->value);
-    if (has(VISITOR_TYPE_MASK_ASSIGNMENT)) {
+    if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->exitAssignmentNode(visitor, node);
         
     }
 }
 
-void muil_visit_array_node(ASTVisitor *visitor, ArrayNode *node) {
+void muil_visit_array_node(SemanticsPass *visitor, ArrayNode *node) {
 //    vinfo("Visiting array")
     if (!node) {
         verror("ArrayNode is null")
         return;
     }
-    if (has(VISITOR_TYPE_MASK_ARRAY)) {
+    if (has(SEMANTICS_MASK_ARRAY)) {
         visitor->enterArrayNode(visitor, node);
     }
     for (ASTNode *elem = node->elements; elem != null; elem = elem->next) {
         muil_visit_node(visitor, elem);
     }
-    if (has(VISITOR_TYPE_MASK_ARRAY)) {
+    if (has(SEMANTICS_MASK_ARRAY)) {
         visitor->exitArrayNode(visitor, node);
     }
 }
 
-void muil_visit_binary_op_node(ASTVisitor *visitor, BinaryOpNode *node) {
+void muil_visit_binary_op_node(SemanticsPass *visitor, BinaryOpNode *node) {
     if (!node) {
         verror("BinaryOpNode is null")
         return;
     }
-    if (has(VISITOR_TYPE_MASK_BINARY_OP)) {
+    if (has(SEMANTICS_MASK_BINARY_OP)) {
         visitor->enterBinaryOpNode(visitor, node);
     }
     muil_visit_node(visitor, node->left);
     muil_visit_node(visitor, node->right);
-    if (has(VISITOR_TYPE_MASK_BINARY_OP)) {
+    if (has(SEMANTICS_MASK_BINARY_OP)) {
         visitor->exitBinaryOpNode(visitor, node);
     }
 }
 
-void muil_visit_type(ASTVisitor *visitor, TypeAST *type) {
+void muil_visit_type(SemanticsPass *visitor, TypeAST *type) {
     if (type == null) {
         verror("Type is null");
         return;
     }
-    if (has(VISITOR_TYPE_MASK_TYPE)) {
+    if (has(SEMANTICS_MASK_TYPE)) {
         visitor->enterType(visitor, type);
     }
     // Depending on type kind, we perform different visitations or actions
@@ -290,17 +290,17 @@ void muil_visit_type(ASTVisitor *visitor, TypeAST *type) {
         default:verror("Unknown Type Kind: %d", type->kind);
             break;
     }
-    if (has(VISITOR_TYPE_MASK_TYPE)) {
+    if (has(SEMANTICS_MASK_TYPE)) {
         visitor->exitType(visitor, type);
     }
 }
 
-void muil_visit_reference_node(ASTVisitor *visitor, ReferenceNode *node) {
+void muil_visit_reference_node(SemanticsPass *visitor, ReferenceNode *node) {
     if (node == null) {
         verror("ReferenceNode is null");
         return;
     }
-    if (has(VISITOR_TYPE_MASK_REFERENCE)) {
+    if (has(SEMANTICS_MASK_REFERENCE)) {
         visitor->enterReferenceNode(visitor, node);
     }
     if (node->type) {
@@ -309,18 +309,18 @@ void muil_visit_reference_node(ASTVisitor *visitor, ReferenceNode *node) {
     if (node->reference) {
         muil_visit_node(visitor, node->reference);
     }
-    if (has(VISITOR_TYPE_MASK_REFERENCE)) {
+    if (has(SEMANTICS_MASK_REFERENCE)) {
         visitor->exitReferenceNode(visitor, node);
     }
 }
 
 
-void muil_visit_function_call_node(ASTVisitor *visitor, FunctionCallNode *node) {
+void muil_visit_function_call_node(SemanticsPass *visitor, FunctionCallNode *node) {
     if (node == null) {
         verror("FunctionCallNode is null");
         return;
     }
-    if (has(VISITOR_TYPE_MASK_FUNCTION_CALL)) {
+    if (has(SEMANTICS_MASK_FUNCTION_CALL)) {
         visitor->enterFunctionCallNode(visitor, node);
     }
     if (node->reference) {
@@ -331,13 +331,13 @@ void muil_visit_function_call_node(ASTVisitor *visitor, FunctionCallNode *node) 
             muil_visit_node(visitor, arg);
         }
     }
-    if (has(VISITOR_TYPE_MASK_FUNCTION_CALL)) {
+    if (has(SEMANTICS_MASK_FUNCTION_CALL)) {
         visitor->exitFunctionCallNode(visitor, node);
     }
 }
 
 
-void muil_visit_node(ASTVisitor *visitor, ASTNode *node) {
+void muil_visit_node(SemanticsPass *visitor, ASTNode *node) {
     if (node == null) {
         verror("Node is null");
         return;
@@ -364,7 +364,7 @@ void muil_visit_node(ASTVisitor *visitor, ASTNode *node) {
     }
 }
 
-void muil_visit(ASTVisitor *visitor, ProgramAST *program) {
+void muil_visit(SemanticsPass *visitor, ProgramAST *program) {
     if (program == null) {
         verror("ProgramAST is null");
         return;
@@ -374,55 +374,55 @@ void muil_visit(ASTVisitor *visitor, ProgramAST *program) {
         return;
     }
     
-    if (has(VISITOR_TYPE_MASK_PROGRAM)) {
+    if (has(SEMANTICS_MASK_PROGRAM)) {
         visitor->enterProgramNode(visitor, program);
     }
     // Visit the root node and it's children
     muil_visit_node(visitor, program->root);
-    if (has(VISITOR_TYPE_MASK_PROGRAM)) {
+    if (has(SEMANTICS_MASK_PROGRAM)) {
         visitor->exitProgramNode(visitor, program);
     }
 }
 
 
-void muil_set_visitor(ASTVisitor *visitor, VisitorTypeMask mask, void *enter, void *exit) {
+void muil_set_visitor(SemanticsPass *visitor, SemanticsPassMask mask, void *enter, void *exit) {
     if (visitor == null) {
         verror("ASTVisitor is null");
         return;
     }
     visitor->type_mask |= mask;
     switch (mask) {
-        case VISITOR_TYPE_MASK_PROGRAM:visitor->enterProgramNode = enter;
+        case SEMANTICS_MASK_PROGRAM:visitor->enterProgramNode = enter;
             visitor->exitProgramNode = exit;
             break;
-        case VISITOR_TYPE_MASK_COMPONENT:visitor->enterComponentNode = enter;
+        case SEMANTICS_MASK_COMPONENT:visitor->enterComponentNode = enter;
             visitor->exitComponentNode = exit;
             break;
-        case VISITOR_TYPE_MASK_PROPERTY:visitor->enterPropertyNode = enter;
+        case SEMANTICS_MASK_PROPERTY:visitor->enterPropertyNode = enter;
             visitor->exitPropertyNode = exit;
             break;
-        case VISITOR_TYPE_MASK_LITERAL:visitor->enterLiteralNode = enter;
+        case SEMANTICS_MASK_LITERAL:visitor->enterLiteralNode = enter;
             visitor->exitLiteralNode = exit;
             break;
-        case VISITOR_TYPE_MASK_ASSIGNMENT:visitor->enterAssignmentNode = enter;
+        case SEMANTICS_MASK_ASSIGNMENT:visitor->enterAssignmentNode = enter;
             visitor->exitAssignmentNode = exit;
             break;
-        case VISITOR_TYPE_MASK_ARRAY:visitor->enterArrayNode = enter;
+        case SEMANTICS_MASK_ARRAY:visitor->enterArrayNode = enter;
             visitor->exitArrayNode = exit;
             break;
-        case VISITOR_TYPE_MASK_SCOPE:visitor->enterScopeNode = enter;
+        case SEMANTICS_MASK_SCOPE:visitor->enterScopeNode = enter;
             visitor->exitScopeNode = exit;
             break;
-        case VISITOR_TYPE_MASK_BINARY_OP:visitor->enterBinaryOpNode = enter;
+        case SEMANTICS_MASK_BINARY_OP:visitor->enterBinaryOpNode = enter;
             visitor->exitBinaryOpNode = exit;
             break;
-        case VISITOR_TYPE_MASK_REFERENCE:visitor->enterReferenceNode = enter;
+        case SEMANTICS_MASK_REFERENCE:visitor->enterReferenceNode = enter;
             visitor->exitReferenceNode = exit;
             break;
-        case VISITOR_TYPE_MASK_FUNCTION_CALL:visitor->enterFunctionCallNode = enter;
+        case SEMANTICS_MASK_FUNCTION_CALL:visitor->enterFunctionCallNode = enter;
             visitor->exitFunctionCallNode = exit;
             break;
-        case VISITOR_TYPE_MASK_TYPE:visitor->enterType = enter;
+        case SEMANTICS_MASK_TYPE:visitor->enterType = enter;
             visitor->exitType = exit;
             break;
         default:verror("Unknown visitor type mask: %d", mask);
@@ -431,41 +431,41 @@ void muil_set_visitor(ASTVisitor *visitor, VisitorTypeMask mask, void *enter, vo
 }
 
 
-b8 muil_has_visitor(ASTVisitor *visitor, VisitorTypeMask mask) {
+b8 muil_has_visitor(SemanticsPass *visitor, SemanticsPassMask mask) {
     return (visitor->type_mask & mask) == mask;
 }
 
-void *muil_get_visitor_enter(ASTVisitor *visitor, VisitorTypeMask mask) {
+void *muil_get_visitor_enter(SemanticsPass *visitor, SemanticsPassMask mask) {
     switch (mask) {
-        case VISITOR_TYPE_MASK_PROGRAM:return visitor->enterProgramNode;
-        case VISITOR_TYPE_MASK_COMPONENT:return visitor->enterComponentNode;
-        case VISITOR_TYPE_MASK_PROPERTY:return visitor->enterPropertyNode;
-        case VISITOR_TYPE_MASK_LITERAL:return visitor->enterLiteralNode;
-        case VISITOR_TYPE_MASK_ASSIGNMENT:return visitor->enterAssignmentNode;
-        case VISITOR_TYPE_MASK_ARRAY:return visitor->enterArrayNode;
-        case VISITOR_TYPE_MASK_SCOPE:return visitor->enterScopeNode;
-        case VISITOR_TYPE_MASK_BINARY_OP:return visitor->enterBinaryOpNode;
-        case VISITOR_TYPE_MASK_REFERENCE:return visitor->enterReferenceNode;
-        case VISITOR_TYPE_MASK_FUNCTION_CALL:return visitor->enterFunctionCallNode;
-        case VISITOR_TYPE_MASK_TYPE:return visitor->enterType;
+        case SEMANTICS_MASK_PROGRAM:return visitor->enterProgramNode;
+        case SEMANTICS_MASK_COMPONENT:return visitor->enterComponentNode;
+        case SEMANTICS_MASK_PROPERTY:return visitor->enterPropertyNode;
+        case SEMANTICS_MASK_LITERAL:return visitor->enterLiteralNode;
+        case SEMANTICS_MASK_ASSIGNMENT:return visitor->enterAssignmentNode;
+        case SEMANTICS_MASK_ARRAY:return visitor->enterArrayNode;
+        case SEMANTICS_MASK_SCOPE:return visitor->enterScopeNode;
+        case SEMANTICS_MASK_BINARY_OP:return visitor->enterBinaryOpNode;
+        case SEMANTICS_MASK_REFERENCE:return visitor->enterReferenceNode;
+        case SEMANTICS_MASK_FUNCTION_CALL:return visitor->enterFunctionCallNode;
+        case SEMANTICS_MASK_TYPE:return visitor->enterType;
         default:verror("Unknown visitor type mask: %d", mask);
             break;
     }
 }
 
-void *muil_get_visitor_exit(ASTVisitor *visitor, VisitorTypeMask mask) {
+void *muil_get_visitor_exit(SemanticsPass *visitor, SemanticsPassMask mask) {
     switch (mask) {
-        case VISITOR_TYPE_MASK_PROGRAM:return visitor->exitProgramNode;
-        case VISITOR_TYPE_MASK_COMPONENT:return visitor->exitComponentNode;
-        case VISITOR_TYPE_MASK_PROPERTY:return visitor->exitPropertyNode;
-        case VISITOR_TYPE_MASK_LITERAL:return visitor->exitLiteralNode;
-        case VISITOR_TYPE_MASK_ASSIGNMENT:return visitor->exitAssignmentNode;
-        case VISITOR_TYPE_MASK_ARRAY:return visitor->exitArrayNode;
-        case VISITOR_TYPE_MASK_SCOPE:return visitor->exitScopeNode;
-        case VISITOR_TYPE_MASK_BINARY_OP:return visitor->exitBinaryOpNode;
-        case VISITOR_TYPE_MASK_REFERENCE:return visitor->exitReferenceNode;
-        case VISITOR_TYPE_MASK_FUNCTION_CALL:return visitor->exitFunctionCallNode;
-        case VISITOR_TYPE_MASK_TYPE:return visitor->exitType;
+        case SEMANTICS_MASK_PROGRAM:return visitor->exitProgramNode;
+        case SEMANTICS_MASK_COMPONENT:return visitor->exitComponentNode;
+        case SEMANTICS_MASK_PROPERTY:return visitor->exitPropertyNode;
+        case SEMANTICS_MASK_LITERAL:return visitor->exitLiteralNode;
+        case SEMANTICS_MASK_ASSIGNMENT:return visitor->exitAssignmentNode;
+        case SEMANTICS_MASK_ARRAY:return visitor->exitArrayNode;
+        case SEMANTICS_MASK_SCOPE:return visitor->exitScopeNode;
+        case SEMANTICS_MASK_BINARY_OP:return visitor->exitBinaryOpNode;
+        case SEMANTICS_MASK_REFERENCE:return visitor->exitReferenceNode;
+        case SEMANTICS_MASK_FUNCTION_CALL:return visitor->exitFunctionCallNode;
+        case SEMANTICS_MASK_TYPE:return visitor->exitType;
         default:verror("Unknown visitor type mask: %d", mask);
             break;
     }

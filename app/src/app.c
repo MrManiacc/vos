@@ -72,14 +72,15 @@ int main(int argc, char **argv) {
     vinfo("AST: \n%s", ast_dump);
     
     PassManager *state = muil_pass_manager_new();
-    muil_pass_manager_add(state, muil_pass_type_check_new());
-    muil_pass_manager_add(state, muil_pass_symbol_new());
+    SymtabPass *symbols = new_SymtabPass();
+    TypePass *types = new_TypePass();
+    muil_pass_manager_add(state, (SemanticsPass *) symbols);
+    muil_pass_manager_add(state, (SemanticsPass *) types);
     muil_pass_manager_run(state, &ast);
     muil_pass_manager_destroy(state);
     parser_free_program(&ast);
-//    analyzer_free_type_checker(visitor);
-    
-    
+    delete_SymtabPass(symbols);
+    delete_TypePass(types);
     KernelResult shutdown_result = kernel_shutdown();
     
     

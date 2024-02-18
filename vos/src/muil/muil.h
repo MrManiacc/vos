@@ -6,21 +6,12 @@
 #include "muil_parser.h"
 #include "muil_dump.h"
 #include "muil_visitor.h"
+#include "core/vmem.h"
 
 // =============================================================================
 // PassManager - Manages the execution of visitors
 // =============================================================================
 typedef struct PassManager PassManager;
-
-// =============================================================================
-// SymbolPass - Symbol resolution visitor
-// =============================================================================
-typedef struct SymbolPass SymbolPass;
-
-// =============================================================================
-// TypePass - Type checking visitor
-// =============================================================================
-typedef struct TypePass TypePass;
 
 /**
  * @brief Creates a new pass manager.
@@ -40,7 +31,7 @@ PassManager *muil_pass_manager_new();
  * @param manager   The pass manager to which the visitor will be added.
  * @param visitor   The visitor to be added to the pass manager.
  */
-void muil_pass_manager_add(PassManager *manager, ASTVisitor visitor);
+void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor);
 
 /**
  * @brief Runs the pass manager on the given ProgramAST.
@@ -64,25 +55,19 @@ void muil_pass_manager_run(PassManager *manager, ProgramAST *root);
 void muil_pass_manager_destroy(PassManager *manager);
 
 // =============================================================================
-//                             Symbol Pass
+// SymbolPass - Symbol resolution visitor
 // =============================================================================
-VAPI ASTVisitor muil_pass_symbol_new();
+// The symbol pass is responsible for resolving symbols in the AST.
+// It is a visitor that is added to the pass manager and
+// is executed before the type checking pass.
+// =============================================================================
+define_pass(SymtabPass);
 
 // =============================================================================
-//                             Type Pass
+// TypePass - Type checking visitor
 // =============================================================================
-VAPI ASTVisitor muil_pass_type_check_new();
-
-
-/**
- * @brief A type definition. This is used to define a new type in the symbol table.
- */
-typedef struct Type Type;
-
-
-/**
- * @breif defines a new type in the symbol table
- */
-b8 muil_define_type(TypePass *visitor, Type *type);
-
-
+// The type pass is responsible for checking the types of all nodes in the AST.
+// It is a visitor that is added to the pass manager and
+// is executed after the symbol resolution pass.
+// =============================================================================
+define_pass(TypePass);

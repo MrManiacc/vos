@@ -10,12 +10,12 @@
 #include "core/vmutex.h"
 
 typedef struct LinkedPass {
-    ASTVisitor visitor;
+    SemanticsPass *visitor;
     struct LinkedPass *next;
 } LinkedPass;
 
 typedef struct DelegateVisitor {
-    ASTVisitor base;
+    SemanticsPass base;
     LinkedPass *head; // Head of the linked list for traversal
     LinkedPass *tail; // Tail of the linked list for easy addition
 } DelegateVisitor;
@@ -37,7 +37,7 @@ PassManager *muil_pass_manager_new() {
     return manager;
 }
 
-void muil_pass_manager_add(PassManager *manager, ASTVisitor visitor) {
+void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor) {
     if (!manager) {
         verror("Pass manager or visitor is null");
         return;
@@ -68,7 +68,7 @@ void muil_pass_manager_run(PassManager *manager, ProgramAST *root) {
         return;
     }
     kmutex_lock(manager->mutex);
-    muil_visit((ASTVisitor *) manager->delegate, root);
+    muil_visit((SemanticsPass *) manager->delegate, root);
     kmutex_unlock(manager->mutex);
 }
 
@@ -89,12 +89,12 @@ void muil_pass_manager_destroy(PassManager *manager) {
 // ===================================================================================
 // ========================== Delegation to visitors =================================
 // ===================================================================================
-static void delegate_visitor_enter(DelegateVisitor *manager, VisitorTypeMask mask, void *node) {
+static void delegate_visitor_enter(DelegateVisitor *manager, SemanticsPassMask mask, void *node) {
     for (LinkedPass *current = manager->head; current != null; current = current->next) {
-        ASTVisitor *visitor = &current->visitor;
+        SemanticsPass *visitor = current->visitor;
         if (muil_has_visitor(visitor, mask)) {
             void
-            (*enter)(ASTVisitor *, void *) = (void (*)(ASTVisitor *, void *)) muil_get_visitor_enter(visitor, mask);
+            (*enter)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_enter(visitor, mask);
             if (enter) {
                 enter(visitor, node);
             }
@@ -102,11 +102,11 @@ static void delegate_visitor_enter(DelegateVisitor *manager, VisitorTypeMask mas
     }
 }
 
-static void delegate_visitor_exit(DelegateVisitor *manager, VisitorTypeMask mask, void *node) {
+static void delegate_visitor_exit(DelegateVisitor *manager, SemanticsPassMask mask, void *node) {
     for (LinkedPass *current = manager->head; current != null; current = current->next) {
-        ASTVisitor *visitor = &current->visitor;
+        SemanticsPass *visitor = current->visitor;
         if (muil_has_visitor(visitor, mask)) {
-            void (*exit)(ASTVisitor *, void *) = (void (*)(ASTVisitor *, void *)) muil_get_visitor_exit(visitor, mask);
+            void (*exit)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_exit(visitor, mask);
             if (exit) {
                 exit(visitor, node);
             }
@@ -116,115 +116,126 @@ static void delegate_visitor_exit(DelegateVisitor *manager, VisitorTypeMask mask
 
 
 static void delegate_visitor_program_enter(DelegateVisitor *manager, ProgramAST *program) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_PROGRAM, program);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_PROGRAM, program);
 }
 
 static void delegate_visitor_program_exit(DelegateVisitor *manager, ProgramAST *program) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_PROGRAM, program);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_PROGRAM, program);
 }
 
 static void delegate_visitor_component_enter(DelegateVisitor *manager, ComponentNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_COMPONENT, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_COMPONENT, node);
 }
 
 static void delegate_visitor_component_exit(DelegateVisitor *manager, ComponentNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_COMPONENT, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_COMPONENT, node);
+}
+
+static void delegate_visitor_property_enter(DelegateVisitor *manager, PropertyNode *node) {
+    delegate_visitor_enter(manager, SEMANTICS_MASK_PROPERTY, node);
+}
+
+static void delegate_visitor_property_exit(DelegateVisitor *manager, PropertyNode *node) {
+    delegate_visitor_exit(manager, SEMANTICS_MASK_PROPERTY, node);
 }
 
 static void delegate_visitor_literal_enter(DelegateVisitor *manager, LiteralNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_LITERAL, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_LITERAL, node);
 }
 
 static void delegate_visitor_literal_exit(DelegateVisitor *manager, LiteralNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_LITERAL, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_LITERAL, node);
 }
 
 static void delegate_visitor_assignment_enter(DelegateVisitor *manager, AssignmentNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_ASSIGNMENT, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_ASSIGNMENT, node);
 }
 
 static void delegate_visitor_assignment_exit(DelegateVisitor *manager, AssignmentNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_ASSIGNMENT, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_ASSIGNMENT, node);
 }
 
 static void delegate_visitor_array_enter(DelegateVisitor *manager, ArrayNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_ARRAY, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_ARRAY, node);
 }
 
 static void delegate_visitor_array_exit(DelegateVisitor *manager, ArrayNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_ARRAY, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_ARRAY, node);
 }
 
 static void delegate_visitor_scope_enter(DelegateVisitor *manager, ScopeNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_SCOPE, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_SCOPE, node);
 }
 
 static void delegate_visitor_scope_exit(DelegateVisitor *manager, ScopeNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_SCOPE, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_SCOPE, node);
 }
 
 static void delegate_visitor_binary_op_enter(DelegateVisitor *manager, BinaryOpNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_BINARY_OP, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_BINARY_OP, node);
 }
 
 static void delegate_visitor_binary_op_exit(DelegateVisitor *manager, BinaryOpNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_BINARY_OP, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_BINARY_OP, node);
 }
 
 static void delegate_visitor_reference_enter(DelegateVisitor *manager, ReferenceNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_REFERENCE, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_REFERENCE, node);
 }
 
 static void delegate_visitor_reference_exit(DelegateVisitor *manager, ReferenceNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_REFERENCE, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_REFERENCE, node);
 }
 
 static void delegate_visitor_function_call_enter(DelegateVisitor *manager, FunctionCallNode *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_FUNCTION_CALL, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_FUNCTION_CALL, node);
 }
 
 static void delegate_visitor_function_call_exit(DelegateVisitor *manager, FunctionCallNode *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_FUNCTION_CALL, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_FUNCTION_CALL, node);
 }
 
 static void delegate_visitor_type_enter(DelegateVisitor *manager, TypeAST *node) {
-    delegate_visitor_enter(manager, VISITOR_TYPE_MASK_TYPE, node);
+    delegate_visitor_enter(manager, SEMANTICS_MASK_TYPE, node);
 }
 
 static void delegate_visitor_type_exit(DelegateVisitor *manager, TypeAST *node) {
-    delegate_visitor_exit(manager, VISITOR_TYPE_MASK_TYPE, node);
+    delegate_visitor_exit(manager, SEMANTICS_MASK_TYPE, node);
 }
 
 
 static void initialize_delegate_visitor(PassManager *manager) {
     DelegateVisitor *delegate = manager->delegate;
     delegate->base.type_mask = 0;
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_PROGRAM, (void *) delegate_visitor_program_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_PROGRAM, (void *) delegate_visitor_program_enter,
                      (void *) delegate_visitor_program_exit);
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_COMPONENT, (void *) delegate_visitor_component_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_COMPONENT, (void *) delegate_visitor_component_enter,
                      (void *) delegate_visitor_component_exit);
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_LITERAL, (void *) delegate_visitor_literal_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_PROPERTY, (void *) delegate_visitor_property_enter,
+                     (void *) delegate_visitor_property_exit);
+    
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_LITERAL, (void *) delegate_visitor_literal_enter,
                      (void *) delegate_visitor_literal_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_ASSIGNMENT, (void *) delegate_visitor_assignment_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_ASSIGNMENT, (void *) delegate_visitor_assignment_enter,
                      (void *) delegate_visitor_assignment_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_ARRAY, (void *) delegate_visitor_array_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_ARRAY, (void *) delegate_visitor_array_enter,
                      (void *) delegate_visitor_array_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_SCOPE, (void *) delegate_visitor_scope_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_SCOPE, (void *) delegate_visitor_scope_enter,
                      (void *) delegate_visitor_scope_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_BINARY_OP, (void *) delegate_visitor_binary_op_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_BINARY_OP, (void *) delegate_visitor_binary_op_enter,
                      (void *) delegate_visitor_binary_op_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_REFERENCE, (void *) delegate_visitor_reference_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_REFERENCE, (void *) delegate_visitor_reference_enter,
                      (void *) delegate_visitor_reference_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_FUNCTION_CALL, (void *) delegate_visitor_function_call_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_FUNCTION_CALL, (void *) delegate_visitor_function_call_enter,
                      (void *) delegate_visitor_function_call_exit);
     
-    muil_set_visitor(&delegate->base, VISITOR_TYPE_MASK_TYPE, (void *) delegate_visitor_type_enter,
+    muil_set_visitor(&delegate->base, SEMANTICS_MASK_TYPE, (void *) delegate_visitor_type_enter,
                      (void *) delegate_visitor_type_exit);
     delegate->head = null;
     delegate->tail = null;
