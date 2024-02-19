@@ -14,7 +14,7 @@
  * @param visitor A pointer to the IRVisitor object.
  * @param node    A pointer to the ComponentNode to be visited.
  */
-void muil_visit_component_node(SemanticsPass *visitor, ComponentNode *node);
+void muil_visit_component_node(SemanticsPass *visitor, CompoundDeclaration *node);
 
 /**
  * @brief Visit the ScopeNode in the Intermediate Representation (IR) using the given visitor.
@@ -37,7 +37,7 @@ void muil_visit_scope_node(SemanticsPass *visitor, ScopeNode *node);
  * @param visitor A pointer to the IRVisitor object.
  * @param node A pointer to the VariableNode to be visited.
  */
-void muil_visit_property_node(SemanticsPass *visitor, PropertyNode *node);
+void muil_visit_property_node(SemanticsPass *visitor, PropertyDeclaration *node);
 
 /**
  * @brief Visits a literal node in an intermediate representation (IR) and performs an operation.
@@ -55,7 +55,7 @@ void muil_visit_literal_node(SemanticsPass *visitor, LiteralNode *node);
  * @param visitor The IRVisitor instance.
  * @param node The AssignmentNode to be visited.
  */
-void muil_visit_assignment_node(SemanticsPass *visitor, AssignmentNode *node);
+void muil_visit_assignment_node(SemanticsPass *visitor, PropertyAssignmentNode *node);
 
 /**
  * @brief Visits an array node in an intermediate representation (IR).
@@ -115,13 +115,13 @@ void muil_visit_function_call_node(SemanticsPass *visitor, FunctionCallNode *nod
  * @param visitor A pointer to the IRVisitor object to use for visiting the type.
  * @param type A pointer to the Type object to be visited.
  */
-void muil_visit_type(SemanticsPass *visitor, TypeAST *type);
+void muil_visit_type(SemanticsPass *visitor, TypeSymbol *type);
 
 //Declared here because it assumes the visitor has been set
 #define has(mask) muil_has_visitor(visitor, mask)
 
 
-void muil_visit_component_node(SemanticsPass *visitor, ComponentNode *node) {
+void muil_visit_component_node(SemanticsPass *visitor, CompoundDeclaration *node) {
 //    vinfo("Visiting component: %s", node->name)
     if (!node) {
         verror("ComponentNode is null")
@@ -160,7 +160,7 @@ void muil_visit_scope_node(SemanticsPass *visitor, ScopeNode *node) {
     }
 }
 
-void muil_visit_property_node(SemanticsPass *visitor, PropertyNode *node) {
+void muil_visit_property_node(SemanticsPass *visitor, PropertyDeclaration *node) {
 //    vinfo("Visiting property: %s", node->name)
     if (!node) {
         verror("PropertyNode is null")
@@ -203,7 +203,7 @@ void muil_visit_literal_node(SemanticsPass *visitor, LiteralNode *node) {
     }
 }
 
-void muil_visit_assignment_node(SemanticsPass *visitor, AssignmentNode *node) {
+void muil_visit_assignment_node(SemanticsPass *visitor, PropertyAssignmentNode *node) {
 //    vinfo("Visiting assignment: %s", node->variableName)
     if (!node) {
         verror("AssignmentNode is null")
@@ -212,7 +212,7 @@ void muil_visit_assignment_node(SemanticsPass *visitor, AssignmentNode *node) {
     if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->enterAssignmentNode(visitor, node);
     }
-    muil_visit_node(visitor, node->value);
+    muil_visit_node(visitor, node->assignment);
     if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->exitAssignmentNode(visitor, node);
         
@@ -251,7 +251,7 @@ void muil_visit_binary_op_node(SemanticsPass *visitor, BinaryOpNode *node) {
     }
 }
 
-void muil_visit_type(SemanticsPass *visitor, TypeAST *type) {
+void muil_visit_type(SemanticsPass *visitor, TypeSymbol *type) {
     if (type == null) {
         verror("Type is null");
         return;
@@ -283,7 +283,7 @@ void muil_visit_type(SemanticsPass *visitor, TypeAST *type) {
             break;
         case TYPE_TUPLE:
             // Recursively visit each type in the tuple
-            for (TypeAST *elem = type->data.tupleTypes; elem != null; elem = elem->next) {
+            for (TypeSymbol *elem = type->data.tupleTypes; elem != null; elem = elem->next) {
                 muil_visit_type(visitor, elem);
             }
             break;
@@ -343,11 +343,11 @@ void muil_visit_node(SemanticsPass *visitor, ASTNode *node) {
         return;
     }
     switch (node->nodeType) {
-        case AST_COMPONENT:muil_visit_component_node(visitor, &node->data.component);
+        case AST_COMPONENT_DECLARE:muil_visit_component_node(visitor, &node->data.compound);
             break;
         case AST_SCOPE:muil_visit_scope_node(visitor, &node->data.scope);
             break;
-        case AST_PROPERTY:muil_visit_property_node(visitor, &node->data.property);
+        case AST_PROPERTY_DECLARE:muil_visit_property_node(visitor, &node->data.property);
             break;
         case AST_LITERAL:muil_visit_literal_node(visitor, &node->data.literal);
             break;

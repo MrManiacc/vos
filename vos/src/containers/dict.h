@@ -8,23 +8,23 @@
 typedef u64 (hash_function)(const char *);
 
 
-typedef struct entry {
+typedef struct Entry {
     char *key;
     void *value;
-    struct entry *next;
-} entry;
+    struct Entry *next;
+} Entry;
 
 typedef struct Dict {
     u32 size;
     hash_function *hash_func;
-    entry **elements;
+    Entry **elements;
 } Dict;
 
-typedef struct DictIterator {
+typedef struct DictIter {
     Dict *table;
-    entry *entry;
+    Entry *entry;
     u32 index;
-} DictIterator;
+} DictIter;
 
 /**
  * @brief creates a new dictionary table with the given size and hash function
@@ -56,7 +56,7 @@ Dict *dict_create_sized(u64 size);
  * @brief destroys the given dictionary table
  * @param table  the table to destroy
  */
-void dict_destroy(Dict *table);
+void dict_delete(Dict *table);
 
 /**
  * @brief inserts the given key and value into the table
@@ -120,12 +120,12 @@ void dict_clear(Dict *table);
 /**
  * @brief creates a new iterator for the given table
  */
-DictIterator dict_iterator(Dict *table);
+DictIter dict_iterator(Dict *table);
 
 /**
  * @brief moves the iterator to the next element
  * @param it the iterator to move
  * @return true if the iterator was moved, false if the iterator is at the end
  */
-b8 dict_next(DictIterator *it);
+b8 dict_next(DictIter *it);
 

@@ -13,13 +13,21 @@
 Temper: Primitive | void {
     Test : Int {
         SubType : Int = 5
+
     }
 
-    Foo = Temper.Bar + 42
-    Print("Foo is equal to " + Primitive.ToString(Foo))
+    Test2: String{
+
+    }
+    Testf: BLah = 5
+
+
+    // This type gets inferred in the second pass
+    Test.Second_pass = false
+
 }
 
 // Checking for redifinitions
-Temper : Blah{
-    Property : Test = 5
+Tempers : Blah{
+    Bloperty : Test = 5
 }

@@ -14,15 +14,16 @@ typedef struct ASTNode ASTNode;
 
 // Enum to represent different types of AST nodes
 typedef enum {
-    AST_COMPONENT,
-    AST_PROPERTY, // Represents a property within a component
-    AST_LITERAL,
+    AST_COMPONENT_DECLARE,
+    AST_PROPERTY_DECLARE, // Represents a property within a component
     AST_ASSIGNMENT,
+    AST_LITERAL,
     AST_ARRAY,
     AST_SCOPE,
     AST_BINARY_OP,
     AST_REFERENCE,
     AST_FUNCTION_CALL,
+    AST_TYPE,
 } ASTNodeType;
 
 
@@ -46,22 +47,22 @@ typedef enum {
     TYPE_TUPLE, // Tuple type
 } TypeKind;
 
-typedef struct TypeAST {
+typedef struct TypeSymbol {
     TypeKind kind;
     char *alias; // The alias name
-    struct TypeAST *next; // For linked lists in unions, intersections, tuples
+    struct TypeSymbol *next; // For linked lists in unions, intersections, tuples
     union {
         char *name; // For basic types
         struct {
-            struct TypeAST *elementType;
+            struct TypeSymbol *elementType;
         } array;
         struct {
-            struct TypeAST *lhs;
-            struct TypeAST *rhs;
+            struct TypeSymbol *lhs;
+            struct TypeSymbol *rhs;
         } binary; // For union, intersection, function
-        struct TypeAST *tupleTypes; // Pointer to the first type in the tuple
+        struct TypeSymbol *tupleTypes; // Pointer to the first type in the tuple
     } data;
-} TypeAST;
+} TypeSymbol;
 
 // A scope is a collection of nodes.
 typedef struct {
@@ -72,16 +73,16 @@ typedef struct {
 // Separate data structures for each node type
 typedef struct {
     char *name; // Component name, null for instances
-    TypeAST *super; // The super component types that this component extends. Can be null.
+    TypeSymbol *super; // The super component types that this component extends. Can be null.
     ASTNode *body; // A body will typically be a scope node
     b8 topLevel; // Indicates if this is a top-level component
-} ComponentNode;
+} CompoundDeclaration;
 
 typedef struct {
-    char *name; // Property name
-    TypeAST *type; // Type of the component
-    ASTNode *value; // Can be a type declaration, expression, or array
-} PropertyNode;
+    char *name; // Property name, required
+    TypeSymbol *type; // Type of the component, can be null if the type is not known/inferred from reference
+    ASTNode *value; // Will always be an AssignmentNode
+} PropertyDeclaration;
 
 typedef struct {
     ASTLiteralType type;
@@ -93,9 +94,9 @@ typedef struct {
 } LiteralNode;
 
 typedef struct {
-    char *variableName;
-    ASTNode *value; // Assigned value, can be any expression including arrays
-} AssignmentNode;
+    ASTNode *assignee; // The assignee, can be a reference or a property
+    ASTNode *assignment; // Assigned value, can be any expression including arrays
+} PropertyAssignmentNode;
 
 typedef struct {
     ASTNode *elements; // Elements of the array, can be types or values
@@ -109,7 +110,7 @@ typedef struct {
 
 typedef struct {
     char *name; // The name of the reference
-    TypeAST *type; // The type of the reference. Can be null if the type is not known/inferred from reference
+    TypeSymbol *type; // The type of the reference. Can be null if the type is not known/inferred from reference
     ASTNode *reference; // The reference node
 } ReferenceNode;
 
@@ -119,27 +120,33 @@ typedef struct {
     ASTNode *arguments; // The arguments to the function
 } FunctionCallNode;
 
+typedef struct {
+    char *name; // The name of the type
+    TypeSymbol *type; // The type of the type
+} TypeNode;
+
 struct ASTNode {
     ASTNodeType nodeType;
     union {
-        ComponentNode component;
-        PropertyNode property;
+        CompoundDeclaration compound;
+        PropertyDeclaration property;
         LiteralNode literal;
-        AssignmentNode assignment;
+        PropertyAssignmentNode assignment;
         ArrayNode array;
         ScopeNode scope;
         BinaryOpNode binaryOp;
         ReferenceNode reference;
         FunctionCallNode functionCall;
-        TypeAST type;
+        TypeNode type;
     } data;
     ASTNode *next; // Next sibling in the AST
+    void *userData; // User data for the node. Can be used to store additional information such as symbol table entries
 };
 
 // Type alias specifics
 typedef struct {
     char *alias; // The alias name
-    TypeAST *actualType; // The actual type definition
+    TypeSymbol *actualType; // The actual type definition
 } TypeAliasNode;
 
 

@@ -82,7 +82,7 @@ KernelResult kernel_shutdown() {
     timer_cleanup();
     intrinsics_shutdown();
     event_shutdown();
-    dict_destroy(processes_by_name);
+    dict_delete(processes_by_name);
     strings_shutdown();
     platform_shutdown();
     vtrace("Mem usage: %s", get_memory_usage_str())

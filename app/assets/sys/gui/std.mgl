@@ -14,7 +14,7 @@ Border {
     radius: Int // Corner radius for rounded borders
 }
 
-// Image component with source URL and alternative text.
+// Image compound with source URL and alternative text.
 Image {
     source: String // URL of the image
     alt: String // Alternative text for accessibility
@@ -75,9 +75,9 @@ Button : Element {
     enabled: Bool // Whether the button is interactive
 }
 
-// Input element for text entry.
+// Input element for text Entry.
 Input : Element {
-    value: String // Current input value
+    assignment: String // Current input assignment
     placeholder: String // Placeholder text
     typeNode: String // Input typeNode (e.g., "text", "password")
     required: Bool // Whether input is required for form submission

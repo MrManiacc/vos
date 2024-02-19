@@ -43,7 +43,7 @@ b8 timer_exists(const char *id) {
 void timer_poll() {
     if (!timers) return;
     
-    DictIterator it = dict_iterator(timers);
+    DictIter it = dict_iterator(timers);
     
     while (dict_next(&it)) {
         time_t current_time;
@@ -58,7 +58,7 @@ void timer_poll() {
 
 void timer_cleanup() {
     if (timers) {
-        dict_destroy(timers);
+        dict_delete(timers);
         timers = NULL;
     }
 }

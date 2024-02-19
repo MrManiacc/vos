@@ -94,8 +94,8 @@ void vfs_shutdown() {
     //free/shutdown all the nodes in the system
     unload_nodes();
     //root should have been freed by the shutdown_nodes function, at this point it should be null
-    dict_destroy(fs_context->users);
-    dict_destroy(fs_context->nodes);
+    dict_delete(fs_context->users);
+    dict_delete(fs_context->nodes);
     kfree(fs_context, sizeof(FSContext), MEMORY_TAG_RESOURCE);
     fs_context = null;
     shutdown_paths();

@@ -123,19 +123,19 @@ static void delegate_visitor_program_exit(DelegateVisitor *manager, ProgramAST *
     delegate_visitor_exit(manager, SEMANTICS_MASK_PROGRAM, program);
 }
 
-static void delegate_visitor_component_enter(DelegateVisitor *manager, ComponentNode *node) {
+static void delegate_visitor_component_enter(DelegateVisitor *manager, CompoundDeclaration *node) {
     delegate_visitor_enter(manager, SEMANTICS_MASK_COMPONENT, node);
 }
 
-static void delegate_visitor_component_exit(DelegateVisitor *manager, ComponentNode *node) {
+static void delegate_visitor_component_exit(DelegateVisitor *manager, CompoundDeclaration *node) {
     delegate_visitor_exit(manager, SEMANTICS_MASK_COMPONENT, node);
 }
 
-static void delegate_visitor_property_enter(DelegateVisitor *manager, PropertyNode *node) {
+static void delegate_visitor_property_enter(DelegateVisitor *manager, PropertyDeclaration *node) {
     delegate_visitor_enter(manager, SEMANTICS_MASK_PROPERTY, node);
 }
 
-static void delegate_visitor_property_exit(DelegateVisitor *manager, PropertyNode *node) {
+static void delegate_visitor_property_exit(DelegateVisitor *manager, PropertyDeclaration *node) {
     delegate_visitor_exit(manager, SEMANTICS_MASK_PROPERTY, node);
 }
 
@@ -147,11 +147,11 @@ static void delegate_visitor_literal_exit(DelegateVisitor *manager, LiteralNode 
     delegate_visitor_exit(manager, SEMANTICS_MASK_LITERAL, node);
 }
 
-static void delegate_visitor_assignment_enter(DelegateVisitor *manager, AssignmentNode *node) {
+static void delegate_visitor_assignment_enter(DelegateVisitor *manager, PropertyAssignmentNode *node) {
     delegate_visitor_enter(manager, SEMANTICS_MASK_ASSIGNMENT, node);
 }
 
-static void delegate_visitor_assignment_exit(DelegateVisitor *manager, AssignmentNode *node) {
+static void delegate_visitor_assignment_exit(DelegateVisitor *manager, PropertyAssignmentNode *node) {
     delegate_visitor_exit(manager, SEMANTICS_MASK_ASSIGNMENT, node);
 }
 
@@ -195,11 +195,11 @@ static void delegate_visitor_function_call_exit(DelegateVisitor *manager, Functi
     delegate_visitor_exit(manager, SEMANTICS_MASK_FUNCTION_CALL, node);
 }
 
-static void delegate_visitor_type_enter(DelegateVisitor *manager, TypeAST *node) {
+static void delegate_visitor_type_enter(DelegateVisitor *manager, TypeSymbol *node) {
     delegate_visitor_enter(manager, SEMANTICS_MASK_TYPE, node);
 }
 
-static void delegate_visitor_type_exit(DelegateVisitor *manager, TypeAST *node) {
+static void delegate_visitor_type_exit(DelegateVisitor *manager, TypeSymbol *node) {
     delegate_visitor_exit(manager, SEMANTICS_MASK_TYPE, node);
 }
 

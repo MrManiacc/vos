@@ -15,13 +15,9 @@ void type_check_exit_program(TypePass *visitor, ProgramAST *node) {
 }
 
 
-implement_pass(TypePass, Dict *symbols, {
-    if (!free) {
-        pass->symbols = dict_new();
-        pass->base.type_mask = 0;
-        muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, type_check_enter_program,
-                         type_check_exit_program);
-    } else {
-        dict_destroy(pass->symbols);
-    }
+implement_pass(TypePass, Dict *types, {
+    pass->types = dict_new();
+    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, type_check_enter_program, type_check_exit_program);
+}, {
+    dict_delete(pass->types);
 });

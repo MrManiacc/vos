@@ -24,7 +24,7 @@ void append_indent(StringBuilder *sb, int indentLevel, int isLast) {
 }
 
 // Utility function for type dumping (handles composite types)
-void dump_type(TypeAST *type, StringBuilder *sb) {
+void dump_type(TypeSymbol *type, StringBuilder *sb) {
     if (!type) {
         sb_appendf(sb, "null");
         return;
@@ -51,7 +51,7 @@ void dump_type(TypeAST *type, StringBuilder *sb) {
             dump_type(type->data.binary.rhs, sb);
             break;
         case TYPE_TUPLE:sb_appendf(sb, "(");
-            TypeAST *current = type->data.tupleTypes;
+            TypeSymbol *current = type->data.tupleTypes;
             while (current) {
                 dump_type(current, sb);
                 current = current->next;
@@ -89,15 +89,15 @@ void dump_property(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast
 
 void dump_component(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    sb_appendf(sb, "Compound: %s\n", node->data.component.name);
-    if (node->data.component.super) {
+    sb_appendf(sb, "Compound: %s\n", node->data.compound.name);
+    if (node->data.compound.super) {
         append_indent(sb, indentLevel + 1, 0);
         sb_appendf(sb, "Type: ");
-        dump_type(node->data.component.super, sb);
+        dump_type(node->data.compound.super, sb);
         sb_appendf(sb, "\n");
     }
-    if (node->data.component.body) {
-        dump_ast_node(node->data.component.body, sb, indentLevel + 1, 1); // Component body is always last
+    if (node->data.compound.body) {
+        dump_ast_node(node->data.compound.body, sb, indentLevel + 1, 1); // Component body is always last
     }
 }
 
@@ -111,8 +111,14 @@ void dump_scope(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
 
 void dump_assignment(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    sb_appendf(sb, "Assignment: %s = \n", node->data.assignment.variableName);
-    dump_ast_node(node->data.assignment.value, sb, indentLevel + 1, 1); // Assignment value is always last
+    //Makes sure the assignee is not our node
+    sb_appendf(sb, "Assignment:\n");
+    
+    if (node->data.assignment.assignee->nodeType != AST_PROPERTY_DECLARE) {
+        dump_ast_node(node->data.assignment.assignee, sb, indentLevel + 1, 0);
+    }
+    
+    dump_ast_node(node->data.assignment.assignment, sb, indentLevel + 2, 1); // Assignment value is always last
 }
 
 void dump_array(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
@@ -132,13 +138,15 @@ void dump_binary_op(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
 
 void dump_reference(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    sb_appendf(sb, "Reference: %s, Type: \n", node->data.reference.name);
+    
+    sb_appendf(sb, "Reference: %s, Type : ", node->data.reference.name);
+    dump_type(node->data.reference.type, sb);
+    sb_appendf(sb, "\n");
     ASTNode *ref = node->data.reference.reference;
     if (ref) {
         dump_ast_node(ref, sb, indentLevel + 1, 1);
-//        dump_type(&ref->data.type, sb);
     } else {
-        sb_appendf(sb, "null");
+//        sb_appendf(sb, "null\n");
     }
 }
 
@@ -162,9 +170,9 @@ void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast
     switch (node->nodeType) {
         case AST_LITERAL:dump_literal(node, sb, indentLevel, isLast);
             break;
-        case AST_PROPERTY:dump_property(node, sb, indentLevel, isLast);
+        case AST_PROPERTY_DECLARE:dump_property(node, sb, indentLevel, isLast);
             break;
-        case AST_COMPONENT:dump_component(node, sb, indentLevel, isLast);
+        case AST_COMPONENT_DECLARE:dump_component(node, sb, indentLevel, isLast);
             break;
         case AST_SCOPE:dump_scope(node, sb, indentLevel, isLast);
             break;
@@ -199,7 +207,7 @@ char *parser_dump(ProgramAST *root) {
     return parser_dump_node(root->root);
 }
 
-char *parser_dump_type(TypeAST *type) {
+char *parser_dump_type(TypeSymbol *type) {
     StringBuilder *sb = sb_new();
     dump_type(type, sb);
     char *result = sb_build(sb);

@@ -31,21 +31,21 @@ typedef struct SemanticsPass {
     
     void (*exitProgramNode)(struct SemanticsPass *self, ProgramAST *node);
     
-    void (*enterComponentNode)(struct SemanticsPass *self, ComponentNode *node);
+    void (*enterComponentNode)(struct SemanticsPass *self, CompoundDeclaration *node);
     
-    void (*exitComponentNode)(struct SemanticsPass *self, ComponentNode *node);
+    void (*exitComponentNode)(struct SemanticsPass *self, CompoundDeclaration *node);
     
-    void (*enterPropertyNode)(struct SemanticsPass *self, PropertyNode *node);
+    void (*enterPropertyNode)(struct SemanticsPass *self, PropertyDeclaration *node);
     
-    void (*exitPropertyNode)(struct SemanticsPass *self, PropertyNode *node);
+    void (*exitPropertyNode)(struct SemanticsPass *self, PropertyDeclaration *node);
     
     void (*enterLiteralNode)(struct SemanticsPass *self, LiteralNode *node);
     
     void (*exitLiteralNode)(struct SemanticsPass *self, LiteralNode *node);
     
-    void (*enterAssignmentNode)(struct SemanticsPass *self, AssignmentNode *node);
+    void (*enterAssignmentNode)(struct SemanticsPass *self, PropertyAssignmentNode *node);
     
-    void (*exitAssignmentNode)(struct SemanticsPass *self, AssignmentNode *node);
+    void (*exitAssignmentNode)(struct SemanticsPass *self, PropertyAssignmentNode *node);
     
     void (*enterArrayNode)(struct SemanticsPass *self, ArrayNode *node);
     
@@ -67,9 +67,9 @@ typedef struct SemanticsPass {
     
     void (*exitFunctionCallNode)(struct SemanticsPass *self, FunctionCallNode *node);
     
-    void (*enterType)(struct SemanticsPass *self, TypeAST *type);
+    void (*enterType)(struct SemanticsPass *self, TypeSymbol *type);
     
-    void (*exitType)(struct SemanticsPass *self, TypeAST *type);
+    void (*exitType)(struct SemanticsPass *self, TypeSymbol *type);
     
     //because msvc sets it to 0xcccccccccc when it's copied into the darray
     i32 type_mask;
@@ -105,23 +105,21 @@ VAPI b8 muil_has_visitor(SemanticsPass *visitor, SemanticsPassMask mask);
 //     // Required to be first, so we can cast to it
 //    SemanticsPass base;
 //}
-#define implement_pass(pass_name, fields, body) \
+#define implement_pass(pass_name, body, new, delete) \
      struct pass_name { \
         SemanticsPass base; \
-        fields; \
+        body; \
     } ; \
     VAPI pass_name *new_##pass_name() { \
         pass_name *pass = vnew(pass_name); \
-        const b8 free = false;                                         \
-        if (pass) body \
+        new; \
         return pass; \
     }                                        \
                                              \
                                              \
     VAPI void delete_##pass_name(pass_name *pass) { \
-        const b8 free = true;                                     \
-        if (pass) body                       \
-vdelete(pass);                                                \
+        delete;\
+        vdelete(pass);\
     }                                           \
 
 /**
@@ -138,5 +136,5 @@ vdelete(pass);                                                \
 VAPI void muil_visit_node(SemanticsPass *visitor, ASTNode *node);
 
 // A special visitor for the type, because it's not an ASTNode
-VAPI void muil_visit_type(SemanticsPass *visitor, TypeAST *type);
+VAPI void muil_visit_type(SemanticsPass *visitor, TypeSymbol *type);
 
