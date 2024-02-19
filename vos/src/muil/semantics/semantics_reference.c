@@ -85,7 +85,6 @@ ASTNode *process_nested_references(ReferencesPass *visitor, ReferenceNode *node,
     
     // The following line may need adjustment based on how you intend to use the resolved information.
     parser_get_node(node)->userData = resolvedNode;
-    
     return resolvedNode;
 }
 
@@ -97,8 +96,17 @@ void reference_pass_reference_enter(ReferencesPass *visitor, ReferenceNode *node
     ASTNode *resolvedNode = parser_get_node(node)->userData ? parser_get_node(node)->userData
                                                             : process_nested_references(visitor, node, visitor->scope);
     if (resolvedNode) {
-        vinfo("Resolved reference %s to %s", node->name, parser_dump_node(resolvedNode));
+//        vinfo("Resolved reference %s to %s", node->name, parser_dump_node(resolvedNode));
         //TODO: Do we want to replace reference value with the resolved node? Or just set the userData?
+    } else if (node->reference && node->reference->nodeType == AST_ASSIGNMENT) {
+        //Construct a reference node from the assignment node, and process it. This is only valid
+        // when it's assignment can be evaluated to valid type.
+        ASTNode *resolvedAssignment = parser_get_node(&node->reference->data.assignment);
+        if (resolvedAssignment) {
+//            vinfo("Resolved reference %s to %s afterwards", node->name, parser_dump_node(resolvedAssignment));
+            parser_get_node(node)->userData = resolvedAssignment;
+        }
+        
     } else {
         verror("Failed to resolve reference %s", node->name);
     }

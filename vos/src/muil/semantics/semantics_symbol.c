@@ -10,11 +10,11 @@
 
 void symtab_ignored_enter(SymtabPass *visitor, void *node) {}
 
-
 void symtab_program_exit(SymtabPass *visitor, ProgramAST *node);
 
-
 void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node);
+
+void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node);
 
 void symtab_component_exit(SymtabPass *visitor, CompoundDeclaration *node);
 
@@ -28,6 +28,7 @@ implement_pass(SymtabPass, Scope *scope, {
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_COMPONENT, symtab_component_enter, symtab_component_exit);
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, symtab_ignored_enter, symtab_program_exit);
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROPERTY, symtab_property_enter, symtab_ignored_enter);
+    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_ASSIGNMENT, symtab_ignored_enter, symtab_assign_exit);
 //    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_ASSIGNMENT, symtab_assign_enter, symtab_assign_exit);
 }, {
     vdelete(pass->scope);
@@ -51,6 +52,27 @@ void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node) {
     //Sets the scope for the node
     parser_get_node(node)->userData = visitor->scope;
     vinfo("Successfully define property in symbol table: %s", node->name);
+}
+
+void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node) {
+    ASTNode *ast = parser_get_node(node);
+    if (!ast) {
+        verror("Failed to get ast node for assignment");
+        return;
+    }
+    
+    // We check if the reference is already defined in the symbol table
+    if (dict_contains(visitor->scope->symbols, node->assignee->data.reference.name)) {
+        //do nothing if it does, we'll type check it later
+        return;
+    }
+    
+    //If we're defining something and it doesn't exist, we'll define it here
+    dict_set(visitor->scope->symbols, node->assignee->data.reference.name, ast);
+    vinfo("Defined untyped reference in symbol table: %s", node->assignee->data.reference.name);
+    //We could do an immediate type check here, but we'll wait until the type pass so that we're
+    //not just checking against the current scope, but all scopes.
+    
 }
 
 

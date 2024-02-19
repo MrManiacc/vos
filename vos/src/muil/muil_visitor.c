@@ -214,6 +214,8 @@ void muil_visit_assignment_node(SemanticsPass *visitor, PropertyAssignmentNode *
     }
     
     if (node->assignee->nodeType == AST_REFERENCE) {
+        // If the assigne's reference value isn't point to us, we set it to point to us now
+
         muil_visit_node(visitor, node->assignee);
     }
     

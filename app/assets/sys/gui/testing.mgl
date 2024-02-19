@@ -1,30 +1,14 @@
-Foo : Blah {
-    Test : Testing = Child.Level1.Level2.Poops
-    Test2 : Testing = Child.Level1.Level2.Level3.Poops
-    Test3 : Testing = Child.Level1.Level2.Level3.Level3Also.DeepPoop
-}
+// Typedef a 'Number' as a component that can be any of the following types, but not more than one at a time
 
-Child : String {
-    Level1 : Test {
-        Level2 : Test {
-            Poops : String = "Nested Value"
-            Level3 : Test {
-                Poops : String = "Nested Value"
-                Level3Also : Test {
-                    DeepPoop : String = "Nested Value"
-                    Level4 : Test {
-                        DeepestPoop : String = "Nested Value"
-                    }
-                }
-                Poop : String = "Nested Value"
-            }
-        }
-    }
-}
+Number : int | float | byte | double | long | short | uint | ulong | ushort {}
 
+Root : Test{
+    // An inferred primitive number. Should be compiled down to an int
 
+    //A typed variation of the 'Untyped' field. They both should boil down to the same type
+    Typed : Number = 20
+    Untyped = Typed
 
-Test : Test{
-
-    TopLevel : String =  "Testing"
+    // assert type of 'Typed' is 'int'
+    // assert type of 'Untyped' is 'int'
 }
