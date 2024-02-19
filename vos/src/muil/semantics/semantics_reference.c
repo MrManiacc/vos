@@ -13,15 +13,14 @@ void reference_pass__program_enter(ReferencesPass *visitor, ProgramAST *node);
 
 void reference_pass_reference_enter(ReferencesPass *visitor, ReferenceNode *node);
 
-void reference_pass_reference_exit(ReferencesPass *visitor, ReferenceNode *node);
-
 // The scpope is defined from the previous pass. This is the scope that will be used to resolve references.
 implement_pass(ReferencesPass, Scope *scope, {
+    
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, reference_pass__program_enter,
             reference_pass_ignore);
     
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_REFERENCE, reference_pass_reference_enter,
-            reference_pass_reference_exit);
+            reference_pass_ignore);
 }, {
     //Cleanup
 });
@@ -105,6 +104,3 @@ void reference_pass_reference_enter(ReferencesPass *visitor, ReferenceNode *node
     }
 }
 
-void reference_pass_reference_exit(ReferencesPass *visitor, ReferenceNode *node) {
-
-}

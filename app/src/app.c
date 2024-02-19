@@ -77,6 +77,7 @@ int main(int argc, char **argv) {
     TypePass *types = new_TypePass();
     muil_pass_manager_add(state, (SemanticsPass *) symbols, PASS_EXECUTE_CONCURRENT);
     muil_pass_manager_add(state, (SemanticsPass *) references, PASS_EXECUTE_CONSECUTIVE);
+    muil_pass_manager_add(state, (SemanticsPass *) types, PASS_EXECUTE_CONSECUTIVE);
     muil_pass_manager_run(state, &ast);
     muil_pass_manager_destroy(state);
     parser_free_program(&ast);
