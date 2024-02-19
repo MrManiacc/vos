@@ -1,33 +1,8 @@
-// Number: int | float {
-//     ToString : (self: Number) -> string
-// }
-//
-// Primitive : string | Number | void  | bool {
-//     ToString : (self: Primitive) -> string = { // This is a currentScope function
-//         Test = 5
-//         print("Test is equal to " + Test)
-//         Test2 : Primitive = 5
-//     }
-// }
 
-Temper: Primitive | void {
-    Test : Int {
-        SubType : Int = 5
+Tempers : Blah {
+    bloperty : Blah
+    blorp : Blah = Tempers
 
-    }
-
-    Test2: String{
-
-    }
-    Testf: BLah = 5
-
-
-    // This type gets inferred in the second pass
-    Test.Second_pass = false
-
+    bloperty = blorp
 }
 
-// Checking for redifinitions
-Tempers : Blah{
-    Bloperty : Test = 5
-}

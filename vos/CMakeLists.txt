@@ -4,18 +4,15 @@ include(CheckCCompilerFlag)
 # Glob all the source files
 file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
 
-add_library(vos STATIC ${SOURCES}
-        src/filesystem/paths.h
-        src/muil/muil_lexer.h
-        src/muil/muil_lexer.c)
+add_library(vos STATIC ${SOURCES})
 # Set c standard target
 set_property(TARGET vos PROPERTY C_STANDARD 17)
 target_include_directories(vos PUBLIC src)
-target_link_libraries(vos PUBLIC ${LUA_LIBRARIES} raylib unofficial::tree-sitter::tree-sitter nanovg::nanovg GLEW::GLEW glfw)
+target_link_libraries(vos PUBLIC ${LUA_LIBRARIES} unofficial::tree-sitter::tree-sitter nanovg::nanovg GLEW::GLEW glfw)
 
 # Setup our defines for the target
 target_compile_definitions(vos PUBLIC
-        -DUSE_LINE_NUMBER
+#        -DUSE_LINE_NUMBER
 #        -DUSE_DEBUG_LOG
         -DKEXPORT
 )

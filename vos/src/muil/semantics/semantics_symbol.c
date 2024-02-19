@@ -41,9 +41,8 @@ implement_pass(SymtabPass, Scope *scope, {
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROPERTY, symtab_property_enter, symtab_property_exit);
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_ASSIGNMENT, symtab_assign_enter, symtab_assign_exit);
 }, {
-//    dict_delete(pass->scope->symbols);
-    vdelete(pass->scope);
-});
+                   vdelete(pass->scope);
+               });
 
 void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node) {
     ASTNode *ast_node = parser_get_node(node);
@@ -63,29 +62,29 @@ void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node) {
 }
 
 void symtab_assign_enter(SymtabPass *visitor, PropertyAssignmentNode *node) {
-    ASTNode *ast_node = parser_get_node(node);
-    if (!ast_node) {
-        verror("Failed to get ast node for assignment");
-        return;
-    }
-    if (!node->assignee) {
-        verror("Assignee is null");
-        return;
-    }
-    ASTNode *assignee = node->assignee;
-    if (assignee->nodeType != AST_REFERENCE) {
-        return;
-    }
-    ReferenceNode ref =  node->assignee->data.reference;
-    if (!ref.name) {
-        verror("Reference name is null");
-        return;
-    }
-    if (dict_contains(visitor->scope->symbols, ref.name)) {
-        verror("A symbol with the name %s already exists in scope %s", ref.name, visitor->scope->name);
-        return;
-    }
-    dict_set(visitor->scope->symbols, ref.name, ast_node);
+//    ASTNode *ast_node = parser_get_node(node);
+//    if (!ast_node) {
+//        verror("Failed to get ast node for assignment");
+//        return;
+//    }
+//    if (!node->assignee) {
+//        verror("Assignee is null");
+//        return;
+//    }
+//    ASTNode *assignee = node->assignee;
+//    if (assignee->nodeType != AST_REFERENCE) {
+//        return;
+//    }
+//    ReferenceNode ref = node->assignee->data.reference;
+//    if (!ref.name) {
+//        verror("Reference name is null");
+//        return;
+//    }
+//    if (dict_contains(visitor->scope->symbols, ref.name)) {
+//        verror("A symbol with the name %s already exists in scope %s", ref.name, visitor->scope->name);
+//        return;
+//    }
+//    dict_set(visitor->scope->symbols, ref.name, ast_node);
 }
 
 void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node) {
@@ -96,6 +95,7 @@ void symtab_property_exit(SymtabPass *visitor, PropertyDeclaration *node) {
 
 }
 
+
 void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
     ASTNode *ast_node = parser_get_node(node);
     if (!ast_node) {
@@ -104,7 +104,7 @@ void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
     }
     // First we define the scope for the component
     Scope *parent_scope = visitor->scope;
-    
+
     if (!parent_scope) {
         verror("Parent scope is null for component %s", node->name);
         return;
@@ -117,7 +117,7 @@ void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
         verror("A component with the name %s already exists in scope %s", node->name, parent_scope->name);
         return;
     }
-    
+
     // Define the ast node in the symbol table
     dict_set(parent_scope->symbols, node->name, ast_node);
     // Push a new scope here
@@ -146,7 +146,7 @@ void print_scope(Scope *scope) {
             vwarn(" failed to retrieve symbol Symbol: %s", entry->key);
             continue;
         }
-        vinfo("Symbol: %s", entry->key);
+        vinfo("Scope [%s]-\n%s", scope->name, parser_dump_node(ast_node));
         if (ast_node->nodeType == AST_COMPONENT_DECLARE) {
             print_scope(ast_node->userData);
         }

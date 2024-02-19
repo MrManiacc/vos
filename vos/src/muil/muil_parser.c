@@ -386,12 +386,13 @@ ASTNode *parser_parse_primary(ParserState *state) {
                     propertyNode->data.property.value = parser_parse_expression(state);
                     return propertyNode;
                 } else {
-                    //This is a component type definition
-                    ASTNode *componentNOde = create_node(AST_COMPONENT_DECLARE);
-                    if (!componentNOde) return null; // Error handling within create_node
-                    componentNOde->data.compound.name = string_ndup(token.start, token.length);
-                    componentNOde->data.compound.super = parser_parse_type(state);
+                   TypeSymbol *type = parser_parse_type(state);
                     if (match(state, TOKEN_LBRACE)) {
+                        //This is a component type definition
+                        ASTNode *componentNOde = create_node(AST_COMPONENT_DECLARE);
+                        if (!componentNOde) return null; // Error handling within create_node
+                        componentNOde->data.compound.name = string_ndup(token.start, token.length);
+                        componentNOde->data.compound.super = type;
                         ASTNode *body = parser_parse_scope(state);
                         if (body == null) {
                             verror("Failed to parse component body");
@@ -409,15 +410,20 @@ ASTNode *parser_parse_primary(ParserState *state) {
                         if (!propertyNode) return null; // Error handling within create_node
                         propertyNode->data.property.name = string_ndup(token.start, token.length);
                         // Copys the actual value of type into the property node from the component so the components type pointer can be freed
-                        kcopy_memory(&propertyNode->data.property.type, &componentNOde->data.compound.super,
-                                sizeof(TypeSymbol *));
+                        propertyNode->data.property.type = type;
                         // Frees the component node
-                        kbye(componentNOde, sizeof(ASTNode));
                         ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
                         if (!assignmentNode) return null; // Error handling within create_node
                         assignmentNode->data.assignment.assignee = propertyNode;
                         assignmentNode->data.assignment.assignment = parser_parse_expression(state);
                         propertyNode->data.property.value = assignmentNode;
+                        return propertyNode;
+                    }else{
+                        // Just a typed property definition with no initial value
+                        ASTNode *propertyNode = create_node(AST_PROPERTY_DECLARE);
+                        if (!propertyNode) return null; // Error handling within create_node
+                        propertyNode->data.property.name = string_ndup(token.start, token.length);
+                        propertyNode->data.property.type = type;
                         return propertyNode;
                     }
                 }
@@ -432,31 +438,23 @@ ASTNode *parser_parse_primary(ParserState *state) {
                 return referenceNode;
             } else {
                 // It's a variable
-                if (match(state, TOKEN_EQUALS)) {
-                    // create assignment node
-                    ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
-                    if (!assignmentNode) return null; // Error handling within create_node
-                    assignmentNode->data.assignment.assignee = parser_parse_reference(state, token);
-                    assignmentNode->data.assignment.assignment = parser_parse_expression(state);
-                    return assignmentNode;
-                }
-                ASTNode *variableNode = create_node(AST_PROPERTY_DECLARE);
-                if (!variableNode) return null; // Error handling within create_node
-                variableNode->data.property.name = string_ndup(token.start, token.length);
-                // Maybe parse type here
-                return variableNode;
+                // reference node
+                ASTNode *referenceNode = create_node(AST_REFERENCE);
+                if (!referenceNode) return null; // Error handling within create_node
+                referenceNode->data.reference.name = string_ndup(token.start, token.length);
+                return referenceNode;
             }
 //    }
-        case TOKEN_LPAREN: {
-            consume(state, TOKEN_LPAREN);
-            ASTNode *subExpr = parser_parse_expression(state);
-            consume(state, TOKEN_RPAREN);
-            return subExpr;
-        }
+//        case TOKEN_LPAREN: {
+//            consume(state, TOKEN_LPAREN);
+//            ASTNode *subExpr = parser_parse_expression(state);
+//            consume(state, TOKEN_RPAREN);
+//            return subExpr;
+//        }
         case TOKEN_LBRACE:consume(state, TOKEN_LBRACE);
             return parser_parse_scope(state);
         case TOKEN_LBRACKET:return parser_parse_array(state);
-        
+
         default:
 //            if (match(state, TOKEN_DOT)) {
 //                ASTNode *lhs = parser_parse_primary(state);

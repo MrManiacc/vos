@@ -33,24 +33,30 @@ void dump_type(TypeSymbol *type, StringBuilder *sb) {
         sb_appendf(sb, "%s : ", type->alias);
     }
     switch (type->kind) {
-        case TYPE_BASIC:sb_appendf(sb, "%s", type->data.name);
+        case TYPE_BASIC:
+            sb_appendf(sb, "%s", type->data.name);
             break;
-        case TYPE_ARRAY:dump_type(type->data.array.elementType, sb);
+        case TYPE_ARRAY:
+            dump_type(type->data.array.elementType, sb);
             sb_appendf(sb, "[]");
             break;
-        case TYPE_UNION:dump_type(type->data.binary.lhs, sb);
+        case TYPE_UNION:
+            dump_type(type->data.binary.lhs, sb);
             sb_appendf(sb, " | ");
             dump_type(type->data.binary.rhs, sb);
             break;
-        case TYPE_INTERSECTION:dump_type(type->data.binary.lhs, sb);
+        case TYPE_INTERSECTION:
+            dump_type(type->data.binary.lhs, sb);
             sb_appendf(sb, " & ");
             dump_type(type->data.binary.rhs, sb);
             break;
-        case TYPE_FUNCTION:dump_type(type->data.binary.lhs, sb);
+        case TYPE_FUNCTION:
+            dump_type(type->data.binary.lhs, sb);
             sb_appendf(sb, " -> ");
             dump_type(type->data.binary.rhs, sb);
             break;
-        case TYPE_TUPLE:sb_appendf(sb, "(");
+        case TYPE_TUPLE:
+            sb_appendf(sb, "(");
             TypeSymbol *current = type->data.tupleTypes;
             while (current) {
                 dump_type(current, sb);
@@ -59,7 +65,8 @@ void dump_type(TypeSymbol *type, StringBuilder *sb) {
             }
             sb_appendf(sb, ")");
             break;
-        default:sb_appendf(sb, "Unknown Type");
+        default:
+            sb_appendf(sb, "Unknown Type");
     }
 }
 
@@ -68,11 +75,14 @@ void dump_literal(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast)
     append_indent(sb, indentLevel, isLast);
     sb_appendf(sb, "Literal: ");
     switch (node->data.literal.type) {
-        case LITERAL_NUMBER:sb_appendf(sb, "%f\n", node->data.literal.value.numberValue);
+        case LITERAL_NUMBER:
+            sb_appendf(sb, "%f\n", node->data.literal.value.numberValue);
             break;
-        case LITERAL_STRING:sb_appendf(sb, "%s\n", node->data.literal.value.stringValue);
+        case LITERAL_STRING:
+            sb_appendf(sb, "%s\n", node->data.literal.value.stringValue);
             break;
-        case LITERAL_BOOLEAN:sb_appendf(sb, "%s\n", node->data.literal.value.booleanValue ? "true" : "false");
+        case LITERAL_BOOLEAN:
+            sb_appendf(sb, "%s\n", node->data.literal.value.booleanValue ? "true" : "false");
             break;
     }
 }
@@ -110,14 +120,21 @@ void dump_scope(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
 }
 
 void dump_assignment(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
-    append_indent(sb, indentLevel, isLast);
     //Makes sure the assignee is not our node
-    sb_appendf(sb, "Assignment:\n");
-    
-    if (node->data.assignment.assignee->nodeType != AST_PROPERTY_DECLARE) {
-        dump_ast_node(node->data.assignment.assignee, sb, indentLevel + 1, 0);
+    if (node->data.assignment.assignee->nodeType != AST_REFERENCE){
+        append_indent(sb, indentLevel, isLast);
+        sb_appendf(sb, "Assignment:\n");
     }
-    
+
+    if (node->data.assignment.assignee->nodeType != AST_PROPERTY_DECLARE &&
+        node->data.assignment.assignee->nodeType != AST_REFERENCE) {
+        dump_ast_node(node->data.assignment.assignee, sb, indentLevel + 1, 0);
+    } else if (node->data.assignment.assignee->nodeType == AST_REFERENCE) {
+        dump_ast_node(node->data.assignment.assignee, sb, indentLevel, 0);
+        append_indent(sb, indentLevel + 1, isLast);
+        sb_appendf(sb, "Assignment:\n");
+    }
+
     dump_ast_node(node->data.assignment.assignment, sb, indentLevel + 2, 1); // Assignment value is always last
 }
 
@@ -138,7 +155,7 @@ void dump_binary_op(ASTNode *node, StringBuilder *sb, int indentLevel, int isLas
 
 void dump_reference(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     append_indent(sb, indentLevel, isLast);
-    
+
     sb_appendf(sb, "Reference: %s, Type : ", node->data.reference.name);
     dump_type(node->data.reference.type, sb);
     sb_appendf(sb, "\n");
@@ -166,25 +183,34 @@ void dump_function_call(ASTNode *node, StringBuilder *sb, int indentLevel, int i
 // Main recursive function to dump AST nodes
 void dump_ast_node(ASTNode *node, StringBuilder *sb, int indentLevel, int isLast) {
     if (!node) return;
-    
+
     switch (node->nodeType) {
-        case AST_LITERAL:dump_literal(node, sb, indentLevel, isLast);
+        case AST_LITERAL:
+            dump_literal(node, sb, indentLevel, isLast);
             break;
-        case AST_PROPERTY_DECLARE:dump_property(node, sb, indentLevel, isLast);
+        case AST_PROPERTY_DECLARE:
+            dump_property(node, sb, indentLevel, isLast);
             break;
-        case AST_COMPONENT_DECLARE:dump_component(node, sb, indentLevel, isLast);
+        case AST_COMPONENT_DECLARE:
+            dump_component(node, sb, indentLevel, isLast);
             break;
-        case AST_SCOPE:dump_scope(node, sb, indentLevel, isLast);
+        case AST_SCOPE:
+            dump_scope(node, sb, indentLevel, isLast);
             break;
-        case AST_ASSIGNMENT:dump_assignment(node, sb, indentLevel, isLast);
+        case AST_ASSIGNMENT:
+            dump_assignment(node, sb, indentLevel, isLast);
             break;
-        case AST_ARRAY:dump_array(node, sb, indentLevel, isLast);
+        case AST_ARRAY:
+            dump_array(node, sb, indentLevel, isLast);
             break;
-        case AST_BINARY_OP:dump_binary_op(node, sb, indentLevel, isLast);
+        case AST_BINARY_OP:
+            dump_binary_op(node, sb, indentLevel, isLast);
             break;
-        case AST_REFERENCE:dump_reference(node, sb, indentLevel, isLast);
+        case AST_REFERENCE:
+            dump_reference(node, sb, indentLevel, isLast);
             break;
-        case AST_FUNCTION_CALL:dump_function_call(node, sb, indentLevel, isLast);
+        case AST_FUNCTION_CALL:
+            dump_function_call(node, sb, indentLevel, isLast);
             break;
     }
 
