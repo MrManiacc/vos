@@ -8,14 +8,8 @@
 #include "containers/dict.h"
 
 
-typedef struct Scope {
-    Dict *symbols;
-    struct Scope *parent;
-    char *name;
-} Scope;
+void symtab_ignored_enter(SymtabPass *visitor, void *node) {}
 
-
-void symtab_program_enter(SymtabPass *visitor, ProgramAST *node);
 
 void symtab_program_exit(SymtabPass *visitor, ProgramAST *node);
 
@@ -26,23 +20,18 @@ void symtab_component_exit(SymtabPass *visitor, CompoundDeclaration *node);
 
 void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node);
 
-void symtab_property_exit(SymtabPass *visitor, PropertyDeclaration *node);
-
-void symtab_assign_enter(SymtabPass *visitor, PropertyAssignmentNode *node);
-
-void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node);
 
 implement_pass(SymtabPass, Scope *scope, {
     pass->scope = vnew(Scope);
     pass->scope->name = "global";
     pass->scope->symbols = dict_new();
     muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_COMPONENT, symtab_component_enter, symtab_component_exit);
-    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, symtab_program_enter, symtab_program_exit);
-    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROPERTY, symtab_property_enter, symtab_property_exit);
-    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_ASSIGNMENT, symtab_assign_enter, symtab_assign_exit);
+    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROGRAM, symtab_ignored_enter, symtab_program_exit);
+    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_PROPERTY, symtab_property_enter, symtab_ignored_enter);
+//    muil_set_visitor((SemanticsPass *) pass, SEMANTICS_MASK_ASSIGNMENT, symtab_assign_enter, symtab_assign_exit);
 }, {
-                   vdelete(pass->scope);
-               });
+    vdelete(pass->scope);
+});
 
 void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node) {
     ASTNode *ast_node = parser_get_node(node);
@@ -59,40 +48,9 @@ void symtab_property_enter(SymtabPass *visitor, PropertyDeclaration *node) {
         return;
     }
     dict_set(visitor->scope->symbols, node->name, ast_node);
-}
-
-void symtab_assign_enter(SymtabPass *visitor, PropertyAssignmentNode *node) {
-//    ASTNode *ast_node = parser_get_node(node);
-//    if (!ast_node) {
-//        verror("Failed to get ast node for assignment");
-//        return;
-//    }
-//    if (!node->assignee) {
-//        verror("Assignee is null");
-//        return;
-//    }
-//    ASTNode *assignee = node->assignee;
-//    if (assignee->nodeType != AST_REFERENCE) {
-//        return;
-//    }
-//    ReferenceNode ref = node->assignee->data.reference;
-//    if (!ref.name) {
-//        verror("Reference name is null");
-//        return;
-//    }
-//    if (dict_contains(visitor->scope->symbols, ref.name)) {
-//        verror("A symbol with the name %s already exists in scope %s", ref.name, visitor->scope->name);
-//        return;
-//    }
-//    dict_set(visitor->scope->symbols, ref.name, ast_node);
-}
-
-void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node) {
-
-}
-
-void symtab_property_exit(SymtabPass *visitor, PropertyDeclaration *node) {
-
+    //Sets the scope for the node
+    parser_get_node(node)->userData = visitor->scope;
+    vinfo("Successfully define property in symbol table: %s", node->name);
 }
 
 
@@ -104,7 +62,7 @@ void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
     }
     // First we define the scope for the component
     Scope *parent_scope = visitor->scope;
-
+    
     if (!parent_scope) {
         verror("Parent scope is null for component %s", node->name);
         return;
@@ -117,7 +75,7 @@ void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
         verror("A component with the name %s already exists in scope %s", node->name, parent_scope->name);
         return;
     }
-
+    
     // Define the ast node in the symbol table
     dict_set(parent_scope->symbols, node->name, ast_node);
     // Push a new scope here
@@ -127,7 +85,7 @@ void symtab_component_enter(SymtabPass *visitor, CompoundDeclaration *node) {
     scope->parent = parent_scope;
     visitor->scope = scope;
     ast_node->userData = scope;
-//    vinfo("Successfully define component in symbol table: %s", node->name);
+    vinfo("Successfully define component in symbol table: %s", node->name);
 }
 
 void symtab_component_exit(SymtabPass *visitor, CompoundDeclaration *node) {
@@ -146,7 +104,7 @@ void print_scope(Scope *scope) {
             vwarn(" failed to retrieve symbol Symbol: %s", entry->key);
             continue;
         }
-        vinfo("Scope [%s]-\n%s", scope->name, parser_dump_node(ast_node));
+//        vinfo("Scope [%s]-\n%s", scope->name, parser_dump_node(ast_node));
         if (ast_node->nodeType == AST_COMPONENT_DECLARE) {
             print_scope(ast_node->userData);
         }
@@ -156,10 +114,13 @@ void print_scope(Scope *scope) {
 void symtab_program_exit(SymtabPass *visitor, ProgramAST *node) {
     Scope *root = visitor->scope;
     while (root->parent) root = root->parent;
-    print_scope(visitor->scope);
+    // Here *should* be the start of the next pass.
+    // Lets see if we have a next pass, and if we do let's set it's scope
+    if (visitor->base.next) {
+        //Save the pointer to the scope, this will be passed to the next pass
+        visitor->base.userData = visitor->scope;
+    }
 }
 
-void symtab_program_enter(SymtabPass *visitor, ProgramAST *node) {
 
-}
 

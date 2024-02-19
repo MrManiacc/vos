@@ -73,14 +73,16 @@ int main(int argc, char **argv) {
     
     PassManager *state = muil_pass_manager_new();
     SymtabPass *symbols = new_SymtabPass();
+    ReferencesPass *references = new_ReferencesPass();
     TypePass *types = new_TypePass();
-    muil_pass_manager_add(state, (SemanticsPass *) symbols);
-    muil_pass_manager_add(state, (SemanticsPass *) types);
+    muil_pass_manager_add(state, (SemanticsPass *) symbols, PASS_EXECUTE_CONCURRENT);
+    muil_pass_manager_add(state, (SemanticsPass *) references, PASS_EXECUTE_CONSECUTIVE);
     muil_pass_manager_run(state, &ast);
     muil_pass_manager_destroy(state);
     parser_free_program(&ast);
     delete_SymtabPass(symbols);
     delete_TypePass(types);
+    delete_ReferencesPass(references);
     KernelResult shutdown_result = kernel_shutdown();
     
     

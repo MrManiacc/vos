@@ -13,6 +13,19 @@
 // =============================================================================
 typedef struct PassManager PassManager;
 
+typedef struct Scope {
+    struct Dict *symbols;
+    struct Scope *parent;
+    char *name;
+} Scope;
+typedef enum PassExecutionType {
+    PASS_EXECUTE_CONSECUTIVE,// Allows this pass to be ran consecutively, this means the pass will
+    // wait until the previous pass has finished before running
+    PASS_EXECUTE_PARALLEL, // Allows this pass to be ran in parallel, meaning that it's visit methods
+    // will run right after the previous pass's given visitor method
+    PASS_EXECUTE_CONCURRENT // Not yet implemented, will allow for multi-threaded execution. Similar to parallel
+} PassExecutionType;
+
 /**
  * @brief Creates a new pass manager.
  *
@@ -31,7 +44,7 @@ PassManager *muil_pass_manager_new();
  * @param manager   The pass manager to which the visitor will be added.
  * @param visitor   The visitor to be added to the pass manager.
  */
-void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor);
+void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor, PassExecutionType type);
 
 /**
  * @brief Runs the pass manager on the given ProgramAST.
@@ -54,6 +67,9 @@ void muil_pass_manager_run(PassManager *manager, ProgramAST *root);
  */
 void muil_pass_manager_destroy(PassManager *manager);
 
+
+
+
 // =============================================================================
 // SymbolPass - Symbol resolution visitor
 // =============================================================================
@@ -62,6 +78,17 @@ void muil_pass_manager_destroy(PassManager *manager);
 // is executed before the type checking pass.
 // =============================================================================
 define_pass(SymtabPass);
+
+
+
+// =============================================================================
+// ReferencesPass - Reference resolution visitor
+// =============================================================================
+// The references pass is responsible for resolving references in the AST.
+// It is a visitor that is added to the pass manager and
+// is executed after the symbol resolution pass.
+// =============================================================================
+define_pass(ReferencesPass);
 
 // =============================================================================
 // TypePass - Type checking visitor

@@ -73,6 +73,9 @@ typedef struct SemanticsPass {
     
     //because msvc sets it to 0xcccccccccc when it's copied into the darray
     i32 type_mask;
+    struct SemanticsPass *next;
+    
+    void *userData;
 } SemanticsPass;
 
 /**

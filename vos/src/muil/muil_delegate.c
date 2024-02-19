@@ -10,8 +10,8 @@
 #include "core/vmutex.h"
 
 typedef struct LinkedPass {
-    SemanticsPass *visitor;
-    struct LinkedPass *next;
+    SemanticsPass *base;
+    PassExecutionType executionType;
 } LinkedPass;
 
 typedef struct DelegateVisitor {
@@ -37,21 +37,20 @@ PassManager *muil_pass_manager_new() {
     return manager;
 }
 
-void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor) {
+void muil_pass_manager_add(PassManager *manager, SemanticsPass *visitor, PassExecutionType type) {
     if (!manager) {
         verror("Pass manager or visitor is null");
         return;
     }
     kmutex_lock(manager->mutex);
     
-    // Create a new pass and set it up
     LinkedPass *pass = vnew(LinkedPass);
-    pass->visitor = visitor;
-    pass->next = null;
+    pass->base = visitor;
+    pass->executionType = type; // Store the execution type
+    pass->base->next = null;
     
-    // Append the new pass to the end of the list
     if (manager->delegate->tail) {
-        manager->delegate->tail->next = pass;
+        manager->delegate->tail->base->next = (SemanticsPass *) pass;
     } else {
         manager->delegate->head = pass;
     }
@@ -67,8 +66,26 @@ void muil_pass_manager_run(PassManager *manager, ProgramAST *root) {
         verror("Pass manager or root node is null");
         return;
     }
+    
     kmutex_lock(manager->mutex);
-    muil_visit((SemanticsPass *) manager->delegate, root);
+    
+    for (LinkedPass *current = manager->delegate->head; current != null; current = (LinkedPass *) current->base->next) {
+        // Execute the current pass
+        muil_visit((SemanticsPass *) current->base, root);
+        LinkedPass *next = (LinkedPass *) current->base->next;
+        // If the current pass is set to execute consecutively and the next pass is not parallel, wait to execute the next pass
+        if (current->executionType == PASS_EXECUTE_CONSECUTIVE &&
+            (next == null || next->executionType != PASS_EXECUTE_PARALLEL)) {
+            // This space intentionally left blank to illustrate the point
+            // The next pass will execute in the next iteration of the loop
+        }
+        // If the current pass or the next pass is parallel, they will execute without waiting
+        // Passes the user data to the next pass
+        if (next) {
+            next->base->userData = current->base->userData;
+        }
+    }
+    
     kmutex_unlock(manager->mutex);
 }
 
@@ -77,7 +94,7 @@ void muil_pass_manager_destroy(PassManager *manager) {
         kmutex_destroy(manager->mutex);
         // Iterate through the list of passes and free them
         for (LinkedPass *current = manager->delegate->head; current != null;) {
-            LinkedPass *next = current->next;
+            LinkedPass *next = (LinkedPass *) current->base->next;
             kfree(current, sizeof(LinkedPass), MEMORY_TAG_ARRAY);
             current = next;
         }
@@ -90,11 +107,12 @@ void muil_pass_manager_destroy(PassManager *manager) {
 // ========================== Delegation to visitors =================================
 // ===================================================================================
 static void delegate_visitor_enter(DelegateVisitor *manager, SemanticsPassMask mask, void *node) {
-    for (LinkedPass *current = manager->head; current != null; current = current->next) {
-        SemanticsPass *visitor = current->visitor;
+    for (LinkedPass *current = manager->head; current != null; current = (LinkedPass *) current->base->next) {
+        SemanticsPass *visitor = current->base;
         if (muil_has_visitor(visitor, mask)) {
             void
-            (*enter)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_enter(visitor, mask);
+            (*enter)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_enter(visitor,
+                    mask);
             if (enter) {
                 enter(visitor, node);
             }
@@ -103,10 +121,11 @@ static void delegate_visitor_enter(DelegateVisitor *manager, SemanticsPassMask m
 }
 
 static void delegate_visitor_exit(DelegateVisitor *manager, SemanticsPassMask mask, void *node) {
-    for (LinkedPass *current = manager->head; current != null; current = current->next) {
-        SemanticsPass *visitor = current->visitor;
+    for (LinkedPass *current = manager->head; current != null; current = (LinkedPass *) current->base->next) {
+        SemanticsPass *visitor = current->base;
         if (muil_has_visitor(visitor, mask)) {
-            void (*exit)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_exit(visitor, mask);
+            void
+            (*exit)(SemanticsPass *, void *) = (void (*)(SemanticsPass *, void *)) muil_get_visitor_exit(visitor, mask);
             if (exit) {
                 exit(visitor, node);
             }
@@ -208,35 +227,35 @@ static void initialize_delegate_visitor(PassManager *manager) {
     DelegateVisitor *delegate = manager->delegate;
     delegate->base.type_mask = 0;
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_PROGRAM, (void *) delegate_visitor_program_enter,
-                     (void *) delegate_visitor_program_exit);
+            (void *) delegate_visitor_program_exit);
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_COMPONENT, (void *) delegate_visitor_component_enter,
-                     (void *) delegate_visitor_component_exit);
+            (void *) delegate_visitor_component_exit);
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_PROPERTY, (void *) delegate_visitor_property_enter,
-                     (void *) delegate_visitor_property_exit);
+            (void *) delegate_visitor_property_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_LITERAL, (void *) delegate_visitor_literal_enter,
-                     (void *) delegate_visitor_literal_exit);
+            (void *) delegate_visitor_literal_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_ASSIGNMENT, (void *) delegate_visitor_assignment_enter,
-                     (void *) delegate_visitor_assignment_exit);
+            (void *) delegate_visitor_assignment_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_ARRAY, (void *) delegate_visitor_array_enter,
-                     (void *) delegate_visitor_array_exit);
+            (void *) delegate_visitor_array_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_SCOPE, (void *) delegate_visitor_scope_enter,
-                     (void *) delegate_visitor_scope_exit);
+            (void *) delegate_visitor_scope_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_BINARY_OP, (void *) delegate_visitor_binary_op_enter,
-                     (void *) delegate_visitor_binary_op_exit);
+            (void *) delegate_visitor_binary_op_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_REFERENCE, (void *) delegate_visitor_reference_enter,
-                     (void *) delegate_visitor_reference_exit);
+            (void *) delegate_visitor_reference_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_FUNCTION_CALL, (void *) delegate_visitor_function_call_enter,
-                     (void *) delegate_visitor_function_call_exit);
+            (void *) delegate_visitor_function_call_exit);
     
     muil_set_visitor(&delegate->base, SEMANTICS_MASK_TYPE, (void *) delegate_visitor_type_enter,
-                     (void *) delegate_visitor_type_exit);
+            (void *) delegate_visitor_type_exit);
     delegate->head = null;
     delegate->tail = null;
 }

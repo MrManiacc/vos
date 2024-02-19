@@ -1,8 +1,30 @@
-
-Tempers : Blah {
-    bloperty : Blah
-    blorp : Blah = Tempers
-
-    bloperty = blorp
+Foo : Blah {
+    Test : Testing = Child.Level1.Level2.Poops
+    Test2 : Testing = Child.Level1.Level2.Level3.Poops
+    Test3 : Testing = Child.Level1.Level2.Level3.Level3Also.DeepPoop
 }
 
+Child : String {
+    Level1 : Test {
+        Level2 : Test {
+            Poops : String = "Nested Value"
+            Level3 : Test {
+                Poops : String = "Nested Value"
+                Level3Also : Test {
+                    DeepPoop : String = "Nested Value"
+                    Level4 : Test {
+                        DeepestPoop : String = "Nested Value"
+                    }
+                }
+                Poop : String = "Nested Value"
+            }
+        }
+    }
+}
+
+
+
+Test : Test{
+
+    TopLevel : String =  "Testing"
+}

@@ -212,6 +212,11 @@ void muil_visit_assignment_node(SemanticsPass *visitor, PropertyAssignmentNode *
     if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->enterAssignmentNode(visitor, node);
     }
+    
+    if (node->assignee->nodeType == AST_REFERENCE) {
+        muil_visit_node(visitor, node->assignee);
+    }
+    
     muil_visit_node(visitor, node->assignment);
     if (has(SEMANTICS_MASK_ASSIGNMENT)) {
         visitor->exitAssignmentNode(visitor, node);
