@@ -17,6 +17,7 @@
 #pragma once
 
 #include "defines.h"
+#include "kernel/kernel.h"
 
 /**
  * @brief Represents event contextual data to be sent along with an
@@ -69,23 +70,6 @@ typedef struct event_context {
  */
 typedef b8 (*PFN_on_event)(struct Kernel *kernel, u16 code, void *sender, void *listener_inst, event_context data);
 
-typedef struct registered_event {
-    void *listener;
-    PFN_on_event callback;
-} registered_event;
-
-typedef struct event_code_entry {
-    registered_event *events;
-} event_code_entry;
-
-// This should be more than enough codes...
-#define MAX_MESSAGE_CODES 16384
-
-// State structure.
-typedef struct EventState {
-    // Lookup table for event codes.
-    event_code_entry registered[MAX_MESSAGE_CODES];
-} EventState;
 
 
 /**

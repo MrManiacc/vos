@@ -2,6 +2,7 @@
  * Created by jraynor on 2/13/2024.
  */
 #include <stdio.h>
+#include <string.h>
 #include "vfs.h"
 #include "containers/dict.h"
 #include "core/vlogger.h"
@@ -20,17 +21,17 @@ typedef struct FSContext {
     Dict *nodes;// The nodes that are currently loaded in memory. They can be directories or files.
 } FSContext;
 
-static FSContext *fs_context = null;
+//static FSContext *fs_context = null;
 
 /**
  * Loads all the nodes in the file system into memory, recursively.
  */
-void load_nodes();
+void load_nodes(FSContext *fs_context);
 
 /**
  * Shuts down all the nodes in the file system.
  */
-void unload_nodes();
+void unload_nodes(FSContext *fs_context);
 
 /**
  * @brief Loads a node from the file system into memory.
@@ -40,7 +41,7 @@ void unload_nodes();
  * @param path The path of the node to load.
  * @return A pointer to the loaded node, or null if the node could not be loaded.
  */
-FsNode *load_node(FsPath path);
+FsNode *load_node(FSContext *fs_context, FsPath path);
 
 
 /**
@@ -61,38 +62,34 @@ FsNode *load_node(FsPath path);
  * it only removes the node from memory and the node hierarchy. The memory occupied by the
  * node and file/directory data must be freed separately using \c kfree().
  */
-b8 unload_node(FsNode *node);
+b8 unload_node(FSContext *fs_context, FsNode *node);
 
 /**
  * Initializes the file system. This function must be called before any other file system functions.
  * @param root  The root path of the file system.
  * @return
  */
-b8 vfs_initialize(FsPath root) {
-    if (fs_context) {
-        vwarn("vfs_initialize - File system already initialized.")
-        return false;
-    }
+FSContext *vfs_initialize(FsPath root) {
     //Setup the root path to be normalized to the platform
     initialize_paths(path_normalize(root));
-    fs_context = kallocate(sizeof(FSContext), MEMORY_TAG_RESOURCE);
+    FSContext *fs_context = kallocate(sizeof(FSContext), MEMORY_TAG_RESOURCE);
     fs_context->users = dict_new();
     fs_context->nodes = dict_new();
-    load_nodes();
+    load_nodes(fs_context);
     //Collect the total nodes and tell the user how many nodes were loaded.
     u32 total_nodes = dict_size(fs_context->nodes);
     vinfo("vfs_initialize - Loaded %d nodes into memory.", total_nodes);
-    return true;
+    return fs_context;
 }
 
-void vfs_shutdown() {
+void vfs_shutdown(FSContext *fs_context) {
     if (!fs_context) {
         vwarn("vfs_shutdown - File system not initialized.")
         return;
     }
     
     //free/shutdown all the nodes in the system
-    unload_nodes();
+    unload_nodes(fs_context);
     //root should have been freed by the shutdown_nodes function, at this point it should be null
     dict_delete(fs_context->users);
     dict_delete(fs_context->nodes);
@@ -103,7 +100,7 @@ void vfs_shutdown() {
 
 
 // Loads a file from the file system into memory.
-FsNode *load_file(FsPath path) {
+FsNode *load_file(FSContext *fs_context, FsPath path) {
     if (!fs_context) {
         vwarn("load_file - File system not initialized.");
         return null;
@@ -129,7 +126,7 @@ FsNode *load_file(FsPath path) {
 }
 
 // Loads a directory from the file system into memory.
-FsNode *load_directory(FsPath path) {
+FsNode *load_directory(FSContext *fs_context, FsPath path) {
     if (!fs_context) {
         vwarn("load_directory - File system not initialized.");
         return null;
@@ -154,7 +151,7 @@ FsNode *load_directory(FsPath path) {
     dir_node->data.directory.children = kallocate(child_files->count * sizeof(FsNode *), MEMORY_TAG_RESOURCE);
     for (int i = 0; i < child_files->count; i++) {
         char *file_path = child_files->paths[i];
-        FsNode *child_node = load_node(string_duplicate(file_path));
+        FsNode *child_node = load_node(fs_context, strdup(file_path));
         if (child_node == null) {
             vwarn("load_directory - Failed to load child node at path: %s", file_path);
             continue;
@@ -167,7 +164,7 @@ FsNode *load_directory(FsPath path) {
 }
 
 //Loads a node from the file system into memory, doesn't care if it's a file or directory.
-FsNode *load_node(FsPath path) {
+FsNode *load_node(FSContext *fs_context, FsPath path) {
     if (!fs_context) {
         vwarn("load_node - File system not initialized.");
         return null;
@@ -176,19 +173,19 @@ FsNode *load_node(FsPath path) {
     FsNode *node = null;
     if (platform_file_exists(system_path)) {
         if (platform_is_directory(system_path))
-            node = load_directory(system_path);
-        else node = load_file(system_path);
+            node = load_directory(fs_context, system_path);
+        else node = load_file(fs_context, system_path);
     }
     if (node == null) {
         vwarn("load_node - Failed to load node at path: %s", path)
         return null;
     }
-    kfree(system_path, string_length(system_path) + 1, MEMORY_TAG_STRING);
+    kfree(system_path, strlen(system_path) + 1, MEMORY_TAG_STRING);
     return node;
 }
 
 // Unloads a file from memory
-b8 unload_file(FsNode *node) {
+b8 unload_file(FSContext *fs_context, FsNode *node) {
     if (!fs_context) {
         vwarn("unload_file - File system not initialized.");
         return false;
@@ -212,7 +209,7 @@ b8 unload_file(FsNode *node) {
 }
 
 // Unloads a directory from memory.
-b8 unload_directory(FsNode *node) {
+b8 unload_directory(FSContext *fs_context, FsNode *node) {
     if (!fs_context) {
         vwarn("unload_directory - File system not initialized.");
         return false;
@@ -230,7 +227,7 @@ b8 unload_directory(FsNode *node) {
     
     // Unload all children nodes
     for (u32 i = 0; i < node->data.directory.child_count; i++) {
-        unload_node(node->data.directory.children[i]);
+        unload_node(fs_context, node->data.directory.children[i]);
     }
     // Free the children array
     kfree(node->data.directory.children, node->data.directory.child_count * sizeof(FsNode *), MEMORY_TAG_RESOURCE);
@@ -243,22 +240,22 @@ b8 unload_directory(FsNode *node) {
     return true;
 }
 
-b8 unload_node(FsNode *node) {
+b8 unload_node(FSContext *fs_context, FsNode *node) {
     if (node == null) {
         vwarn("unload_node - fs_node not found.");
         return false;
     }
     if (node->type == NODE_FILE) {
-        return unload_file(node);
+        return unload_file(fs_context, node);
     } else if (node->type == NODE_DIRECTORY) {
-        return unload_directory(node);
+        return unload_directory(fs_context, node);
     }
     return false;
 }
 
-void load_nodes() {
+void load_nodes(FSContext *fs_context) {
     //Loads all the nodes in the file system into memory, recursively.
-    FsNode *root = load_node(path_root_directory());
+    FsNode *root = load_node(fs_context, path_root_directory());
     //iterate children to make sure they are loaded.
     // Iterate the children of the root node to make sure they are loaded.
     for (u32 i = 0; i < root->data.directory.child_count; i++) {
@@ -269,11 +266,11 @@ void load_nodes() {
     
 }
 
-void unload_nodes() {
+void unload_nodes(FSContext *fs_context) {
     //we just need to unload the root node, the root node will recursively unload all the children.
     u8 count = dict_size(fs_context->nodes);
     if (fs_context->root) {
-        unload_node(fs_context->root);
+        unload_node(fs_context, fs_context->root);
         fs_context->root = null;
     }
     
@@ -336,15 +333,15 @@ char *node_tree_to_string(FsNode *node, int depth) {
     return formattedLine; // Return the formatted directory tree or an empty string if NULL
 }
 
-char *vfs_to_string() {
+char *vfs_to_string(FSContext *fs_context) {
     if (fs_context == null) {
         vwarn("vfs_to_string - File system not initialized.");
         return null;
     }
-    return vfs_node_to_string(fs_context->root);
+    return vfs_node_to_string(fs_context, fs_context->root);
 }
 
-char *vfs_node_to_string(FsNode *node) {
+char *vfs_node_to_string(FSContext *fs_context, FsNode *node) {
     if (node == null) {
         vwarn("vfs_node_to_string - fs_node not found.");
         return null;
@@ -352,7 +349,7 @@ char *vfs_node_to_string(FsNode *node) {
     return node_tree_to_string(node, 1);
 }
 
-b8 vfs_node_exists(FsPath path) {
+b8 vfs_node_exists(FSContext *fs_context, FsPath path) {
     if (fs_context == null) {
         vwarn("vfs_node_exists - File system not initialized.");
         return false;
@@ -360,7 +357,7 @@ b8 vfs_node_exists(FsPath path) {
     return dict_contains(fs_context->nodes, path);
 }
 
-FsNode *vfs_node_get(FsPath path) {
+FsNode *vfs_node_get(FSContext *fs_context, FsPath path) {
     if (fs_context == null) {
         vwarn("vfs_node_get - File system not initialized.");
         return null;

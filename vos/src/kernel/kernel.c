@@ -9,6 +9,9 @@
 #include "core/vstring.h"
 #include "filesystem/paths.h"
 #include "platform/platform.h"
+#include "lauxlib.h"
+#include "core/vinput.h"
+#include "lualib.h"
 
 // Get the next available ID from the pool.
 ProcID id_pool_next_id();
@@ -37,11 +40,17 @@ KernelResult kernel_initialize(char *root_path) {
     }
     platform_initialize();
     strings_initialize();
-    vfs_initialize(root_path);
+    kernel_context = kallocate(sizeof(Kernel), MEMORY_TAG_KERNEL);
+    kernel_context->fs_context = vfs_initialize(root_path);
     initialize_logging();
     vdebug("Root path: %s", root_path)
     
-    kernel_context = kallocate(sizeof(Kernel), MEMORY_TAG_KERNEL);
+    kernel_context->window_context = kallocate(sizeof(WindowContext), MEMORY_TAG_KERNEL);
+    kernel_context->window_context->input_state = kallocate(sizeof(InputState), MEMORY_TAG_KERNEL);
+    if (!window_initialize(kernel_context->window_context, "VOS", 1600, 900)) {
+        verror("Failed to initialize window context");
+        return (KernelResult) {KERNEL_ERROR, null};
+    }
     kernel_context->processes = kallocate(sizeof(Proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     //make sure the processes array is zeroed out
     kzero_memory(kernel_context->processes, sizeof(Proc *) * MAX_PROCESSES);
@@ -53,7 +62,7 @@ KernelResult kernel_initialize(char *root_path) {
     processes_by_name = dict_new();
     kernel_context->drivers = dict_new();
     event_initialize(kernel_context);
-    intrinsics_initialize();
+//    intrinsics_initialize();
     kernel_load_drivers(string_concat(root_path, "/drivers"));
     vinfo("Kernel initialized")
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
@@ -82,10 +91,10 @@ KernelResult kernel_shutdown() {
     kfree(kernel_context, sizeof(Kernel), MEMORY_TAG_KERNEL);
     
     //shutdown the vfs
-    vfs_shutdown();
+    vfs_shutdown(kernel_context->fs_context);
     kernel_initialized = false;
     timer_cleanup();
-    intrinsics_shutdown();
+//    intrinsics_shutdown();
     dict_delete(processes_by_name);
     strings_shutdown();
     platform_shutdown();
@@ -115,7 +124,9 @@ Proc *kernel_create_process(FsNode *script_node_file) {
         return null;
     }
     process->pid = pid;
-    intrinsics_install_to(process);
+    process->lua_state = luaL_newstate();
+    luaL_openlibs(process->lua_state);
+//    intrinsics_install_to(process);
     // for now we just install all loaded drivers to each process.
     // In the future, a process should be able to specify which drivers it wants to use.
     dict_for_each(kernel_context->drivers, DriverState, {
@@ -240,7 +251,7 @@ b8 kernel_collect_drivers(const char *path, Dict *drivers) {
             char *driver_name = path_file_name(file);
             char *relative_path = path_relative(file);
             // Load the driver
-            FsNode *driver_node = vfs_node_get(relative_path);
+            FsNode *driver_node = vfs_node_get(kernel_context->fs_context, relative_path);
             if (driver_node == null) {
                 vwarn("Failed to load driver %s", file)
                 continue;

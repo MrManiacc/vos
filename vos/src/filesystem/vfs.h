@@ -86,12 +86,13 @@ typedef struct FsNode {
 } FsNode;
 
 
+typedef struct FSContext FSContext;
 /**
  * This function will initialize the vfs file system.
  * @param root The root path of the vfs file system.
- * @return true if the vfs file system was initialized successfully, false otherwise.
+ * @return A pointer to the vfs file system.
  */
-b8 vfs_initialize(FsPath root);
+FSContext *vfs_initialize(FsPath root);
 
 
 /**
@@ -100,21 +101,21 @@ b8 vfs_initialize(FsPath root);
  * @param path The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-b8 vfs_node_exists(FsPath path);
+b8 vfs_node_exists(FSContext *fs_context, FsPath path);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param path  The path to get the node from.
  * @return The node at the given path or NULL if the path is invalid.
  */
-FsNode *vfs_node_get(FsPath path);
+FsNode *vfs_node_get(FSContext *fs_context, FsPath path);
 
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param node The node to get the path from.
  * @return The path of the node.
  */
-char *vfs_node_to_string(FsNode *node);
+char *vfs_node_to_string(FSContext *fs_context, FsNode *node);
 
 /**
  * @breif this function will create a string representation of the vfs file system.
@@ -124,5 +125,5 @@ char *vfs_to_string();
 /**
  * @brief shuts down the vfs file system, cleaning up any resources.
  */
-void vfs_shutdown();
+void vfs_shutdown(FSContext *fs_context);
 

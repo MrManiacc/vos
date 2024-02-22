@@ -9,7 +9,6 @@ Terminal = {}
 -- This is a local function and is not meant to be called externally.
 -- @param config Configuration table for the Terminal.
 local function _initializeProperties(self, config)
-
     self.internal = {
         version = "0.1.3b",
         commands = {},
@@ -29,7 +28,7 @@ local function _initializeProperties(self, config)
         y = 0,
         width = 3,
         height = self.text.size - 5,
-        color = sys.gui.color("03a83aff"),
+        color = mui.color("03a83aff"),
         cursor_blink_rate = 0.5,
         cursor_blink = true,
     }
@@ -53,7 +52,7 @@ function Terminal:new(config)
     -- Initialize properties
     _initializeProperties(self, config)
 
-    sys.log("terminal initialized")
+    sys.log.info("terminal initialized")
     return config
 end
 
@@ -307,9 +306,9 @@ local function _renderHeader(self)
     local y = math.floor(size.height - (size.height / 3)) + 10
     local width = size.width
     local height = size.height / 3
-    sys.gui.draw_rect(x, y - 12, width, height, sys.gui.color("474747FF"))
-    sys.gui.draw_rect(x + 10, y + 10, width - 20, height - 20, sys.gui.color("363534ff"))
-    sys.gui.draw_rect(x + 10, y + 40, width - 20, height - 50, sys.gui.color("1b1c1bff"))
+    mui.draw_rect(x, y - 12, width, height, mui.color("474747FF"))
+    mui.draw_rect(x + 10, y + 10, width - 20, height - 20, mui.color("363534ff"))
+    mui.draw_rect(x + 10, y + 40, width - 20, height - 50, mui.color("1b1c1bff"))
 end
 
 --- Renders the current input of the Terminal.
@@ -325,7 +324,7 @@ local function _renderCursor(self)
 
     -- Calculate the width of the text up to the cursor's position
     local input_upto_cursor = string.sub(self.internal.input, 1, self.cursor_position)
-    local width_upto_cursor = sys.gui.text_width(input_upto_cursor, text_size)
+    local width_upto_cursor = mui.text_width(input_upto_cursor, text_size)
 
     local cursor_x = text_x + width_upto_cursor
     local cursor_y = text_y - text_size + 7
@@ -333,10 +332,10 @@ local function _renderCursor(self)
     local cursor_height = self.cursor.height
     local cursor_color = self.cursor.color
 
-    sys.gui.draw_text(self.internal.input, text_x, text_y, text_size, sys.gui.color("FFFFFFFF"))
+    mui.draw_text(self.internal.input, text_x, text_y, text_size, mui.color("FFFFFFFF"))
 
     if self.cursor.cursor_blink then
-        sys.gui.draw_rect(cursor_x, cursor_y, cursor_width, cursor_height, cursor_color)
+        mui.draw_rect(cursor_x, cursor_y, cursor_width, cursor_height, cursor_color)
     end
 end
 
@@ -361,18 +360,18 @@ local function _renderBuffer(self)
         local line_y = buffer_start_y + (i - 1) * text_size
         -- Don't render if the line is outside the visible area
         if line_y > y then
-            sys.gui.draw_text(line, text_x, line_y, text_size, sys.gui.color("FaFaFaFF"))
+            mui.draw_text(line, text_x, line_y, text_size, mui.color("FaFaFaFF"))
         end
         -- Adjust drawing to ensure it's within the visible area
     end
 
     local width = size.width
     -- draws shadow for the header
-    sys.gui.draw_rect(x + 15, y + 5, width - 25, 40, sys.gui.color("000000ff"))
+    mui.draw_rect(x + 15, y + 5, width - 25, 40, mui.color("000000ff"))
     -- draw the overlay
-    sys.gui.draw_rect(x + 10, y + 5, width - 25, 35, sys.gui.color("1b1c1bff"))
-    sys.gui.draw_text("Terminus", x + 20, y + 30, 30, sys.gui.color("FFFFFFFF"))
-    sys.gui.draw_text("v" .. self.internal.version, sys.gui.text_width("Terminus", 20) + 25, y + 40, 12, sys.gui.color("03a83aff"))
+    mui.draw_rect(x + 10, y + 5, width - 25, 35, mui.color("1b1c1bff"))
+    mui.draw_text("Terminus", x + 20, y + 30, 30, mui.color("FFFFFFFF"))
+    mui.draw_text("v" .. self.internal.version, mui.text_width("Terminus", 20) + 25, y + 40, 12, mui.color("03a83aff"))
 end
 
 

@@ -12,8 +12,9 @@
 #include "nanovg.h"
 
 #define NANOVG_GL3_IMPLEMENTATION
+// Input state structures
+//#include "vinput.h"
 
-#include "kernel/kernel.h"
 
 
 /**
@@ -23,12 +24,13 @@
  * The vos_context class encapsulates the necessary data needed for the VOS application.
  * It includes the GLFW window, NVGcontext, width, height, and pixel ratio of the application.
  */
-static struct window_context {
+typedef struct WindowContext {
     GLFWwindow *window; // The GLFW window.
     NVGcontext *vg; // The NanoVG context.
     int width, height; // The width and height of the window.
     float pixel_ratio; // The pixel ratio of the window.
-} window_context;
+    struct InputState *input_state; // The input state of the window.
+} WindowContext;
 
 
 /**
@@ -54,7 +56,7 @@ static struct window_context {
  * }
  * @endcode
  */
-b8 window_initialize(const char *title, int width, int height);
+b8 window_initialize(WindowContext *window_context, const char *title, int width, int height);
 
 /**
  * @brief Starts a new frame for rendering.
@@ -65,7 +67,7 @@ b8 window_initialize(const char *title, int width, int height);
  *
  * @see window_end_frame()
  */
-void window_begin_frame();
+void window_begin_frame(WindowContext *window_context);
 
 
 /**
@@ -73,7 +75,7 @@ void window_begin_frame();
  *
  * @return True if the window should close, false otherwise.
  */
-b8 window_should_close();
+b8 window_should_close(WindowContext *window_context);
 
 /**
  * @brief Get the size of the window
@@ -85,7 +87,7 @@ b8 window_should_close();
  *
  * @note The variables pointed by 'width' and 'height' will be modified by this function
  */
-void window_get_size(u32  *width, u32 *height);
+void window_get_size(WindowContext *window_context, u32 *width, u32 *height);
 
 /**
  * @brief Ends a frame in the vos_context.
@@ -95,7 +97,7 @@ void window_get_size(u32  *width, u32 *height);
  *
  * @param ctx The vos_context object.
  */
-void window_end_frame();
+void window_end_frame(WindowContext *window_context);
 
 /**
  * @brief Destroys the VOS context.
@@ -104,7 +106,7 @@ void window_end_frame();
  *
  * @param ctx The VOS context to be destroyed.
  */
-void window_shutdown();
+void window_shutdown(WindowContext *window_context);
 
 /**
  * @brief Loads a font from the specified font path and assigns it the given font name.
@@ -120,9 +122,9 @@ void window_shutdown();
  *       The return value indicates whether the font was successfully loaded or not.
  *       A return value of 1 indicates a successful loading, while 0 represents a failure.
  */
-VAPI b8 gui_load_font(FsPath font_path, const char *font_name);
+VAPI b8 gui_load_font(struct Kernel *kernel, const char *font_path, const char *font_name);
 
-VAPI/**
+/**
  * @brief Draws text on the GUI with the specified parameters.
  *
  * This function is responsible for drawing text on the GUI using the specified font, color, size, and position.
@@ -134,13 +136,15 @@ VAPI/**
  * @param font_name The name of the font to be used for drawing the text.
  * @param color     The color of the text to be drawn.
  */
-void gui_draw_text(const char *text, float x, float y, float size, const char *font_name, NVGcolor color);
+VAPI void
+gui_draw_text(WindowContext *window_context, const char *text, float x, float y, float size, const char *font_name,
+        NVGcolor color);
 
 VAPI/**
  * @brief Draws a rectangle on the GUI with the given coordinates, size, and color.
  *
  * This function is used to draw a rectangle on the GUI using the specified coordin*/
-void gui_draw_rect(float x, float y, float width, float height, NVGcolor color);
+void gui_draw_rect(WindowContext *window_context, float x, float y, float width, float height, NVGcolor color);
 
 
 /**
@@ -152,4 +156,4 @@ void gui_draw_rect(float x, float y, float width, float height, NVGcolor color);
  *
  * @return The calculated width of the text string.
  */
-f32 gui_text_width(const char *text, const char *font_name, f32 size);
+f32 gui_text_width(WindowContext *window_context, const char *text, const char *font_name, f32 size);

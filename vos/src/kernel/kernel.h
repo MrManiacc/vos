@@ -12,7 +12,7 @@
 #include "defines.h"
 #include "proc.h"
 #include "vresult.h"
-#include "core/vevent.h"
+#include "core/vgui.h"
 
 //The maximum number of processes that can be created.
 #ifndef MAX_PROCESSES
@@ -42,7 +42,11 @@ typedef struct Kernel {
     ProcPool *id_pool;
     // A dictionary of all registered drivers. They are indexed by their name.
     Dict *drivers;
-    EventState *event_state;
+    struct EventState *event_state;
+    // The root window of the application.
+    WindowContext *window_context;
+    // The file system context.
+    FSContext *fs_context;
 } Kernel;
 
 

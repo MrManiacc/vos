@@ -14,6 +14,7 @@
 //
 //#endif
 //
+#include <stdio.h>
 #include "defines.h"
 #include "kernel/proc.h"
 #include "kernel/kernel.h"
@@ -27,11 +28,11 @@
 //
 //
 ////// launch our bootstrap code
-void startup_script_init() {
+void startup_script_init(Kernel *kernel) {
     //at this piont we know the file system is ready to go. Let's lookup the startup script and run it.
     char *startup_script = "boot.lua";
     //check if the file exists
-    Proc *proc = kernel_create_process(vfs_node_get(startup_script));
+    Proc *proc = kernel_create_process(vfs_node_get(kernel->fs_context, startup_script));
     if (proc == null) {
         verror("Failed to create process for startup script %s", startup_script)
         return;
@@ -49,25 +50,23 @@ int main(int argc, char **argv) {
         return 1;
     }
     Kernel *kernel = result.data;
-    startup_script_init();
+    startup_script_init(kernel);
     lua_ctx(update)
+    WindowContext *window = kernel->window_context;
     
-    if (!window_initialize("VOS", 1600, 900)) {
-        verror("Failed to initialize window context");
-        return 1;
-    }
-    gui_load_font("sys/fonts/JetBrainsMono-Bold.ttf", "sans");
-    while (!window_should_close()) {
-        window_begin_frame();
+    gui_load_font(kernel, "sys/fonts/JetBrainsMono-Bold.ttf", "sans");
+    while (!window_should_close(window)) {
+        window_begin_frame(window);
         event_fire(kernel, EVENT_LUA_CUSTOM, null, update);
-        window_end_frame();
+        window_end_frame(window);
     }
-    window_shutdown();
+    window_shutdown(window);
     KernelResult shutdown_result = kernel_shutdown();
     if (!kernel_is_result_success(shutdown_result.code)) {
         verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
         return 1;
     }
+    //waits for user input
     return 0;
 }
 

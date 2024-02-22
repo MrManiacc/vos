@@ -5,10 +5,9 @@
 
 local frame_count = 0
 
-local ui = sys.gui;
-local green_color = ui.color("1b1c1bff")
-local purple_color = ui.color("bc30d1FA")
-local red_color = ui.color("f58142FA")
+local green_color = mui.color("1b1c1bff")
+local purple_color = mui.color("bc30d1FA")
+local red_color = mui.color("f58142FA")
 local start_time = sys.time()
 
 function render_stats(startX, startY)
@@ -22,18 +21,18 @@ function render_stats(startX, startY)
     if (mouse.x > startX and mouse.x < startX + 300 and mouse.y > startY and mouse.y < startY + 200) then
         color = mouse.is_down(0) and red_color or purple_color
     else
-        color = ui.color("a1ab80FA")
+        color = mui.color("a1ab80FA")
     end
 
-    ui.draw_rect(startX, startY, 300, 200, color)
+    mui.draw_rect(startX, startY, 300, 200, color)
     local y = startY + 10
-    ui.draw_text("Frame count: " .. frame_count, startX + 10, y, 20, green_color)
+    mui.draw_text("Frame count: " .. frame_count, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Frame time: " .. time, startX + 10, y, 20, green_color)
+    mui.draw_text("Frame time: " .. time, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Frame delta: " .. fps, startX + 10, y, 20, green_color)
+    mui.draw_text("Frame delta: " .. fps, startX + 10, y, 20, green_color)
     y = y + 25
-    ui.draw_text("Mouse: " .. mouse.x .. ", " .. mouse.y, startX + 10, y, 20, green_color)
+    mui.draw_text("Mouse: " .. mouse.x .. ", " .. mouse.y, startX + 10, y, 20, green_color)
 
     frame_count = frame_count + 1
 end
@@ -46,10 +45,10 @@ function button(config, on_click)
     local mouse = sys.input.mouse()
     local x = config.x
     local y = config.y
-    local width = sys.gui.text_width(config.text, config.text_size) + 20
+    local width = sys.gmui.text_width(config.text, config.text_size) + 20
     local height = config.text_size + 20
     local text = config.text
-    local text_width = ui.text_width(text, config.text_size)
+    local text_width = mui.text_width(text, config.text_size)
     local text_size = config.text_size
     local text_x = x + (width / 2) - (text_width / 2)
     local text_y = y + (height / 2) - (text_size / 2)
@@ -61,12 +60,12 @@ function button(config, on_click)
             on_click()
         end
         --     Draw offset box for hover
-        ui.draw_rect(x - 5, y - 5, width + 10, height + 10, ui.color("000000FF"))
+        mui.draw_rect(x - 5, y - 5, width + 10, height + 10, mui.color("000000FF"))
     else
-        color = ui.color("71ab80FA")
+        color = mui.color("71ab80FA")
     end
-    ui.draw_rect(x, y, width, height, color)
-    ui.draw_text(text, text_x, text_y, text_size)
+    mui.draw_rect(x, y, width, height, color)
+    mui.draw_text(text, text_x, text_y, text_size)
 
 end
 

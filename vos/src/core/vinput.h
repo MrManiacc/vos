@@ -13,6 +13,7 @@
 #pragma once
 
 #include "defines.h"
+#include "vgui.h"
 #include "GLFW/glfw3.h"
 
 
@@ -178,6 +179,17 @@ typedef enum keys {
     KEYS_MAX_KEYS = GLFW_KEY_LAST
 } keys;
 
+
+typedef struct InputState{
+    b8 keys[KEYS_MAX_KEYS];
+    b8 prev_keys[KEYS_MAX_KEYS]; // Add this line
+    b8 buttons[BUTTON_MAX_BUTTONS];
+    i32 mouse_x, mouse_y;
+    i32 prev_mouse_x, prev_mouse_y;
+    i8 mouse_wheel_delta;
+} InputState;
+
+typedef struct WindowContext WindowContext;
 /**
  * @brief Initializes the input system. Call twice; once to obtain memory requirement (passing
  * state = 0), then a second time passing allocated memory to state.
@@ -200,7 +212,7 @@ void input_system_shutdown(void *state);
  * @param p_frame_data A constant pointer to the current frame's data.
  * NOTE: Does not use system manager update because it must be called at end of a frame.
  */
-void input_reset(void);
+void input_reset(WindowContext *ctx);
 
 // keyboard input
 
@@ -209,7 +221,7 @@ void input_reset(void);
  * @param key They key to be checked.
  * @returns True if currently pressed; otherwise false.
  */
-VAPI b8 input_is_key_down(keys key);
+VAPI b8 input_is_key_down(WindowContext *ctx, keys key);
 
 
 /**
@@ -217,20 +229,20 @@ VAPI b8 input_is_key_down(keys key);
  * @param key They key to be checked.
  * @returns True if currently pressed; otherwise false.
  */
-VAPI b8 input_is_key_pressed(keys key);
+VAPI b8 input_is_key_pressed(WindowContext *ctx, keys key);
 
-VAPI/**
+/**
  * @brief Checks if a key is currently released.
  *
  * @param key The key to be checked.
  * @return Returns true if the key is released; returns false otherwise.
  */
-b8 input_is_key_released(keys key);
+VAPI b8 input_is_key_released(WindowContext *ctx, keys key);
 
 /**
 *
 */
-VAPI b8 input_is_key_up(keys key);
+VAPI b8 input_is_key_up(WindowContext *ctx, keys key);
 
 
 /**
@@ -238,7 +250,7 @@ VAPI b8 input_is_key_up(keys key);
  * @param key The key to be processed.
  * @param pressed Indicates whether the key is currently pressed.
  */
-void input_process_key(keys key, b8 pressed);
+void input_process_key(WindowContext *ctx, keys key, b8 pressed);
 
 // mouse input
 
@@ -247,28 +259,28 @@ void input_process_key(keys key, b8 pressed);
  * @param button The button to check.
  * @returns True if currently pressed; otherwise false.
  */
-VAPI b8 input_is_button_down(buttons button);
+VAPI b8 input_is_button_down(WindowContext *ctx, buttons button);
 
 /**
  * @brief Indicates if the given mouse button is currently released.
  * @param button The button to check.
  * @returns True if currently released; otherwise false.
  */
-VAPI b8 input_is_button_up(buttons button);
+VAPI b8 input_is_button_up(WindowContext *ctx, buttons button);
 
 /**
  * @brief Indicates if the given mouse button was previously pressed in the last frame.
  * @param button The button to check.
  * @returns True if previously pressed; otherwise false.
  */
-VAPI b8 input_was_button_down(buttons button);
+VAPI b8 input_was_button_down(WindowContext *ctx, buttons button);
 
 /**
  * @brief Indicates if the given mouse button was previously released in the last frame.
  * @param button The button to check.
  * @returns True if previously released; otherwise false.
  */
-VAPI b8 input_was_button_up(buttons button);
+VAPI b8 input_was_button_up(WindowContext *ctx, buttons button);
 
 /**
  * @brief Indicates if the mouse is currently being dragged with the provided button
@@ -277,40 +289,40 @@ VAPI b8 input_was_button_up(buttons button);
  * @param button The button to check.
  * @returns True if dragging; otherwise false.
  */
-VAPI b8 input_is_button_dragging(buttons button);
+VAPI b8 input_is_button_dragging(WindowContext *ctx, buttons button);
 
 /**
  * @brief Obtains the current mouse position.
  * @param x A pointer to hold the current mouse position on the x-axis.
  * @param y A pointer to hold the current mouse position on the y-axis.
  */
-VAPI void input_get_mouse_position(i32 *x, i32 *y);
+VAPI void input_get_mouse_position(WindowContext *ctx, i32 *x, i32 *y);
 
 /**
  * @brief Obtains the previous mouse position.
  * @param x A pointer to hold the previous mouse position on the x-axis.
  * @param y A pointer to hold the previous mouse position on the y-axis.
  */
-VAPI void input_get_previous_mouse_position(i32 *x, i32 *y);
+VAPI void input_get_previous_mouse_position(WindowContext *ctx, i32 *x, i32 *y);
 
 /**
  * @brief Sets the press state of the given mouse button.
  * @param button The mouse button whose state to set.
  * @param pressed Indicates if the mouse button is currently pressed.
  */
-void input_process_button(buttons button, b8 pressed);
+void input_process_button(WindowContext *ctx, buttons button, b8 pressed);
 
 /**
  * @brief Sets the current position of the mouse to the given x and y positions.
  * Also updates the previous position beforehand.
  */
-void input_process_mouse_move(i16 x, i16 y);
+void input_process_mouse_move(WindowContext *ctx, i16 x, i16 y);
 
 /**
  * @brief Processes mouse wheel scrolling.
  * @param z_delta The amount of scrolling which occurred on the z axis (mouse wheel)
  */
-void input_process_mouse_wheel(i8 z_delta);
+void input_process_mouse_wheel(WindowContext *ctx, i8 z_delta);
 
 /**
  * @brief Returns a string representation of the provided key. Ex. "tab" for the tab key.
@@ -318,7 +330,7 @@ void input_process_mouse_wheel(i8 z_delta);
  * @param key
  * @return const char*
  */
-VAPI const char *input_keycode_str(keys key);
+VAPI const char *input_keycode_str(WindowContext *ctx, keys key);
 
 /**
  * @brief Pushes a new keymap onto the keymap stack, making it the active keymap.
