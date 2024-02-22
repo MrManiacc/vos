@@ -82,10 +82,9 @@ b8 process_stop(Proc *process, b8 force, b8 kill_children) {
         u64 length = darray_length(process->children_pids);
         for (u64 i = 0; i < length; ++i) {
             ProcID child_pid = process->children_pids[i];
-            KernelResult result = kernel_lookup_process(child_pid);
-            if (result.code == KERNEL_PROCESS_CREATED) {
-                Proc *child = result.data;
-                process_stop(child, force, kill_children);
+            Proc *result = kernel_lookup_process(process->kernel, child_pid);
+            if (result != null) {
+                process_stop(result, force, kill_children);
             }
         }
     }

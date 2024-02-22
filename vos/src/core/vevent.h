@@ -67,17 +67,36 @@ typedef struct event_context {
  * @returns True if the message should be considered handled, which means that it will not
  * be sent to any other consumers; otherwise false.
  */
-typedef b8 (*PFN_on_event)(u16 code, void *sender, void *listener_inst, event_context data);
+typedef b8 (*PFN_on_event)(struct Kernel *kernel, u16 code, void *sender, void *listener_inst, event_context data);
+
+typedef struct registered_event {
+    void *listener;
+    PFN_on_event callback;
+} registered_event;
+
+typedef struct event_code_entry {
+    registered_event *events;
+} event_code_entry;
+
+// This should be more than enough codes...
+#define MAX_MESSAGE_CODES 16384
+
+// State structure.
+typedef struct EventState {
+    // Lookup table for event codes.
+    event_code_entry registered[MAX_MESSAGE_CODES];
+} EventState;
+
 
 /**
  * @brief Initializes the event system.
  */
-b8 event_initialize();
+VAPI b8 event_initialize(struct Kernel *kernel);
 
 /**
  * @brief Shuts the event system down.
  */
-void event_shutdown();
+VAPI void event_shutdown(struct Kernel *kernel);
 
 /**
  * @brief Register to listen for when events are sent with the provided code. Events with duplicate
@@ -87,7 +106,7 @@ void event_shutdown();
  * @param on_event The callback function pointer to be invoked when the event code is fired.
  * @returns True if the event is successfully registered; otherwise false.
  */
-VAPI b8 event_register(u16 code, void *listener, PFN_on_event on_event);
+VAPI b8 event_register(struct Kernel *kernel, u16 code, void *listener, PFN_on_event on_event);
 
 /**
  * @brief Unregister from listening for when events are sent with the provided code. If no matching
@@ -97,7 +116,7 @@ VAPI b8 event_register(u16 code, void *listener, PFN_on_event on_event);
  * @param on_event The callback function pointer to be unregistered.
  * @returns True if the event is successfully unregistered; otherwise false.
  */
-VAPI b8 event_unregister(u16 code, void *listener, PFN_on_event on_event);
+VAPI b8 event_unregister(struct Kernel *kernel, u16 code, void *listener, PFN_on_event on_event);
 
 /**
  * @brief Fires an event to listeners of the given code. If an event handler returns
@@ -107,7 +126,7 @@ VAPI b8 event_unregister(u16 code, void *listener, PFN_on_event on_event);
  * @param data The event data.
  * @returns True if handled, otherwise false.
  */
-VAPI b8 event_fire(u16 code, void *sender, event_context context);
+VAPI b8 event_fire(struct Kernel *kernel, u16 code, void *sender, event_context context);
 
 /** @brief System internal event codes. Application should use codes beyond 255. */
 typedef enum system_event_code {

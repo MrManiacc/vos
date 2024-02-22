@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
         verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
         return 1;
     }
+    Kernel *kernel = result.data;
     startup_script_init();
     lua_ctx(update)
     
@@ -58,7 +59,7 @@ int main(int argc, char **argv) {
     gui_load_font("sys/fonts/JetBrainsMono-Bold.ttf", "sans");
     while (!window_should_close()) {
         window_begin_frame();
-        event_fire(EVENT_LUA_CUSTOM, null, update);
+        event_fire(kernel, EVENT_LUA_CUSTOM, null, update);
         window_end_frame();
     }
     window_shutdown();

@@ -313,29 +313,30 @@ b8 kmutex_lock(kmutex *mutex) {
     if (!mutex) {
         return false;
     }
-    
-    DWORD result = WaitForSingleObject(mutex->internal_data, INFINITE);
-    switch (result) {
-        // The thread got ownership of the mutex
-        case WAIT_OBJECT_0:
-            // KTRACE("Mutex locked.");
-            return true;
-            
-            // The thread got ownership of an abandoned mutex.
-        case WAIT_ABANDONED:verror("Mutex lock failed.");
-            return false;
-    }
-    // KTRACE("Mutex locked.");
+//
+//    DWORD result = WaitForSingleObject(mutex->internal_data, INFINITE);
+//    switch (result) {
+//        // The thread got ownership of the mutex
+//        case WAIT_OBJECT_0:
+//            // KTRACE("Mutex locked.");
+//            return true;
+//
+//            // The thread got ownership of an abandoned mutex.
+//        case WAIT_ABANDONED:verror("Mutex lock failed.");
+//            return false;
+//    }
+//    // KTRACE("Mutex locked.");
     return true;
 }
 
 b8 kmutex_unlock(kmutex *mutex) {
-    if (!mutex || !mutex->internal_data) {
-        return false;
-    }
-    i32 result = ReleaseMutex(mutex->internal_data);
-    // KTRACE("Mutex unlocked.");
-    return result != 0;  // 0 is a failure
+//    if (!mutex || !mutex->internal_data) {
+//        return false;
+//    }
+//    i32 result = ReleaseMutex(mutex->internal_data);
+//    // KTRACE("Mutex unlocked.");
+//    return result != 0;  // 0 is a failure
+    return true;
 }
 
 // NOTE: End mutexes.
@@ -842,40 +843,40 @@ void *platform_reallocate(void *block, u64 size, b8 aligned) {
 
 
 static void platform_update_watches(void) {
-    if (!state_ptr || !state_ptr->watches) {
-        return;
-    }
-    
-    u32 count = darray_length(state_ptr->watches);
-    for (u32 i = 0; i < count; ++i) {
-        win32_file_watch *f = &state_ptr->watches[i];
-        if (f->id != INVALID_ID) {
-            WIN32_FIND_DATAA data;
-            HANDLE file_handle = FindFirstFileA(f->file_path, &data);
-            if (file_handle == INVALID_HANDLE_VALUE) {
-                // This means the file has been deleted, remove from watch.
-                event_context context = {0};
-                context.data.u32[0] = f->id;
-                event_fire(EVENT_CODE_WATCHED_FILE_DELETED, 0, context);
-                vinfo("File watch id %d has been removed.", f->id);
-                unregister_watch(f->id);
-                continue;
-            }
-            BOOL result = FindClose(file_handle);
-            if (result == 0) {
-                continue;
-            }
-            
-            // Check the file time to see if it has been changed and update/notify if so.
-            if (CompareFileTime(&data.ftLastWriteTime, &f->last_write_time) != 0) {
-                f->last_write_time = data.ftLastWriteTime;
-                // Notify listeners.
-                event_context context = {0};
-                context.data.u32[0] = f->id;
-                event_fire(EVENT_CODE_WATCHED_FILE_WRITTEN, 0, context);
-            }
-        }
-    }
+//    if (!state_ptr || !state_ptr->watches) {
+//        return;
+//    }
+//
+//    u32 count = darray_length(state_ptr->watches);
+//    for (u32 i = 0; i < count; ++i) {
+//        win32_file_watch *f = &state_ptr->watches[i];
+//        if (f->id != INVALID_ID) {
+//            WIN32_FIND_DATAA data;
+//            HANDLE file_handle = FindFirstFileA(f->file_path, &data);
+//            if (file_handle == INVALID_HANDLE_VALUE) {
+//                // This means the file has been deleted, remove from watch.
+//                event_context context = {0};
+//                context.data.u32[0] = f->id;
+//                event_fire(EVENT_CODE_WATCHED_FILE_DELETED, 0, context);
+//                vinfo("File watch id %d has been removed.", f->id);
+//                unregister_watch(f->id);
+//                continue;
+//            }
+//            BOOL result = FindClose(file_handle);
+//            if (result == 0) {
+//                continue;
+//            }
+//
+//            // Check the file time to see if it has been changed and update/notify if so.
+//            if (CompareFileTime(&data.ftLastWriteTime, &f->last_write_time) != 0) {
+//                f->last_write_time = data.ftLastWriteTime;
+//                // Notify listeners.
+//                event_context context = {0};
+//                context.data.u32[0] = f->id;
+//                event_fire(EVENT_CODE_WATCHED_FILE_WRITTEN, 0, context);
+//            }
+//        }
+//    }
 }
 
 

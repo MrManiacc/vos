@@ -52,10 +52,9 @@ KernelResult kernel_initialize(char *root_path) {
     kernel_initialized = true;
     processes_by_name = dict_new();
     kernel_context->drivers = dict_new();
-    event_initialize();
-    const char *drivers_path = string_concat(root_path, "/drivers");
-    kernel_load_drivers(drivers_path);
+    event_initialize(kernel_context);
     intrinsics_initialize();
+    kernel_load_drivers(string_concat(root_path, "/drivers"));
     vinfo("Kernel initialized")
     KernelResult result = {KERNEL_SUCCESS, kernel_context};
     return result;
@@ -75,6 +74,8 @@ KernelResult kernel_shutdown() {
             if (!kernel_is_result_success(process_destroy_result.code))return process_destroy_result;
         }
     }
+    kernel_unload_drivers();
+    event_shutdown(kernel_context);
     //free the kernels associated memory
     kfree(kernel_context->processes, sizeof(Proc *) * MAX_PROCESSES, MEMORY_TAG_KERNEL);
     kfree(kernel_context->id_pool, sizeof(ProcPool), MEMORY_TAG_KERNEL);
@@ -82,11 +83,9 @@ KernelResult kernel_shutdown() {
     
     //shutdown the vfs
     vfs_shutdown();
-    kernel_unload_drivers();
     kernel_initialized = false;
     timer_cleanup();
     intrinsics_shutdown();
-    event_shutdown();
     dict_delete(processes_by_name);
     strings_shutdown();
     platform_shutdown();
@@ -126,6 +125,7 @@ Proc *kernel_create_process(FsNode *script_node_file) {
     dict_set(processes_by_name, process->source_file_node->path, process);
     kernel_context->processes[pid] = process;
     vdebug("Created process 0x%04x named %s", pid, process->process_name)
+    process->kernel = kernel_context;
     return process;
 }
 
@@ -139,18 +139,17 @@ b8 kernel_poll_update() {
     return true;
 }
 
-KernelResult kernel_lookup_process(ProcID pid) {
-    if (!kernel_initialized) {
-        KernelResult result = {KERNEL_CALL_BEFORE_INIT, null};
-        return result;
+Proc *kernel_lookup_process(Kernel *kernel, ProcID pid) {
+    vinfo("Looking up process 0x%04x", pid);
+    if (!kernel || !kernel->processes) {
+        verror("Attempted to lookup process before kernel initialization")
+        return null;
     }
-    Proc *process = kernel_context->processes[pid];
+    Proc *process = kernel->processes[pid];
     if (process == null) {
-        KernelResult result = {KERNEL_PROCESS_NOT_FOUND, (void *) pid};
-        return result;
+        return null;
     }
-    KernelResult result = {KERNEL_PROCESS_CREATED, process};
-    return result;
+    return process;
 }
 
 KernelResult kernel_destroy_process(ProcID pid) {
@@ -273,7 +272,7 @@ b8 kernel_create_drivers(Dict *drivers) {
                 return false;
             }
             pfn_driver_load create_driver = (pfn_driver_load) dlf->pfn;
-            Driver init = create_driver();
+            Driver init = create_driver(kernel_context);
             value->driver = kallocate(sizeof(Driver), MEMORY_TAG_KERNEL);
             *value->driver = init;
             char *name = init.name ? init.name : key;

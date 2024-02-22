@@ -4,7 +4,7 @@
 #include "core/vmem.h"
 #include "core/vlogger.h"
 
-void *_darray_create(u64 length, u64 stride) {
+VAPI void *_darray_create(u64 length, u64 stride) {
     u64 header_size = DARRAY_FIELD_LENGTH * sizeof(u64);
     u64 array_size = length * stride;
     u64 *new_array = kallocate(header_size + array_size, MEMORY_TAG_DARRAY);
@@ -16,7 +16,7 @@ void *_darray_create(u64 length, u64 stride) {
     return (void *) (new_array + DARRAY_FIELD_LENGTH);
 }
 
-void _darray_destroy(void *array) {
+VAPI void _darray_destroy(void *array) {
     // Retrieve the darray header
     u64 *header = (u64 *) array - DARRAY_FIELD_LENGTH;
     u64 length = header[DARRAY_LENGTH];
@@ -27,17 +27,17 @@ void _darray_destroy(void *array) {
     
 }
 
-u64 _darray_field_get(void *array, u64 field) {
+VAPI u64 _darray_field_get(void *array, u64 field) {
     u64 *header = (u64 *) array - DARRAY_FIELD_LENGTH;
     return header[field];
 }
 
-void _darray_field_set(void *array, u64 field, u64 value) {
+VAPI void _darray_field_set(void *array, u64 field, u64 value) {
     u64 *header = (u64 *) array - DARRAY_FIELD_LENGTH;
     header[field] = value;
 }
 
-void *_darray_resize(void *array) {
+VAPI void *_darray_resize(void *array) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     void *temp = _darray_create(
@@ -50,7 +50,7 @@ void *_darray_resize(void *array) {
     return temp;
 }
 
-void *_darray_push(void *array, const void *value_ptr) {
+VAPI void *_darray_push(void *array, const void *value_ptr) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     if (length >= darray_capacity(array)) {
@@ -64,7 +64,7 @@ void *_darray_push(void *array, const void *value_ptr) {
     return array;
 }
 
-void _darray_pop(void *array, void *dest) {
+VAPI void _darray_pop(void *array, void *dest) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     u64 addr = (u64) array;
@@ -73,7 +73,7 @@ void _darray_pop(void *array, void *dest) {
     _darray_field_set(array, DARRAY_LENGTH, length - 1);
 }
 
-void *_darray_get(void *array, u64 index) {
+VAPI void *_darray_get(void *array, u64 index) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     if (index >= length) {
@@ -85,7 +85,7 @@ void *_darray_get(void *array, u64 index) {
     return (void *) addr;
 }
 
-void *_darray_pop_at(void *array, u64 index, void *dest) {
+VAPI void *_darray_pop_at(void *array, u64 index, void *dest) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     if (index >= length) {
@@ -108,7 +108,7 @@ void *_darray_pop_at(void *array, u64 index, void *dest) {
     return array;
 }
 
-void *_darray_insert_at(void *array, u64 index, void *value_ptr) {
+VAPI void *_darray_insert_at(void *array, u64 index, void *value_ptr) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     if (index >= length) {
@@ -136,7 +136,7 @@ void *_darray_insert_at(void *array, u64 index, void *value_ptr) {
     return array;
 }
 
-u64 _darray_find(void *array, void *value_ptr) {
+VAPI u64 _darray_find(void *array, void *value_ptr) {
     u64 length = darray_length(array);
     u64 stride = darray_stride(array);
     u8 *addr = (u8 *) array;  // use byte pointer for address arithmetic
@@ -149,7 +149,7 @@ u64 _darray_find(void *array, void *value_ptr) {
     return -1;  // returning -1 to signify not found, consider using ULLONG_MAX from limits.h
 }
 
-u64 _darray_remove(void *array, void *value_ptr) {
+VAPI u64 _darray_remove(void *array, void *value_ptr) {
     u64 index = _darray_find(array, value_ptr);
     if (index == -1) {
         return -1;

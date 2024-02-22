@@ -12,6 +12,8 @@
 #include "defines.h"
 #include "proc.h"
 #include "vresult.h"
+#include "core/vevent.h"
+
 //The maximum number of processes that can be created.
 #ifndef MAX_PROCESSES
 #define MAX_PROCESSES 512 //does this need to be dynamic?
@@ -40,6 +42,7 @@ typedef struct Kernel {
     ProcPool *id_pool;
     // A dictionary of all registered drivers. They are indexed by their name.
     Dict *drivers;
+    EventState *event_state;
 } Kernel;
 
 
@@ -54,7 +57,7 @@ typedef struct Driver {
     char *name;
 } Driver;
 
-typedef Driver (*pfn_driver_load)();
+typedef Driver (*pfn_driver_load)(Kernel *kernel);
 
 
 typedef struct DriverState {
@@ -94,7 +97,7 @@ Proc *kernel_create_process(FsNode *script_node_file);
  * @param pid The process id.
  * @return KERNEL_SUCCESS if the function was successfully registered along with a pointer to the process, else an error code.
  */
-KernelResult kernel_lookup_process(ProcID pid);
+Proc *kernel_lookup_process(Kernel *kernel, ProcID pid);
 
 /**
  * Destroys a process. This will stop the process and free all memory. It also frees the id from the id pool.

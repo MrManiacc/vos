@@ -30,117 +30,112 @@ typedef struct LuaPayloadContext {
 typedef char *string;
 static LuaPayloadContext lua_context;
 
-int lua_execute_process(lua_State *L) {
-//    Get the argument passed to the function, it can be a string or an int
-    int arg_type = lua_type(L, 1);
-    if (arg_type != LUA_TSTRING && arg_type != LUA_TNUMBER) {
-        verror("Invalid argument passed to process: %s", lua_typename(L, arg_type));
-        return 1;
-    }
-    Proc *process;
-    // Get the process name
-    if (arg_type == LUA_TSTRING) {
-        const char *process_name = lua_tostring(L, 1);
-        
-        vdebug("Executing process at: %s", process_name);
-//        Asset *node = fs_load_node(process_name);
-//        Process *process = kernel_create_process(process_name);
-//        if (process == null) {
-//            verror("Failed to create process: %s", process_name);
-//            return 1;
-//        }
+//int lua_execute_process(lua_State *L) {
+////    Get the argument passed to the function, it can be a string or an int
+//    int arg_type = lua_type(L, 1);
+//    if (arg_type != LUA_TSTRING && arg_type != LUA_TNUMBER) {
+//        verror("Invalid argument passed to process: %s", lua_typename(L, arg_type));
+//        return 1;
+//    }
+//    Proc *process;
+//    // Get the process name
+//    if (arg_type == LUA_TSTRING) {
+//        const char *process_name = lua_tostring(L, 1);
 //
-//        KernelResult lookup_result = kernel_lookup_process((ProcessID) result.data);
-//        if (!is_kernel_success(lookup_result.code)) {
-//            verror("Failed to lookup process: %s", get_kernel_result_message(lookup_result));
-//            return 1;
-//        }
-//        process = lookup_result.data;
-//        if (!process_start(process)) {
-//            verror("Failed to start process: %s", process_name);
-//            return 1;
-//        } else {
-//            vinfo("Process %s started, pid %d", process_name, process->pid);
-//            //push the process id to the stack
-//            lua_pushinteger(L, process->pid);
-//        }
-    } else {
-        ProcID process_id = (ProcID) lua_tointeger(L, 1);
-        KernelResult result = kernel_lookup_process(process_id);
-        if (!kernel_is_result_success(result.code)) {
-            verror("Failed to lookup process: %s", kernel_get_result_message(result));
-            return 1;
-        }
-        process = result.data;
-        vdebug("Executing process %s's main function with pid: %d", process->process_name, process_id);
-    }
-    if (process == null) {
-        verror("Failed to execute process, process is null");
-        return 1;
-    }
-    if (process->lua_state == null) {
-        verror("Failed to execute process, lua state is null");
-        return 1;
-    }
-    // TODO: check if it exists, if it doesn't we treat it like a library
-    // Execute the main function
-    lua_getglobal(process->lua_state, "main");
-    if (lua_pcall(process->lua_state, 0, 0, 0) != LUA_OK) {
-        verror("Error executing Lua main function: %s", lua_tostring(process->lua_state, -1));
-        lua_pop(process->lua_state, 1); // Remove error message
-    }
-    return 0;
-}
+//        vdebug("Executing process at: %s", process_name);
+////        Asset *node = fs_load_node(process_name);
+////        Process *process = kernel_create_process(process_name);
+////        if (process == null) {
+////            verror("Failed to create process: %s", process_name);
+////            return 1;
+////        }
+////
+////        KernelResult lookup_result = kernel_lookup_process((ProcessID) result.data);
+////        if (!is_kernel_success(lookup_result.code)) {
+////            verror("Failed to lookup process: %s", get_kernel_result_message(lookup_result));
+////            return 1;
+////        }
+////        process = lookup_result.data;
+////        if (!process_start(process)) {
+////            verror("Failed to start process: %s", process_name);
+////            return 1;
+////        } else {
+////            vinfo("Process %s started, pid %d", process_name, process->pid);
+////            //push the process id to the stack
+////            lua_pushinteger(L, process->pid);
+////        }
+//    } else {
+//        ProcID process_id = (ProcID) lua_tointeger(L, 1);
+//        process = kernel_lookup_process(process_id);
+//        vdebug("Executing process %s's main function with pid: %d", process->process_name, process_id);
+//    }
+//    if (process == null) {
+//        verror("Failed to execute process, process is null");
+//        return 1;
+//    }
+//    if (process->lua_state == null) {
+//        verror("Failed to execute process, lua state is null");
+//        return 1;
+//    }
+//    // TODO: check if it exists, if it doesn't we treat it like a library
+//    // Execute the main function
+//    lua_getglobal(process->lua_state, "main");
+//    if (lua_pcall(process->lua_state, 0, 0, 0) != LUA_OK) {
+//        verror("Error executing Lua main function: %s", lua_tostring(process->lua_state, -1));
+//        lua_pop(process->lua_state, 1); // Remove error message
+//    }
+//    return 0;
+//}
 
 /**
  * Will listen for an event from the process.
  *
  * Takes two lua arguments, a string and a function.
  */
-int lua_listen_for_event(lua_State *L) {
-    if (lua_gettop(L) != 2) {
-        return luaL_error(L, "Expected 2 arguments to listen_for_event");
-    }
-    
-    const char *event_name = lua_tostring(L, 1);
-    if (!lua_isfunction(L, 2)) {
-        return luaL_error(L, "Expected a function as the second argument");
-    }
-    
-    if (lua_context.count >= MAX_LUA_PAYLOADS) {
-        return luaL_error(L, "Exceeded maximum number of Lua callbacks");
-    }
-    
-    //Find free slot
-    u64 index = 0;
-    for (u64 i = 0; i < MAX_LUA_PAYLOADS; ++i) {
-        if (lua_context.payloads[i].process == NULL) {
-            index = i;
-            break;
-        }
-    }
-    if (index > MAX_LUA_PAYLOADS - 25) {
-        vwarn("Lua payload context is getting full, consider increasing MAX_LUA_PAYLOADS");
-    }
-    
-    LuaPayload *payload = &lua_context.payloads[index];
-    lua_context.count++;
-    payload->event_name = string_duplicate(event_name); // we'll need to free this later
-    payload->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    
-    lua_getglobal(L, "sys");
-    lua_getfield(L, -1, "pid");
-    int process_id = lua_tointeger(L, -1);
-    vdebug("Executing process with id: %d", process_id);
-    KernelResult result = kernel_lookup_process((ProcID) process_id);
-    if (!kernel_is_result_success(result.code)) {
-        verror("Failed to lookup process: %s", kernel_get_result_message(result));
-        return 1;
-    }
-    Proc *process = result.data;
-    payload->process = process;
-    return 0;
-}
+//int lua_listen_for_event(lua_State *L) {
+//    if (lua_gettop(L) != 2) {
+//        return luaL_error(L, "Expected 2 arguments to listen_for_event");
+//    }
+//
+//    const char *event_name = lua_tostring(L, 1);
+//    if (!lua_isfunction(L, 2)) {
+//        return luaL_error(L, "Expected a function as the second argument");
+//    }
+//
+//    if (lua_context.count >= MAX_LUA_PAYLOADS) {
+//        return luaL_error(L, "Exceeded maximum number of Lua callbacks");
+//    }
+//
+//    //Find free slot
+//    u64 index = 0;
+//    for (u64 i = 0; i < MAX_LUA_PAYLOADS; ++i) {
+//        if (lua_context.payloads[i].process == NULL) {
+//            index = i;
+//            break;
+//        }
+//    }
+//    if (index > MAX_LUA_PAYLOADS - 25) {
+//        vwarn("Lua payload context is getting full, consider increasing MAX_LUA_PAYLOADS");
+//    }
+//
+//    LuaPayload *payload = &lua_context.payloads[index];
+//    lua_context.count++;
+//    payload->event_name = string_duplicate(event_name); // we'll need to free this later
+//    payload->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+//
+//    lua_getglobal(L, "sys");
+//    lua_getfield(L, -1, "pid");
+//    int process_id = lua_tointeger(L, -1);
+//    vdebug("Executing process with id: %d", process_id);
+//    KernelResult result = kernel_lookup_process((ProcID) process_id);
+//    if (!kernel_is_result_success(result.code)) {
+//        verror("Failed to lookup process: %s", kernel_get_result_message(result));
+//        return 1;
+//    }
+//    Proc *process = result.data;
+//    payload->process = process;
+//    return 0;
+//}
 
 int lua_log_message(lua_State *L) {
     if (lua_gettop(L) != 1) {
@@ -490,11 +485,11 @@ b8 intrinsics_install_to(Proc *process) {
 //    lua_pushstring(process->lua_state, process->process_name);
     lua_setfield(process->lua_state, -2, "name");
     
-    lua_pushcfunction(process->lua_state, lua_execute_process);
-    lua_setfield(process->lua_state, -2, "execute");
-    
-    lua_pushcfunction(process->lua_state, lua_listen_for_event);
-    lua_setfield(process->lua_state, -2, "listen");
+//    lua_pushcfunction(process->lua_state, lua_execute_process);
+//    lua_setfield(process->lua_state, -2, "execute");
+
+//    lua_pushcfunction(process->lua_state, lua_listen_for_event);
+//    lua_setfield(process->lua_state, -2, "listen");
     
     lua_pushcfunction(process->lua_state, lua_log_message);
     lua_setfield(process->lua_state, -2, "log");
@@ -518,34 +513,34 @@ b8 intrinsics_install_to(Proc *process) {
     return 1;
 }
 
-b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {
-    if (code != EVENT_LUA_CUSTOM) return false;
-    
-    char *event_name = data.data.c;
-    
-    for (int i = 0; i < lua_context.count; ++i) {
-        LuaPayload *payload = &lua_context.payloads[i];
-        if (payload->process == NULL)continue;
-//        if (strcmp(payload->event_name, event_name) == 0) {
-        lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
-        
-        lua_rawgeti(L, LUA_REGISTRYINDEX, payload->callback_ref);
-        
-        if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
-            verror("Error executing Lua callback: %s", lua_tostring(L, -1));
-            lua_pop(L, 1); // Remove error message
-        }
+//b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {
+//    if (code != EVENT_LUA_CUSTOM) return false;
+//
+//    char *event_name = data.data.c;
+//
+//    for (int i = 0; i < lua_context.count; ++i) {
+//        LuaPayload *payload = &lua_context.payloads[i];
+//        if (payload->process == NULL)continue;
+////        if (strcmp(payload->event_name, event_name) == 0) {
+//        lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
+//
+//        lua_rawgeti(L, LUA_REGISTRYINDEX, payload->callback_ref);
+//
+//        if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+//            verror("Error executing Lua callback: %s", lua_tostring(L, -1));
+//            lua_pop(L, 1); // Remove error message
 //        }
-    }
-    
-    return true;
-}
+////        }
+//    }
+//
+//    return true;
+//}
 
 
 void intrinsics_initialize() {
-    event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
+//    event_register(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
 }
 
 void intrinsics_shutdown() {
-    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
+//    event_unregister(EVENT_LUA_CUSTOM, 0, lua_payload_passthrough);
 }

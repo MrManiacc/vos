@@ -35,3 +35,5 @@ endfunction(add_driver)
 
 # Should do add_subdirectory for the driver, then create a target to copy the assets to the build directory
 add_driver(mui)
+
+add_driver(sys)

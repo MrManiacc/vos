@@ -73,7 +73,7 @@ term:register_command("game", function()
     end)
 
     term:register_command("start", function()
-        sys.listen("update", function()
+        system.listen("update", function()
             sys.gui.draw_rect(game.x, game.y, game.width, game.height, 0, 255, 0, 255)
         end)
     end)
@@ -109,7 +109,7 @@ term:register_command("game", function()
     end)
 end)
 
-sys.listen("update", function()
+system.listen("update", function()
     term:redraw()
     if showing_stats then
         render_stats(10, 10)

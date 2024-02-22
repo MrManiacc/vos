@@ -7,7 +7,7 @@
 #include "core/vlogger.h"
 
 
-VAPI b8 mui_driver_load() {
+VAPI b8 mui_driver_load(Kernel *kernel) {
     vinfo("Loading MUI driver");
     return true;
 }
@@ -25,7 +25,7 @@ VAPI b8 mui_driver_install(Proc process) {
     return true;
 }
 
-VAPI b8 mui_driver_unload() {
+VAPI b8 mui_driver_unload(Kernel *kernel) {
     vinfo("Unloading MUI driver");
     return true;
 }

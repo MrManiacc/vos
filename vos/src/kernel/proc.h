@@ -36,6 +36,7 @@ typedef struct Proc {
     ProcID *children_pids;
     // Current state of the process
     ProcessState state;
+    struct Kernel *kernel;
 } Proc;
 
 /**

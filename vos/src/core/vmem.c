@@ -183,16 +183,16 @@ void kfree_record(void *ptr) {
 void kallocate_record(void *ptr, u64 size, const char *file, int line, memory_tag tag) {
     if (!ptr) return;
 //    vdebug("%s:%d kallocate_aligned successfully allocated %llu bytes.", file, line, size);
-    AllocationMetadata *metadata = (AllocationMetadata *) platform_allocate(sizeof(AllocationMetadata), false);
-    metadata->file = file;
-    metadata->line = line;
-    metadata->size = size;
-    metadata->tag = tag;
-    
-    // Lock the mutex before modifying the dictionary
-    kmutex_lock(&state_ptr->allocation_mutex);
-    ptr_hash_table_set(state_ptr->stats.allocations, ptr, metadata);
-    kmutex_unlock(&state_ptr->allocation_mutex);
+//    AllocationMetadata *metadata = (AllocationMetadata *) platform_allocate(sizeof(AllocationMetadata), false);
+//    metadata->file = file;
+//    metadata->line = line;
+//    metadata->size = size;
+//    metadata->tag = tag;
+//
+//    // Lock the mutex before modifying the dictionary
+//    kmutex_lock(&state_ptr->allocation_mutex);
+//    ptr_hash_table_set(state_ptr->stats.allocations, ptr, metadata);
+//    kmutex_unlock(&state_ptr->allocation_mutex);
 }
 
 void *_kallocate(u64 size, memory_tag tag, int line, const char *file) {
@@ -207,16 +207,16 @@ void *_kallocate_aligned(u64 size, u16 alignment, memory_tag tag, int line, cons
     
     void *block = 0;
     if (state_ptr) {
-        if (!kmutex_lock(&state_ptr->allocation_mutex)) {
-            vfatal("%s:%d Error obtaining mutex lock during allocation.", file, line);
-            return 0;
-        }
-        
-        state_ptr->stats.total_allocated += size;
-        state_ptr->stats.tagged_allocations[tag] += size;
-        state_ptr->alloc_count++;
+//        if (!kmutex_lock(&state_ptr->allocation_mutex)) {
+//            vfatal("%s:%d Error obtaining mutex lock during allocation.", file, line);
+//            return 0;
+//        }
+        //TODO: look for solutions to the mutex lock issue, static instance is not being created
+//        state_ptr->stats.total_allocated += size;
+//        state_ptr->stats.tagged_allocations[tag] += size;
+//        state_ptr->alloc_count++;
         block = dynamic_allocator_allocate_aligned(&state_ptr->allocator, size, alignment);
-        kmutex_unlock(&state_ptr->allocation_mutex);
+//        kmutex_unlock(&state_ptr->allocation_mutex);
     } else {
         block = platform_allocate(size, false);
     }
@@ -379,7 +379,7 @@ char *_get_memory_usage_str(int line, const char *file) {
         f64 percent_used = (f64) (used_space) / total_space;
         
         i32 length = snprintf(buffer + offset, 8000, "Total memory usage: %.2f%s of %.2f%s (%.2f%%)\n", used_amount,
-                              used_unit, total_amount, total_unit, percent_used);
+                used_unit, total_amount, total_unit, percent_used);
         offset += length;
     }
     
@@ -444,9 +444,9 @@ static void report_memory_leaks() {
             snprintf(location, sizeof(location), "%s:%d", metadata->file, metadata->line);
 //
             vdebug("%-50s %-10s %-15s\n",
-                   location,
-                   memory_tag_strings[metadata->tag],
-                   formattedSize);
+                    location,
+                    memory_tag_strings[metadata->tag],
+                    formattedSize);
             
             // Free the metadata if needed
             platform_free(metadata, sizeof(AllocationMetadata));
