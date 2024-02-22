@@ -2,7 +2,7 @@
  * Created by jraynor on 2/12/2024.
  */
 #include "linear_allocator.h"
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "core/vlogger.h"
 
 void linear_allocator_create(u64 total_size, void *memory, linear_allocator *out_allocator) {

@@ -15,9 +15,5 @@ add_custom_target(copy_assets ALL
         COMMENT "Copying assets folder to build directory"
 )
 
-
-
-
 add_dependencies(app copy_assets)
 
-#file(COPY assets DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

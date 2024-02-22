@@ -269,7 +269,7 @@ typedef enum system_event_code {
 
 #define lua_ctx(event_name)  \
     event_context event_name;             \
-    memcpy(event_name.data.c, #event_name, strlen(#event_name));\
+    platform_copy_memory(event_name.data.c, #event_name, string_length(#event_name));\
 
 #define lua_fire(event_name) \
  event_fire(EVENT_LUA_CUSTOM, NULL, event_name);

@@ -5,7 +5,7 @@
 #include "vfs.h"
 #include "containers/dict.h"
 #include "core/vlogger.h"
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "core/vstring.h"
 #include "platform/platform.h"
 #include "paths.h"
@@ -162,7 +162,7 @@ FsNode *load_directory(FsPath path) {
         child_node->parent = dir_node; // Set the parent of the node to the current directory.
         dir_node->data.directory.children[dir_node->data.directory.child_count++] = child_node; // Add the child to the directory.
     }
-    file_path_list_free(child_files);
+    platform_file_path_list_free(child_files);
     return dir_node;
 }
 

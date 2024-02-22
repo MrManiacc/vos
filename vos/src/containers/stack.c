@@ -3,7 +3,7 @@
  */
 #include "stack.h"
 
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "core/vlogger.h"
 
 static void stack_ensure_allocated(Stack *s, u32 count) {

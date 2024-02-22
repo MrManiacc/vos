@@ -1,9 +1,9 @@
 #include <lauxlib.h>
 #include <lualib.h>
 #include <string.h>
-#include "vproc.h"
+#include "proc.h"
 
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"
 

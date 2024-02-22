@@ -1,5 +1,5 @@
 #include "dict.h"
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"
 #include <stdlib.h>

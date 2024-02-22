@@ -116,4 +116,4 @@ sys.listen("update", function()
     end
 end)
 
-print("Hello World!")
+print("Welcome, here's what mui has to say... " .. mui.message)

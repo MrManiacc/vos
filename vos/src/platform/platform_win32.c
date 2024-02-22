@@ -12,6 +12,7 @@
 #include "core/vthread.h"
 #include "core/vlogger.h"
 #include "filesystem/paths.h"
+#include "containers/dict.h"
 
 #define WIN32_LEAN_AND_MEAN
 
@@ -399,18 +400,22 @@ b8 vsemaphore_wait(vsemaphore *semaphore, u64 timeout_ms) {
     return true;
 }
 
-b8 platform_dynamic_library_load(const char *name, dynamic_library *out_library) {
+b8 platform_dynamic_library_load(const char *name, DynamicLibrary *out_library) {
     if (!out_library) {
         return false;
     }
-    kzero_memory(out_library, sizeof(dynamic_library));
+    kzero_memory(out_library, sizeof(DynamicLibrary));
     if (!name) {
         return false;
     }
     
-    char filename[MAX_PATH];
-    kzero_memory(filename, sizeof(char) * MAX_PATH);
-    string_format(filename, "%s.dll", name);
+    char *filename;
+    if (!string_ends_with(name, ".dll")) {
+        filename = string_allocate_sized(name, string_length(name) + 4);
+        string_contains(filename, ".dll");
+    } else {
+        filename = string_duplicate(name);
+    }
     
     HMODULE library = LoadLibraryA(filename);
     if (!library) {
@@ -423,12 +428,12 @@ b8 platform_dynamic_library_load(const char *name, dynamic_library *out_library)
     out_library->internal_data_size = sizeof(HMODULE);
     out_library->internal_data = library;
     
-    out_library->functions = darray_create(dynamic_library_function);
+    out_library->functions = dict_new();
     
     return true;
 }
 
-b8 platform_dynamic_library_unload(dynamic_library *library) {
+b8 platform_dynamic_library_unload(DynamicLibrary *library) {
     if (!library) {
         return false;
     }
@@ -449,30 +454,27 @@ b8 platform_dynamic_library_unload(dynamic_library *library) {
     }
     
     if (library->functions) {
-        u32 count = darray_length(library->functions);
-        for (u32 i = 0; i < count; ++i) {
-            dynamic_library_function *f = &library->functions[i];
-            if (f->name) {
-                u64 length = string_length(f->name);
-                kfree((void *) f->name, sizeof(char) * (length + 1), MEMORY_TAG_STRING);
+        dict_for_each(library->functions, dynamic_library_function, {
+            if (value->name) {
+                kfree((void *) value->name, sizeof(char) * (string_length(value->name) + 1), MEMORY_TAG_STRING);
             }
-        }
-        
-        darray_destroy(library->functions);
+        })
+        dict_delete(library->functions);
         library->functions = 0;
     }
+    
     
     BOOL result = FreeLibrary(internal_module);
     if (result == 0) {
         return false;
     }
     
-    kzero_memory(library, sizeof(dynamic_library));
+    kzero_memory(library, sizeof(DynamicLibrary));
     
     return true;
 }
 
-b8 platform_dynamic_library_load_function(const char *name, dynamic_library *library) {
+b8 platform_dynamic_library_load_function(const char *name, DynamicLibrary *library) {
     if (!name || !library) {
         return false;
     }
@@ -486,11 +488,10 @@ b8 platform_dynamic_library_load_function(const char *name, dynamic_library *lib
         return false;
     }
     
-    dynamic_library_function f = {0};
-    f.pfn = f_addr;
-    f.name = string_duplicate(name);
-    darray_push(dynamic_library_function, library->functions, f);
-    
+    dynamic_library_function *f = platform_allocate(sizeof(dynamic_library_function), false);
+    f->pfn = f_addr;
+    f->name = string_duplicate(name);
+    dict_set(library->functions, name, f);
     return true;
 }
 
@@ -660,12 +661,12 @@ void *platform_read_file(const char *path) {
 }
 
 // Free the FilePathList and its contents
-void file_path_list_free(VFilePathList *fileList) {
-    for (int i = 0; i < fileList->count; i++) {
-        free(fileList->paths[i]); // Free each string
+void platform_file_path_list_free(VFilePathList *list) {
+    for (int i = 0; i < list->count; i++) {
+        free(list->paths[i]); // Free each string
     }
-    free(fileList->paths); // Free the array of pointers
-    free(fileList); // Free the structure itself
+    free(list->paths); // Free the array of pointers
+    free(list); // Free the structure itself
 }
 
 

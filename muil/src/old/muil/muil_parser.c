@@ -9,7 +9,7 @@
 #include "muil_parser.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "platform/platform.h"
 #include "containers/stack.h"
 

@@ -33,16 +33,14 @@ typedef struct dynamic_library_function {
     void *pfn;
 } dynamic_library_function;
 
-typedef struct dynamic_library {
+typedef struct DynamicLibrary {
     const char *name;
     const char *filename;
     u64 internal_data_size;
     void *internal_data;
     u32 watch_id;
-    
-    // darray
-    dynamic_library_function *functions;
-} dynamic_library;
+    struct Dict *functions;
+} DynamicLibrary;
 
 typedef enum platform_error_code {
     PLATFORM_ERROR_SUCCESS = 0,
@@ -196,7 +194,7 @@ VAPI f32 platform_device_pixel_ratio(void);
  * @param out_library A pointer to hold the loaded library. Required.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_load(const char *name, dynamic_library *out_library);
+VAPI b8 platform_dynamic_library_load(const char *name, DynamicLibrary *out_library);
 
 /**
  * @brief Unloads the given dynamic library.
@@ -204,7 +202,7 @@ VAPI b8 platform_dynamic_library_load(const char *name, dynamic_library *out_lib
  * @param library A pointer to the loaded library. Required.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_unload(dynamic_library *library);
+VAPI b8 platform_dynamic_library_unload(DynamicLibrary *library);
 
 /**
  * @brief Loads an exported function of the given name from the provided loaded library.
@@ -213,7 +211,7 @@ VAPI b8 platform_dynamic_library_unload(dynamic_library *library);
  * @param library A pointer to the library to load the function from.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_load_function(const char *name, dynamic_library *library);
+VAPI b8 platform_dynamic_library_load_function(const char *name, DynamicLibrary *library);
 
 /**
  * @brief Returns the file extension for the current platform.
@@ -252,10 +250,12 @@ VAPI b8 platform_watch_file(const char *file_path, u32 *out_watch_id);
  */
 VAPI b8 platform_unwatch_file(u32 watch_id);
 
-VAPI /**
-*
+/**
+* @brief Deletes the file at the given path.s
+* @param path
+* @return
 */
-b8 platform_file_exists(const char *path);
+VAPI b8 platform_file_exists(const char *path);
 
 /**
 * @brief Checks if a given path is a directory.
@@ -271,9 +271,48 @@ b8 platform_file_exists(const char *path);
 */
 VAPI b8 platform_is_directory(const char *path);
 
-VAPI VFilePathList *platform_collect_files_direct(const char *path);
+VAPI/**
+ * @brief Collect files directly within a given directory, non-recursively.
+ *
+ * This function collects files directly within a specified directory without searching subdirectories.
+ * It creates and initializes a `VFilePathList` struct to store the paths of the collected files.
+ *
+ * @param path The path of the directory to collect files from.
+ * @return A pointer to a `VFilePathList` struct that contains the collected file paths, or `NULL` if the allocation failed.
+ *
+ * @note The caller is responsible for freeing the returned `VFilePathList` using `v_file_path_list_free`.
+ */
+VFilePathList *platform_collect_files_direct(const char *path);
 
-VAPI VFilePathList *platform_collect_files_recursive(const char *path);
+VAPI/**
+ * @brief Recursively collects files from a given path and returns a list of file paths.
+ *
+ * This function collects all files (and folders) within the specified path,
+ * including files within subdirectories. The resulting list contains the full
+ * paths of all collected files.
+ *
+ * @param path The base path from which to start collecting files.
+ *
+ * @return A pointer to a dynamically allocated VFilePathList structure
+ *         containing the collected file paths. If an error occurs during
+ *         memory allocation or path collection, NULL is returned.
+ *
+ * @note The caller is responsible for freeing the allocated VFilePathList
+ *       structure using the file_path_list_free function.
+ */
+VFilePathList *platform_collect_files_recursive(const char *path);
+
+
+/**
+* @brief Frees the FilePathList and its contents
+*
+* This function frees the memory allocated for a FilePathList structure and its contents.
+* It releases the memory for each string in the paths array and then frees the array itself.
+* Finally, it frees the FilePathList structure itself.
+*
+* @param list The FilePathList to be freed
+*/
+VAPI void platform_file_path_list_free(VFilePathList *list);
 
 /**
 * @brief Checks if the given path represents a file.
@@ -316,17 +355,6 @@ VAPI void *platform_read_file(const char *path);
  */
 VAPI char *platform_path(const char *path);
 
-
-VAPI /**
- * @brief Frees the FilePathList and its contents
- *
- * This function frees the memory allocated for a FilePathList structure and its contents.
- * It releases the memory for each string in the paths array and then frees the array itself.
- * Finally, it frees the FilePathList structure itself.
- *
- * @param list The FilePathList to be freed
- */
-void file_path_list_free(VFilePathList *list);
 
 /**
  * @brief Retrieves the current working directory of the platform.

@@ -10,14 +10,14 @@
 #pragma once
 
 #include "defines.h"
-#include "vproc.h"
+#include "proc.h"
 #include "vresult.h"
-
 //The maximum number of processes that can be created.
 #ifndef MAX_PROCESSES
 #define MAX_PROCESSES 512 //does this need to be dynamic?
 #endif
 
+typedef u32 DriverID;
 
 /**
  * The id pool will be internally used to track the next available process id. This will allow for the reuse of
@@ -38,8 +38,37 @@ typedef struct Kernel {
     Proc **processes;
     // The id pool is used to track the next available process id.
     ProcPool *id_pool;
+    // A dictionary of all registered drivers. They are indexed by their name.
+    Dict *drivers;
 } Kernel;
 
+
+typedef struct Driver {
+    //The driver load pfn
+    b8 (*load)();
+    // Install the driver to a process
+    b8 (*install)(Proc process);
+    //The driver unload pfn
+    b8 (*unload)();
+    // Can define a name for the driver, by default it's given the filename without the extension
+    char *name;
+} Driver;
+
+typedef Driver (*pfn_driver_load)();
+
+
+typedef struct DriverState {
+    // Unique driver ID
+    DriverID did;
+    // Name of the process
+    const char *driver_name;
+    // Path to the driver (shared library)
+    FsNode *driver_file;
+    // The library handle
+    Driver *driver;
+    // The library handle
+    struct DynamicLibrary *handle;
+} DriverState;
 
 /**
  * Initializes the kernel. This will allocate the kernel context and initialize the root process view.
@@ -59,11 +88,6 @@ KernelResult kernel_initialize(char *root_path);
  */
 Proc *kernel_create_process(FsNode *script_node_file);
 
-/**
- * This is called once per frame. This will update the kernel and all processes.
- * @return TRUE if the kernel was successfully updated; otherwise FALSE.
- */
-b8 kernel_poll_update();
 
 /**
  * Looks up a process by id. The KernelResult will contain a pointer to the process if it was found.

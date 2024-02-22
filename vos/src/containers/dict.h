@@ -129,3 +129,14 @@ DictIter dict_iterator(Dict *table);
  */
 b8 dict_next(DictIter *it);
 
+
+#define dict_for_each(table, type, callback) \
+    {                                        \
+    DictIter iterator = dict_iterator(table); \
+    while (dict_next(&iterator)) { \
+        Entry *entry = iterator.entry; \
+        char* key = entry->key;               \
+        type *value = (type *)entry->value; \
+        callback; \
+    }                                         \
+    }

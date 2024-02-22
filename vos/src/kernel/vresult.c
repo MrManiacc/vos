@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "vresult.h"
-#include "lib/vmem.h"
-#include "vproc.h"
+#include "core/vmem.h"
+#include "proc.h"
 
 /**
  * Determines if the kernel operation was successful.

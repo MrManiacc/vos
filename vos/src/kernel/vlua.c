@@ -9,7 +9,7 @@
 //#include <raylib.h>
 #include "core/vevent.h"
 #include "core/vstring.h"
-#include "lib/vmem.h"
+#include "core/vmem.h"
 #include "containers/dict.h"
 #include "filesystem/paths.h"
 #include "platform/platform.h"
@@ -41,7 +41,7 @@ int lua_execute_process(lua_State *L) {
     // Get the process name
     if (arg_type == LUA_TSTRING) {
         const char *process_name = lua_tostring(L, 1);
-
+        
         vdebug("Executing process at: %s", process_name);
 //        Asset *node = fs_load_node(process_name);
 //        Process *process = kernel_create_process(process_name);
@@ -101,16 +101,16 @@ int lua_listen_for_event(lua_State *L) {
     if (lua_gettop(L) != 2) {
         return luaL_error(L, "Expected 2 arguments to listen_for_event");
     }
-
+    
     const char *event_name = lua_tostring(L, 1);
     if (!lua_isfunction(L, 2)) {
         return luaL_error(L, "Expected a function as the second argument");
     }
-
+    
     if (lua_context.count >= MAX_LUA_PAYLOADS) {
         return luaL_error(L, "Exceeded maximum number of Lua callbacks");
     }
-
+    
     //Find free slot
     u64 index = 0;
     for (u64 i = 0; i < MAX_LUA_PAYLOADS; ++i) {
@@ -122,12 +122,12 @@ int lua_listen_for_event(lua_State *L) {
     if (index > MAX_LUA_PAYLOADS - 25) {
         vwarn("Lua payload context is getting full, consider increasing MAX_LUA_PAYLOADS");
     }
-
+    
     LuaPayload *payload = &lua_context.payloads[index];
     lua_context.count++;
     payload->event_name = string_duplicate(event_name); // we'll need to free this later
     payload->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
+    
     lua_getglobal(L, "sys");
     lua_getfield(L, -1, "pid");
     int process_id = lua_tointeger(L, -1);
@@ -167,7 +167,7 @@ int lua_draw_string(lua_State *L) {
     int y = lua_tonumber(L, 3);
     // Get the font size
     int size = lua_tonumber(L, 4);
-
+    
     //check if we have a color at the top of the stack in a table
     if (lua_istable(L, 5)) {
         lua_getfield(L, 5, "r");
@@ -193,7 +193,7 @@ int lua_draw_rect(lua_State *L) {
     // Get the x and y coordinates
     int x = (int) lua_tonumber(L, 1);
     int y = (int) lua_tonumber(L, 2);
-
+    
     // Get width and height as integers
     int width = (int) lua_tonumber(L, 3);
     int height = (int) lua_tonumber(L, 4);
@@ -213,7 +213,7 @@ int lua_draw_rect(lua_State *L) {
         return 0;
     }
 //    DrawRectangle(x, y, width, height, DARKGRAY);
-
+    
     return 0;
 }
 
@@ -276,16 +276,16 @@ int lua_import(lua_State *L) {
     char *full_path = string_concat(module_name, ".lua");
     // get the node data from the file system
     FsNode *node = vfs_node_get(full_path);
-
+    
     if (node == null) {
         verror("Failed to import module %s, file not found", module_name);
         return 1;
     }
-
+    
     //Execute the lua from source
     char *data = node->data.file.data;
     u64 size = node->data.file.size;
-
+    
     if (luaL_loadbuffer(L, data, size, full_path) != LUA_OK) {
         const char *error_string = lua_tostring(L, -1);
         verror("Failed to run script %d: %s", full_path, error_string);
@@ -356,13 +356,13 @@ int lua_mouse(lua_State *L) {
     lua_setfield(L, -2, "y");
     lua_pushcfunction(L, lua_is_button_down);
     lua_setfield(L, -2, "is_down");
-
+    
     lua_pushcfunction(L, lua_is_button_up);
     lua_setfield(L, -2, "is_up");
-
+    
     lua_pushcfunction(L, lua_is_button_pressed);
     lua_setfield(L, -2, "is_pressed");
-
+    
     lua_pushcfunction(L, lua_is_button_released);
     lua_setfield(L, -2, "is_released");
     return 1;
@@ -391,15 +391,15 @@ int lua_key(lua_State *L) {
 void configure_lua_input(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
-
+    
     // Add a color function to the gui table
     lua_pushcfunction(process->lua_state, lua_mouse);
     lua_setfield(process->lua_state, -2, "mouse");
-
+    
     // Add a color function to the gui table
     lua_pushcfunction(process->lua_state, lua_key);
     lua_setfield(process->lua_state, -2, "key");
-
+    
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "input");
 }
@@ -434,11 +434,11 @@ int lua_windwow_size(lua_State *L) {
 int configure_lua_window(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
-
+    
     // Add a color function to the gui table
     lua_pushcfunction(process->lua_state, lua_windwow_size);
     lua_setfield(process->lua_state, -2, "size");
-
+    
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "window");
     return 1;
@@ -447,23 +447,23 @@ int configure_lua_window(Proc *process) {
 void configure_lua_gui(Proc *process) {
     // Create the gui table
     lua_newtable(process->lua_state);
-
+    
     // Add a color function to the gui table
     lua_pushcfunction(process->lua_state, lua_color);
     lua_setfield(process->lua_state, -2, "color");
-
+    
     // Add a draw_string function to the gui table
     lua_pushcfunction(process->lua_state, lua_draw_string);
     lua_setfield(process->lua_state, -2, "draw_text");
-
+    
     // Add a draw_rect function to the gui table
     lua_pushcfunction(process->lua_state, lua_draw_rect);
     lua_setfield(process->lua_state, -2, "draw_rect");
-
+    
     // Add a text_width function to the gui table
     lua_pushcfunction(process->lua_state, lua_text_width);
     lua_setfield(process->lua_state, -2, "text_width");
-
+    
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "gui");
 }
@@ -481,64 +481,63 @@ b8 intrinsics_install_to(Proc *process) {
     // Register the process ID
     lua_pushinteger(process->lua_state, process->pid);
     lua_setfield(process->lua_state, -2, "pid");
-
+    
     lua_pushstring(process->lua_state, process->source_file_node->path);
     lua_setfield(process->lua_state, -2, "path");
-
+    
     // Register the process name
     lua_pushstring(process->lua_state, process->process_name);
 //    lua_pushstring(process->lua_state, process->process_name);
     lua_setfield(process->lua_state, -2, "name");
-
+    
     lua_pushcfunction(process->lua_state, lua_execute_process);
     lua_setfield(process->lua_state, -2, "execute");
-
+    
     lua_pushcfunction(process->lua_state, lua_listen_for_event);
     lua_setfield(process->lua_state, -2, "listen");
-
+    
     lua_pushcfunction(process->lua_state, lua_log_message);
     lua_setfield(process->lua_state, -2, "log");
-
+    
     lua_pushcfunction(process->lua_state, lua_time);
     lua_setfield(process->lua_state, -2, "time");
-
+    
     lua_pushcfunction(process->lua_state, lua_import);
     lua_setfield(process->lua_state, -2, "import");
-
+    
     lua_pushcfunction(process->lua_state, lua_file_system_string);
     lua_setfield(process->lua_state, -2, "fs_str");
-
+    
     configure_lua_gui(process);
-
+    
     configure_lua_input(process);
-
+    
     configure_lua_window(process);
-
+    
     lua_setglobal(process->lua_state, "sys"); // Set the sys table as a global variable
-
     return 1;
 }
 
 b8 lua_payload_passthrough(u16 code, void *sender, void *listener_inst, event_context data) {
     if (code != EVENT_LUA_CUSTOM) return false;
-
+    
     char *event_name = data.data.c;
-
+    
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
         if (payload->process == NULL)continue;
 //        if (strcmp(payload->event_name, event_name) == 0) {
         lua_State *L = payload->process->lua_state; // Get your Lua state from wherever it's stored
-
+        
         lua_rawgeti(L, LUA_REGISTRYINDEX, payload->callback_ref);
-
+        
         if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
             verror("Error executing Lua callback: %s", lua_tostring(L, -1));
             lua_pop(L, 1); // Remove error message
         }
 //        }
     }
-
+    
     return true;
 }
 
