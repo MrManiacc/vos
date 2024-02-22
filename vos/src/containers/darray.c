@@ -1,7 +1,7 @@
 #include <string.h>
 #include "containers/darray.h"
 
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 
 void *_darray_create(u64 length, u64 stride) {

@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 
 
 // Simple hash function for pointers

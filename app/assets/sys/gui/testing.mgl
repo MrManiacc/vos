@@ -7,6 +7,7 @@ Root : Test{
 
     //A typed variation of the 'Untyped' field. They both should boil down to the same type
     Typed : Number = 20
+
     Untyped = Typed
 
     // assert type of 'Typed' is 'int'

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "freelist.h"
 
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 
 typedef struct freelist_node {

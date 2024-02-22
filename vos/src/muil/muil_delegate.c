@@ -3,7 +3,7 @@
  */
 
 #include "muil/muil.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "muil/muil_visitor.h"
 #include "containers/darray.h"

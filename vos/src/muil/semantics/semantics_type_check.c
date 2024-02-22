@@ -3,7 +3,7 @@
  */
 
 #include "muil/muil.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "containers/dict.h"
 
@@ -90,7 +90,6 @@ static TypeSymbol *get_reference_type(char *name, Scope *scope) {
 }
 
 static TypeSymbol *get_binary_expr_type(ASTNode *node, Scope *scope) {
-    if (!node) return null;
     if (node->nodeType != AST_BINARY_OP) {
         verror("Invalid node type: %d", node->nodeType);
         return null;
@@ -163,14 +162,22 @@ void type_check_visit_assignment_enter(TypePass *visitor, PropertyAssignmentNode
     // if it's a reference type, we need to resolve the reference and check the type of the resolved node.
     // if it's a literal type, we need to check the type of the literal.
     // if it's a function call, we need to check the return type of the function.
-    
-    // We can use the visitor->scope to resolve the reference.
+    TypeSymbol *assignment_type = null;
+    if (!node->assignee || !node->assignment) {
+        verror("Invalid assignment node");
+        return;
+    }
+    if (node->assignee->nodeType == AST_REFERENCE && node->assignee->userData != null) {
+        assignment_type = (TypeSymbol *) node->assignee->userData;
+        // We need to resolve the reference and check the type of the resolved node.
+    }
 
 //    vinfo("Type checking assignment: %s", parser_dump_node(node->assignee));
     // If the property does have a type, we need to make sure the assignment type matches the property type.
     // We can skip the type check if the node already has a type.
     //We'll need to do some complicated type checking here because of our union, intersection, and tuple types.
-    TypeSymbol *assignment_type = evalulate_node_type(node->assignee, visitor->scope);
+    if (!assignment_type)
+        assignment_type = evalulate_node_type(node->assignee, visitor->scope);
     if (!assignment_type)
         assignment_type = evalulate_node_type(node->assignment, visitor->scope);
     if (!assignment_type) {
@@ -186,9 +193,13 @@ void type_check_visit_assignment_enter(TypePass *visitor, PropertyAssignmentNode
         node->assignee->data.type.type = assignment_type;
     else if (node->assignee->nodeType == AST_REFERENCE)
         node->assignee->data.reference.type = assignment_type;
-    else
+    else {
         verror("Invalid node type for assignment");
+        return;
+    }
     
+    vinfo("Type check pass: %s", parser_dump_node(node->assignee));
+    // Now we would check if the assignment type is compatible with the reference type.
 }
 
 

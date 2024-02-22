@@ -5,7 +5,7 @@
 #include "vfs.h"
 #include "containers/dict.h"
 #include "core/vlogger.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vstring.h"
 #include "platform/platform.h"
 #include "paths.h"

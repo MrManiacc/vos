@@ -6,7 +6,7 @@
 
 
 #include "core/vasserts.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "containers/freelist.h"
 

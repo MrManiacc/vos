@@ -2,7 +2,7 @@
  * Created by jraynor on 2/12/2024.
  */
 #include "vkeymap.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 
 keymap keymap_create(void) {
     keymap map;

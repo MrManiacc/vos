@@ -3,7 +3,7 @@
 #include <string.h>
 #include "vproc.h"
 
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"
 

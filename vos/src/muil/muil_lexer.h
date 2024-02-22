@@ -81,7 +81,6 @@ typedef struct ProgramSource {
 ProgramSource lexer_analysis_from_mem(const char *source, u32 length);
 
 
-
 /**
  * @brief Prints the tokens in the given LexerResult.
  *

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "vresult.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "vproc.h"
 
 /**

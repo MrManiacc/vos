@@ -1,7 +1,7 @@
 #include <string.h>
 #include "paths.h"
 #include "core/vlogger.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vstring.h"
 #include "platform/platform.h"
 

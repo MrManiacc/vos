@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "containers/darray.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "vlua.h"
 #include "core/vevent.h"

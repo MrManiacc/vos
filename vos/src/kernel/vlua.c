@@ -9,7 +9,7 @@
 //#include <raylib.h>
 #include "core/vevent.h"
 #include "core/vstring.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "containers/dict.h"
 #include "filesystem/paths.h"
 #include "platform/platform.h"

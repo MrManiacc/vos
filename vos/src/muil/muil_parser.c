@@ -9,7 +9,7 @@
 #include "muil_parser.h"
 #include "core/vlogger.h"
 #include "core/vstring.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "platform/platform.h"
 #include "containers/stack.h"
 
@@ -356,16 +356,13 @@ ASTNode *parser_parse_primary(ParserState *state) {
         case TOKEN_IDENTIFIER:/*return parser_parse_identifier(state);*/
 //        case TOKEN_EQUALS:return parser_parse_assignment(state, token);
             consume(state, TOKEN_IDENTIFIER);
-            if (nextToken.type == TOKEN_EQUALS) {
-                ASTNode *assignmentNode = create_node(AST_ASSIGNMENT);
-                if (!assignmentNode) return null; // Error handling within create_node
-                ASTNode *referenceNode = create_node(AST_REFERENCE);
-                if (!referenceNode) return null; // Error handling within create_node
-                referenceNode->data.reference.name = string_ndup(token.start, token.length);
-                assignmentNode->data.assignment.assignee = referenceNode;
+            if (nextToken.type == TOKEN_EQUALS) { // Untyped property definition/assignment
+                ASTNode *propertyDeclaration = create_node(AST_PROPERTY_DECLARE);
+                if (!propertyDeclaration) return null; // Error handling within create_node
+                propertyDeclaration->data.property.name = string_ndup(token.start, token.length);
                 consume(state, TOKEN_EQUALS);
-                assignmentNode->data.assignment.assignment = parser_parse_expression(state);
-                return assignmentNode;
+                propertyDeclaration->data.property.value = parser_parse_expression(state);
+                return propertyDeclaration;
             } else if (nextToken.type == TOKEN_LBRACE) {
                 // It's a nested, named component. Lets create an assignment node and a scope node
                 ASTNode *assignmentNode = create_node(AST_PROPERTY_DECLARE);
@@ -386,7 +383,7 @@ ASTNode *parser_parse_primary(ParserState *state) {
                     propertyNode->data.property.value = parser_parse_expression(state);
                     return propertyNode;
                 } else {
-                   TypeSymbol *type = parser_parse_type(state);
+                    TypeSymbol *type = parser_parse_type(state);
                     if (match(state, TOKEN_LBRACE)) {
                         //This is a component type definition
                         ASTNode *componentNOde = create_node(AST_COMPONENT_DECLARE);
@@ -418,7 +415,7 @@ ASTNode *parser_parse_primary(ParserState *state) {
                         assignmentNode->data.assignment.assignment = parser_parse_expression(state);
                         propertyNode->data.property.value = assignmentNode;
                         return propertyNode;
-                    }else{
+                    } else {
                         // Just a typed property definition with no initial value
                         ASTNode *propertyNode = create_node(AST_PROPERTY_DECLARE);
                         if (!propertyNode) return null; // Error handling within create_node
@@ -454,7 +451,7 @@ ASTNode *parser_parse_primary(ParserState *state) {
         case TOKEN_LBRACE:consume(state, TOKEN_LBRACE);
             return parser_parse_scope(state);
         case TOKEN_LBRACKET:return parser_parse_array(state);
-
+        
         default:
 //            if (match(state, TOKEN_DOT)) {
 //                ASTNode *lhs = parser_parse_primary(state);
@@ -782,7 +779,7 @@ void parser_free_component_node(CompoundDeclaration *component) {
 
 void parser_free_property_node(PropertyDeclaration *variable) {
     if (variable->name) {
-          kbye(variable->name, strlen(variable->name) + 1);
+        kbye(variable->name, strlen(variable->name) + 1);
     }
     if (variable->type) {
         parser_free_type(variable->type);
@@ -972,5 +969,6 @@ static ASTNode *create_node(ASTNodeType type) {
     }
     node->nodeType = type;
     node->next = null; // Ensure the next pointer is initialized to null
+    node->userData = null; // Ensure the user data pointer is initialized to null
     return node;
 }

@@ -3,7 +3,7 @@
  */
 
 #include "muil/muil.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "containers/dict.h"
 
@@ -108,7 +108,10 @@ void reference_pass_reference_enter(ReferencesPass *visitor, ReferenceNode *node
         }
         
     } else {
-        verror("Failed to resolve reference %s", node->name);
+//        verror("Failed to resolve reference %s", node->name);
+        
+        // This is untyped assignment, we'll need to check the type pass to see if it's resolved there. Lets just define it for now
+        dict_set(visitor->scope->symbols, node->name, parser_get_node(node));
     }
 }
 

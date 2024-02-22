@@ -1,6 +1,6 @@
 #include "queue.h"
 
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 
 static void queue_ensure_allocated(queue *s, u32 count) {

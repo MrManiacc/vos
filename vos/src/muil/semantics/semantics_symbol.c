@@ -3,7 +3,7 @@
  */
 
 #include "muil/muil.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 #include "core/vlogger.h"
 #include "containers/dict.h"
 
@@ -72,7 +72,6 @@ void symtab_assign_exit(SymtabPass *visitor, PropertyAssignmentNode *node) {
     vinfo("Defined untyped reference in symbol table: %s", node->assignee->data.reference.name);
     //We could do an immediate type check here, but we'll wait until the type pass so that we're
     //not just checking against the current scope, but all scopes.
-    
 }
 
 

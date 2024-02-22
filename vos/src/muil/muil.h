@@ -6,7 +6,7 @@
 #include "muil_parser.h"
 #include "muil_dump.h"
 #include "muil_visitor.h"
-#include "core/vmem.h"
+#include "lib/vmem.h"
 
 // =============================================================================
 // PassManager - Manages the execution of visitors
