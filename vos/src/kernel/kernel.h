@@ -42,11 +42,14 @@ typedef struct Kernel {
     ProcPool *id_pool;
     // A dictionary of all registered drivers. They are indexed by their name.
     Dict *drivers;
+    // The event state is used to track the state of the event system.
     struct EventState *event_state;
     // The root window of the application.
     WindowContext *window_context;
     // The file system context.
     FSContext *fs_context;
+    
+    
 } Kernel;
 
 
@@ -74,7 +77,7 @@ typedef struct DriverState {
     // The library handle
     Driver *driver;
     // The library handle
-    struct DynamicLibrary *handle;
+    struct DynLib *handle;
 } DriverState;
 
 /**
@@ -111,6 +114,12 @@ Proc *kernel_lookup_process(Kernel *kernel, ProcID pid);
 KernelResult kernel_destroy_process(ProcID pid);
 
 /**
+ * Updates the kernel. This will update the root process view.
+ * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
+ */
+b8 kernel_poll_update(Kernel *kernel);
+
+/**
  * Locates a process by name.
  * @param name The name of the process.
  * @return A pointer to the process if it was found, otherwise NULL.
@@ -123,12 +132,3 @@ ProcID *kernel_lookup_process_id(const char *name);
  * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
  */
 KernelResult kernel_shutdown();
-
-/**
- * Registers a system function with the kernel. This will allow the function to be called from a lua script.
- * @param name The name of the function.
- * @param function The function to register.
- * @return KERNEL_SUCCESS if the function was successfully registered, else an error code.
- */
-KernelResult kernel_register_function(const char *name, lua_CFunction function);
-

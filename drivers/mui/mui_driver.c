@@ -54,7 +54,8 @@ int lua_color(lua_State *L) {
 }
 
 int lua_draw_string(lua_State *L) {
-    if (lua_gettop(L) != 5) {
+    i32 top = lua_gettop(L);
+    if (top < 5) {
         return luaL_error(L, "Expected 1 argument to log_message");
     }
     const char *message = lua_tostring(L, 1);
@@ -63,22 +64,23 @@ int lua_draw_string(lua_State *L) {
     float y = lua_tonumber(L, 3);
     // Get the font size
     float size = lua_tonumber(L, 4);
-    
     //check if we have a color at the top of the stack in a table
-    if (lua_istable(L, 5)) {
-        lua_getfield(L, 5, "r");
-        int r = lua_tonumber(L, -1);
-        lua_getfield(L, 5, "g");
-        int g = lua_tonumber(L, -1);
-        lua_getfield(L, 5, "b");
-        int b = lua_tonumber(L, -1);
-        lua_getfield(L, 5, "a");
-        int a = lua_tonumber(L, -1);
-        // log the position and color
-//        DrawText(message, x, y, size, (Color) {r, g, b, a});
-        gui_draw_text(ctx->window_context, message, x, y, size, "sans", nvgRGBA(r, g, b, a));
+    
+    lua_getfield(L, 5, "r");
+    int r = lua_tonumber(L, -1);
+    lua_getfield(L, 5, "g");
+    int g = lua_tonumber(L, -1);
+    lua_getfield(L, 5, "b");
+    int b = lua_tonumber(L, -1);
+    lua_getfield(L, 5, "a");
+    int a = lua_tonumber(L, -1);
+    if (top == 5) {
+        gui_draw_text(ctx->window_context, message, x, y, size, "sans", nvgRGBA(r, g, b, a),
+                NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
         return 0;
     }
+    int align = lua_tonumber(L, 6);
+    gui_draw_text(ctx->window_context, message, x, y, size, "sans", nvgRGBA(r, g, b, a), align);
     return 0;
 }
 
@@ -111,6 +113,36 @@ int lua_draw_rect(lua_State *L) {
     return 0;
 }
 
+int lua_draw_rounded_rect(lua_State *L) {
+    if (lua_gettop(L) < 5) {
+        return luaL_error(L, "Expected 5 argument to log_message");
+    }
+    // Get the x and y coordinates
+    float x = (float) lua_tonumber(L, 1);
+    float y = (float) lua_tonumber(L, 2);
+    
+    // Get width and height as integers
+    float width = (float) lua_tonumber(L, 3);
+    float height = (float) lua_tonumber(L, 4);
+    float radius = (float) lua_tonumber(L, 5);
+    //check if we have a color at the top of the stack in a table
+    if (lua_istable(L, 6)) {
+        lua_getfield(L, 6, "r");
+        int r = lua_tointeger(L, -1);
+        lua_getfield(L, 6, "g");
+        int g = lua_tointeger(L, -1);
+        lua_getfield(L, 6, "b");
+        int b = lua_tointeger(L, -1);
+        lua_getfield(L, 6, "a");
+        int a = lua_tointeger(L, -1);
+        gui_draw_rounded_rect(ctx->window_context, x, y, width, height, radius, nvgRGBA(r, g, b, a));
+        // log the position and color
+        return 0;
+    }
+    return 0;
+}
+
+
 int lua_text_width(lua_State *L) {
     int top = lua_gettop(L);
     if (top != 2) {
@@ -119,6 +151,27 @@ int lua_text_width(lua_State *L) {
     const char *text = lua_tostring(L, 1);
     int size = lua_tointeger(L, 2);
     lua_pushnumber(L, gui_text_width(ctx->window_context, text, "sans", size));
+    return 1;
+}
+
+int lua_text_bounds(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top != 2) {
+        return luaL_error(L, "Expected 2 argument to text_bounds");
+    }
+    const char *text = lua_tostring(L, 1);
+    int size = lua_tointeger(L, 2);
+    float bounds[4];
+    gui_get_text_bounds(ctx->window_context, text, "sans", size, bounds);
+    lua_newtable(L);
+    lua_pushnumber(L, bounds[0]);
+    lua_setfield(L, -2, "x");
+    lua_pushnumber(L, bounds[1]);
+    lua_setfield(L, -2, "y");
+    lua_pushnumber(L, bounds[2]);
+    lua_setfield(L, -2, "w");
+    lua_pushnumber(L, bounds[3]);
+    lua_setfield(L, -2, "h");
     return 1;
 }
 
@@ -167,6 +220,7 @@ int lua_line(lua_State *L) {
         gui_draw_line(ctx->window_context, x1, y1, x2, y2, 1, nvgRGBA(r, g, b, a));
         return 0;
     }
+    
     float width = lua_tonumber(L, 5);
     gui_draw_line(ctx->window_context, x1, y1, x2, y2, width, nvgRGBA(r, g, b, a));
     return 0;
@@ -178,6 +232,7 @@ void configure_lua_gui(lua_State *L) {
     lua_pushcfunction(L, lua_color);
     lua_setfield(L, -2, "color");
     
+    
     // Add a draw_string function to the gui table
     lua_pushcfunction(L, lua_draw_string);
     lua_setfield(L, -2, "draw_text");
@@ -185,6 +240,10 @@ void configure_lua_gui(lua_State *L) {
     // Add a draw_rect function to the gui table
     lua_pushcfunction(L, lua_draw_rect);
     lua_setfield(L, -2, "draw_rect");
+    
+    // Add a draw_rounded_rect function to the gui table
+    lua_pushcfunction(L, lua_draw_rounded_rect);
+    lua_setfield(L, -2, "draw_rounded_rect");
     
     // Add a draw_line function to the gui table
     lua_pushcfunction(L, lua_line);
@@ -194,9 +253,15 @@ void configure_lua_gui(lua_State *L) {
     lua_pushcfunction(L, lua_text_width);
     lua_setfield(L, -2, "text_width");
     
+    // Add a text_bounds function to the gui table
+    lua_pushcfunction(L, lua_text_bounds);
+    lua_setfield(L, -2, "measure_text");
+    
+    
     // Add a scissor function to the gui table
     lua_pushcfunction(L, lua_scissor);
     lua_setfield(L, -2, "scissor");
+    
 }
 
 
@@ -213,7 +278,7 @@ b8 mui_driver_install(Proc process) {
 }
 
 b8 mui_driver_unload() {
-    vinfo("Unloading MUI driver");
+    vinfo("Unloading MUI driver by by");
     return true;
 }
 

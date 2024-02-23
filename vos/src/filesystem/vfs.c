@@ -141,7 +141,7 @@ FsNode *load_directory(FSContext *fs_context, FsPath path) {
     vdebug("load_directory - Loaded directory at path: %s", dir_node->path);
     
     // Loads all the files and directories in the directory into memory.
-    VFilePathList *child_files = platform_collect_files_direct(path);
+    FilePathList *child_files = platform_collect_files_direct(path);
     if (child_files == null) {
         vwarn("load_directory - No files found in directory at path: %s", dir_node->path);
         return null;

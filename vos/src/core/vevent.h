@@ -18,7 +18,6 @@
 
 #include "defines.h"
 #include "kernel/kernel.h"
-
 /**
  * @brief Represents event contextual data to be sent along with an
  * event code when an event is fired.

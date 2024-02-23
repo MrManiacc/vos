@@ -184,6 +184,7 @@ typedef struct InputState {
     b8 keys[KEYS_MAX_KEYS];
     b8 prev_keys[KEYS_MAX_KEYS]; // Add this line
     b8 buttons[BUTTON_MAX_BUTTONS];
+    b8 prev_buttons[BUTTON_MAX_BUTTONS];
     i32 mouse_x, mouse_y;
     i32 prev_mouse_x, prev_mouse_y;
     i8 mouse_wheel_delta;
@@ -260,6 +261,14 @@ void input_process_key(WindowContext *ctx, keys key, b8 pressed);
  * @returns True if currently pressed; otherwise false.
  */
 VAPI b8 input_is_button_down(WindowContext *ctx, buttons button);
+
+
+/**
+ * @brief Indicates if the given mouse button is currently pressed.
+ * @param button The button to check.
+ * @returns True if currently pressed; otherwise false.
+ */
+VAPI b8 input_is_button_pressed(WindowContext *ctx, buttons button);
 
 /**
  * @brief Indicates if the given mouse button is currently released.

@@ -96,6 +96,7 @@ b8 sys_driver_load() {
         verror("Failed to register lua custom event");
         return false;
     }
+    
     vinfo("Loaded SYS driver");
     return true;
 }
@@ -124,13 +125,14 @@ int lua_is_button_up(lua_State *L) {
 }
 
 int lua_is_button_pressed(lua_State *L) {
+
     WindowContext *windowContext = ctx->window_context;
     int top = lua_gettop(L);
     if (top != 1) {
         return luaL_error(L, "Expected 1 argument to is_button_down");
     }
     int button = lua_tointeger(L, 1);
-    lua_pushboolean(L, input_is_button_down(windowContext, button));
+    lua_pushboolean(L, input_is_button_pressed(windowContext, button));
     return 1;
 }
 
@@ -180,7 +182,6 @@ int lua_mouse(lua_State *L) {
     lua_setfield(L, -2, "is_up");
     lua_pushcfunction(L, lua_is_button_pressed);
     lua_setfield(L, -2, "is_pressed");
-    
     lua_pushcfunction(L, lua_is_button_released);
     lua_setfield(L, -2, "is_released");
 

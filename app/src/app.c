@@ -53,12 +53,12 @@ int main(int argc, char **argv) {
     startup_script_init(kernel);
     lua_ctx(update)
     WindowContext *window = kernel->window_context;
-    
     gui_load_font(kernel, "sys/fonts/JetBrainsMono-Bold.ttf", "sans");
     while (!window_should_close(window)) {
         window_begin_frame(window);
         event_fire(kernel, EVENT_LUA_CUSTOM, null, update);
         window_end_frame(window);
+        kernel_poll_update(kernel);
     }
     window_shutdown(window);
     KernelResult shutdown_result = kernel_shutdown();

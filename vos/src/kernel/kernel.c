@@ -23,9 +23,9 @@ static b8 kernel_initialized = false;
 static Dict *processes_by_name = null;
 
 void kernel_load_drivers(const char *path);
-
 void kernel_unload_drivers();
 
+b8 reload_file_pass_through(Kernel *kernel, u16 code, void *sender, void *listener_inst, event_context data);
 
 KernelResult kernel_initialize(char *root_path) {
     if (kernel_initialized) {
@@ -62,6 +62,7 @@ KernelResult kernel_initialize(char *root_path) {
     processes_by_name = dict_new();
     kernel_context->drivers = dict_new();
     event_initialize(kernel_context);
+    event_register(kernel_context, EVENT_CODE_WATCHED_FILE_WRITTEN, 0, reload_file_pass_through);
 //    intrinsics_initialize();
     kernel_load_drivers(string_concat(root_path, "/drivers"));
     vinfo("Kernel initialized")
@@ -141,11 +142,8 @@ Proc *kernel_create_process(FsNode *script_node_file) {
 }
 
 //TODO: here we should do some kind of thread watch dog to make sure the process is still running and all
-b8 kernel_poll_update() {
-    if (!kernel_initialized) {
-        vwarn("Attempted to poll kernel before initialization");
-        return false;
-    }
+b8 kernel_poll_update(Kernel *kernel) {
+    platform_pump_messages(kernel);
     timer_poll();
     return true;
 }
@@ -237,7 +235,7 @@ b8 kernel_collect_drivers(const char *path, Dict *drivers) {
         return false;
     }
     // Collects all drivers in the given path, then loads them
-    VFilePathList *files = platform_collect_files_direct(path);
+    FilePathList *files = platform_collect_files_direct(path);
     if (files == null) {
         vwarn("No drivers found in path %s", path)
         return false;
@@ -272,12 +270,12 @@ b8 kernel_create_drivers(Dict *drivers) {
     kernel_context->drivers = dict_new();
     //Iterate through the drivers and load them
     dict_for_each(drivers, DriverState, {
-        DynamicLibrary *library = value->handle;
+        DynLib *library = value->handle;
         if (!platform_dynamic_library_load_function("create_driver", library)) {
             vwarn("Failed to initialize driver %s", key)
             return false;
         } else {
-            dynamic_library_function *dlf = dict_get(library->functions, "create_driver");
+            DynLibFunction *dlf = dict_get(library->functions, "create_driver");
             if (dlf == null) {
                 vwarn("Failed to find create_driver function in driver %s", key)
                 return false;
@@ -291,11 +289,77 @@ b8 kernel_create_drivers(Dict *drivers) {
             dict_set(kernel_context->drivers, name, value);
             init.load();
             vdebug("Initialized driver %s", name)
+            
+            //Here we should also register a file watcher for the driver
         }
     });
     dict_delete(drivers);
     return true;
 }
+
+b8 reload_file_pass_through(Kernel *kernel, u16 code, void *sender, void *listener_inst, event_context data) {
+    if (code != EVENT_CODE_WATCHED_FILE_WRITTEN) return false;
+    u32 id = data.data.u32[0];
+    DictIter iterator = dict_iterator(kernel->drivers);
+    while (dict_next(&iterator)) {
+        Entry *entry = iterator.entry;
+        char *key = entry->key;
+        DriverState *value = (DriverState *) entry->value;
+        
+        u32 mid = value->handle->watch_id;
+        if (mid != id) continue;
+        // At this point we've found the driver that should be reloaded, so lets do so
+        DynLib *library = value->handle;
+        
+        // Call the unload function of the driver before unloading the library
+        if (value->driver && value->driver->unload) {
+            value->driver->unload();
+            vinfo("Successfully called unload function for driver %s", key);
+        } else {
+            vwarn("Unload function not found for driver %s", key);
+        }
+        
+        if (!platform_dynamic_library_unload(library)) {
+            //May fail if the debugger has an open handle to the library
+            vwarn("Failed to unload driver %s, it likely still has an open handle from the debugger, this might not be an error.",
+                    key)
+        }
+        FsPath absolute_path = path_absolute(value->driver_file->path);
+        absolute_path = path_to_platform(absolute_path);
+        
+        library = kallocate(sizeof(DynLib), MEMORY_TAG_KERNEL);
+        // Reload the driver library
+        if (!platform_dynamic_library_load(absolute_path, library)) {
+            verror("Failed to reload driver %s", key);
+            continue;
+        }
+        value->handle = library;
+        if (!platform_dynamic_library_load_function("create_driver", library)) {
+            vwarn("Failed to initialize driver %s", key)
+            return false;
+        } else {
+            DynLibFunction *dlf = dict_get(library->functions, "create_driver");
+            if (dlf == null) {
+                vwarn("Failed to find create_driver function in driver %s", key)
+                return false;
+            }
+            pfn_driver_load create_driver = (pfn_driver_load) dlf->pfn;
+            Driver init = create_driver(kernel_context);
+            value->driver = kallocate(sizeof(Driver), MEMORY_TAG_KERNEL);
+            *value->driver = init;
+            char *name = init.name ? init.name : key;
+            value->driver_name = name;
+            dict_set(kernel_context->drivers, name, value);
+            init.load();
+            vdebug("Reloaded driver %s", name)
+        }
+        
+        
+    }
+    
+    return true;
+}
+
 
 void kernel_load_drivers(const char *path) {
     if (!kernel_initialized) {
@@ -310,12 +374,20 @@ void kernel_load_drivers(const char *path) {
     
     //Iterate through the drivers and load them
     dict_for_each(collected_drivers, FsNode, {
-        DynamicLibrary *library = kallocate(sizeof(DynamicLibrary), MEMORY_TAG_KERNEL);
+        DynLib *library = kallocate(sizeof(DynLib), MEMORY_TAG_KERNEL);
         FsPath absolute_path = path_absolute(value->path);
         absolute_path = path_to_platform(absolute_path);
+        u32 *watch_id = platform_allocate(sizeof(u32), false);
+        *watch_id = 0;
+        if (!platform_watch_file(absolute_path, watch_id)) {
+            verror("Failed to create file watcher for driver %s", absolute_path);
+        } else {
+            vinfo("Watching driver %s", absolute_path)
+        }
+        vinfo("Loaded driver %s with id %d", absolute_path, library->watch_id);
         if (!platform_dynamic_library_load(absolute_path, library)) {
             vwarn("Failed to load driver %s", absolute_path)
-            kfree(library, sizeof(DynamicLibrary), MEMORY_TAG_KERNEL);
+            kfree(library, sizeof(DynLib), MEMORY_TAG_KERNEL);
             continue;
         } else {
             DriverState *driver = kallocate(sizeof(DriverState), MEMORY_TAG_KERNEL);
@@ -323,6 +395,7 @@ void kernel_load_drivers(const char *path) {
             driver->driver_name = key;
             driver->driver_file = value;
             driver->driver = kallocate(sizeof(Driver), MEMORY_TAG_KERNEL);
+            driver->handle->watch_id = *watch_id;
             dict_set(loaded_drivers, key, driver);
         }
     });
@@ -340,11 +413,12 @@ void kernel_unload_drivers() {
     //Iterate through the drivers and unload them
     dict_for_each(kernel_context->drivers, DriverState, {
         value->driver->unload();
-        DynamicLibrary *library = value->handle;
+        DynLib *library = value->handle;
         if (!platform_dynamic_library_unload(library)) {
-            vwarn("Failed to unload driver %s", key)
+            vwarn("Failed to unload driver %s, it likely still has an open handle from the debugger, this might not be an error.",
+                    key)
         }
-        kfree(library, sizeof(DynamicLibrary), MEMORY_TAG_KERNEL);
+        kfree(library, sizeof(DynLib), MEMORY_TAG_KERNEL);
         kfree(value, sizeof(DriverState), MEMORY_TAG_KERNEL);
         vdebug("Unloaded driver %s", key)
     });

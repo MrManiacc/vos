@@ -13,10 +13,13 @@
 #include "nanovg_gl.h"
 #include "filesystem/vfs.h"
 #include "kernel/kernel.h"
+#include "platform/platform.h"
 
 void input_reset(WindowContext *window_context) {
     memcpy(window_context->input_state->prev_keys, window_context->input_state->keys,
             sizeof(window_context->input_state->keys));
+    memcpy(window_context->input_state->prev_buttons, window_context->input_state->buttons,
+            sizeof(window_context->input_state->buttons));
 }
 
 
@@ -76,6 +79,10 @@ VAPI b8 input_is_key_up(WindowContext *context, keys key) {
 
 VAPI b8 input_is_button_down(WindowContext *context, buttons button) {
     return context->input_state->buttons[button];
+}
+
+VAPI b8 input_is_button_pressed(WindowContext *context, buttons button) {
+    return context->input_state->buttons[button] && !context->input_state->prev_buttons[button];
 }
 
 VAPI void input_get_mouse_position(WindowContext *context, i32 *x, i32 *y) {
@@ -204,12 +211,14 @@ b8 gui_load_font(Kernel *kernel, const char *font_path, const char *font_name) {
 }
 
 void gui_draw_text(WindowContext *window_context, const char *text, float x, float y, float size, const char *font_name,
-        NVGcolor color) {
+        NVGcolor color, i32 alignment) {
     nvgFontSize(window_context->vg, size);
     nvgFontFace(window_context->vg, font_name);
     nvgFillColor(window_context->vg, color);
+    nvgTextAlign(window_context->vg, alignment);
     nvgText(window_context->vg, x, y, text, null);
 }
+
 
 void gui_draw_line(WindowContext *window_context, float x1, float y1, float x2, float y2, float size, NVGcolor color) {
     nvgBeginPath(window_context->vg);
@@ -244,4 +253,18 @@ f32 gui_text_width(WindowContext *window_context, const char *text, const char *
 void window_get_size(WindowContext *window_context, u32 *width, u32 *height) {
     *width = window_context->width;
     *height = window_context->height;
+}
+
+void gui_get_text_bounds(WindowContext *window_context, const char *text, const char *font_name, f32 size, float* bounds) {
+    nvgFontSize(window_context->vg, size);
+    nvgFontFace(window_context->vg, font_name);
+    nvgTextBounds(window_context->vg, 0, 0, text, null, bounds);
+}
+
+void gui_draw_rounded_rect(WindowContext *window_context, float x, float y, float width, float height, float radius,
+        NVGcolor color) {
+    nvgBeginPath(window_context->vg);
+    nvgRoundedRect(window_context->vg, x, y, width, height, radius);
+    nvgFillColor(window_context->vg, color);
+    nvgFill(window_context->vg);
 }

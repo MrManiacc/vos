@@ -229,7 +229,7 @@ char *path_to_platform(char *path) {
 // Assumes the passed path is a directory, so we want to check for the init script in the directory using the platform specific path.
 const char *locate_boot_folder(char *search_path) {
     //Check if the file exists
-    VFilePathList *paths = platform_collect_files_recursive(search_path);
+    FilePathList *paths = platform_collect_files_recursive(search_path);
     //Check if the file exists
     if (paths == null) {
         verror("Failed to collect files from directory %s", search_path);

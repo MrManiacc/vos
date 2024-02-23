@@ -181,6 +181,30 @@ function is_up(...)
     end
 end
 
+-- Gets the mouse position
+function get_mouse_pos()
+    return sys.input.mouse().x, sys.input.mouse().y
+end
+
+function is_mouse_down(button)
+    return sys.input.mouse().is_down(button)
+end
+
+function is_mouse_pressed(button)
+    return sys.input.mouse().is_pressed(button)
+end
+
+function is_mouse_released(button)
+    return sys.input.mouse().is_released(button)
+end
+
+function is_mouse_up(button)
+    return sys.input.mouse().is_up(button)
+end
+
+
+
+
 
 ---- Check if a key is pressed. Can take multiple keys as arguments.
 --function is_pressed(...)

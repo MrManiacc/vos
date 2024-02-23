@@ -4,6 +4,7 @@
 #include "containers/darray.h"
 #include "vlogger.h"
 
+
 typedef struct registered_event {
     void *listener;
     PFN_on_event callback;

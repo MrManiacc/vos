@@ -138,7 +138,7 @@ VAPI b8 gui_load_font(struct Kernel *kernel, const char *font_path, const char *
  */
 VAPI void
 gui_draw_text(WindowContext *window_context, const char *text, float x, float y, float size, const char *font_name,
-        NVGcolor color);
+        NVGcolor color, i32 align);
 VAPI void
 gui_draw_line(WindowContext *window_context, float x1, float y1, float x2, float y2, float width, NVGcolor color);
 VAPI void gui_scissor(WindowContext *window_context, float x, float y, float width, float height);
@@ -149,7 +149,8 @@ VAPI/**
  * This function is used to draw a rectangle on the GUI using the specified coordin*/
 void gui_draw_rect(WindowContext *window_context, float x, float y, float width, float height, NVGcolor color);
 
-
+void gui_draw_rounded_rect(WindowContext *window_context, float x, float y, float width, float height, float radius,
+        NVGcolor color);
 /**
  * Calculate the width of a given text string using the specified font and size.
  *
@@ -160,3 +161,6 @@ void gui_draw_rect(WindowContext *window_context, float x, float y, float width,
  * @return The calculated width of the text string.
  */
 f32 gui_text_width(WindowContext *window_context, const char *text, const char *font_name, f32 size);
+
+void
+gui_get_text_bounds(WindowContext *window_context, const char *text, const char *font_name, f32 size, float *bounds);

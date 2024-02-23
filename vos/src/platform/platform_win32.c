@@ -11,7 +11,6 @@
 #include "core/vstring.h"
 #include "core/vthread.h"
 #include "core/vlogger.h"
-#include "filesystem/paths.h"
 #include "containers/dict.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -47,7 +46,7 @@ static platform_state *state_ptr;
 static f64 clock_frequency;
 static LARGE_INTEGER start_time;
 
-static void platform_update_watches(void);
+void platform_update_watches(Kernel *kernel);
 
 //LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARAM l_param);
 
@@ -59,13 +58,23 @@ void clock_setup(void) {
 }
 
 
+void cleanup_temp_files();
+
 b8 platform_initialize() {
     if (state_ptr) {
         return false;
     }
     SetConsoleOutputCP(65001);
     clock_setup();
-    
+    state_ptr = platform_allocate(sizeof(platform_state), false);
+    if (!state_ptr) {
+        return false;
+    }
+    state_ptr->device_pixel_ratio = 1.0f;
+    state_ptr->handle.h_instance = GetModuleHandleA(null);
+    state_ptr->handle.hwnd = 0;
+    state_ptr->watches = 0;
+    cleanup_temp_files();
     
     return true;
 }
@@ -81,7 +90,9 @@ void platform_shutdown() {
     }
 }
 
-b8 platform_pump_messages(void) {
+//Not actually a error, this just happens because we don't want to include the
+// kernel. in the platform.h so we use struct Kernel instead of Kernel, but here we
+b8 platform_pump_messages(Kernel *kernel) {
     if (state_ptr) {
         MSG message;
         while (PeekMessageA(&message, null, 0, 0, PM_REMOVE)) {
@@ -89,7 +100,7 @@ b8 platform_pump_messages(void) {
             DispatchMessageA(&message);
         }
     }
-    platform_update_watches();
+    platform_update_watches(kernel);
     return true;
 }
 
@@ -401,14 +412,49 @@ b8 vsemaphore_wait(vsemaphore *semaphore, u64 timeout_ms) {
     return true;
 }
 
-b8 platform_dynamic_library_load(const char *name, DynamicLibrary *out_library) {
+static u32 temp_file_count = 0;
+
+char *generate_temp_file_name(const char *originalFileName) {
+    char *tempDir = platform_get_temp_directory();
+    if (!tempDir) {
+        // Handle error
+        return NULL;
+    }
+    
+    // Extract the filename from the original path
+    const char *fileName = strrchr(originalFileName, '\\');
+    if (!fileName) {
+        fileName = originalFileName; // No path, only filename was provided
+    } else {
+        fileName++; // Move past the backslash
+    }
+    
+    // Prepare the full path for the temp file
+    char *tempFilePath = (char *) malloc(strlen(tempDir) + strlen(fileName) + strlen("temp_") + 1);
+    strcpy(tempFilePath, tempDir);
+    strcat(tempFilePath, "temp_");
+    strcat(tempFilePath, fileName);
+    strcat(tempFilePath, "_");
+    char count[10];
+    sprintf(count, "%d", temp_file_count++);
+    strcat(tempFilePath, count);
+    
+    // Clean up
+    free(tempDir);
+    
+    return tempFilePath;
+}
+
+
+b8 platform_dynamic_library_load(const char *name, DynLib *out_library) {
     if (!out_library) {
         return false;
     }
-    kzero_memory(out_library, sizeof(DynamicLibrary));
+    kzero_memory(out_library, sizeof(DynLib));
     if (!name) {
         return false;
     }
+    
     
     char *filename;
     if (!string_ends_with(name, ".dll")) {
@@ -418,10 +464,29 @@ b8 platform_dynamic_library_load(const char *name, DynamicLibrary *out_library) 
         filename = string_duplicate(name);
     }
     
-    HMODULE library = LoadLibraryA(filename);
+    // Generate temporary DLL path
+    char *tempDllPath = generate_temp_file_name(filename);
+    
+    //Delete the temporary file if it exists
+    DeleteFileA(tempDllPath);
+    
+    // Copy original DLL to temporary path, making the temporary file hidden
+    BOOL copySuccess = CopyFile(filename, tempDllPath, FALSE);
+    if (!copySuccess) {
+        DWORD error = GetLastError();
+        verror("Failed to copy DLL to temporary path. Error: %lu", error);
+        return false;
+    }
+    
+    // Set the temporary file as hidden
+    SetFileAttributes(tempDllPath, GetFileAttributes(tempDllPath) | FILE_ATTRIBUTE_HIDDEN);
+    
+    
+    HMODULE library = LoadLibrary(tempDllPath);
     if (!library) {
         return false;
     }
+    
     
     out_library->name = string_duplicate(name);
     out_library->filename = string_duplicate(filename);
@@ -434,7 +499,7 @@ b8 platform_dynamic_library_load(const char *name, DynamicLibrary *out_library) 
     return true;
 }
 
-b8 platform_dynamic_library_unload(DynamicLibrary *library) {
+b8 platform_dynamic_library_unload(DynLib *library) {
     if (!library) {
         return false;
     }
@@ -443,39 +508,56 @@ b8 platform_dynamic_library_unload(DynamicLibrary *library) {
     if (!internal_module) {
         return false;
     }
+    DebugActiveProcessStop(0);
+    // Attempt to unload the DLL from memory.
+    BOOL unloadSuccess = FreeLibrary(internal_module);
     
+    // Attempt to delete the temporary file.
+    BOOL deleteSuccess = FALSE;
+    if (library->filename) {
+        char *tempDllPath = generate_temp_file_name(library->filename);
+        
+        deleteSuccess = DeleteFileA(tempDllPath);
+        if (!deleteSuccess) {
+            // Attempt to remove the read-only attribute and try again.
+            DWORD attrs = GetFileAttributesA(tempDllPath);
+            if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY)) {
+                attrs &= ~FILE_ATTRIBUTE_READONLY;
+                SetFileAttributesA(tempDllPath, attrs);
+                deleteSuccess = DeleteFileA(tempDllPath);
+            }
+        }
+    }
+    
+    // Clean up allocated memory for the library's name, filename, and functions.
     if (library->name) {
-        u64 length = string_length(library->name);
+        u64 length = strlen(library->name);
         kfree((void *) library->name, sizeof(char) * (length + 1), MEMORY_TAG_STRING);
     }
     
     if (library->filename) {
-        u64 length = string_length(library->filename);
+        u64 length = strlen(library->filename);
         kfree((void *) library->filename, sizeof(char) * (length + 1), MEMORY_TAG_STRING);
     }
     
     if (library->functions) {
-        dict_for_each(library->functions, dynamic_library_function, {
+        dict_for_each(library->functions, DynLibFunction, {
             if (value->name) {
-                kfree((void *) value->name, sizeof(char) * (string_length(value->name) + 1), MEMORY_TAG_STRING);
+                kfree((void *) value->name, sizeof(char) * (strlen(value->name) + 1), MEMORY_TAG_STRING);
             }
-        })
+        });
         dict_delete(library->functions);
-        library->functions = 0;
+        library->functions = NULL;
     }
     
+    // Zero out the memory of the `DynLib` structure.
+    kzero_memory(library, sizeof(DynLib));
     
-    BOOL result = FreeLibrary(internal_module);
-    if (result == 0) {
-        return false;
-    }
-    
-    kzero_memory(library, sizeof(DynamicLibrary));
-    
-    return true;
+    // Return success if both the library was unloaded and the file was deleted successfully.
+    return unloadSuccess && deleteSuccess;
 }
 
-b8 platform_dynamic_library_load_function(const char *name, DynamicLibrary *library) {
+b8 platform_dynamic_library_load_function(const char *name, DynLib *library) {
     if (!name || !library) {
         return false;
     }
@@ -489,7 +571,7 @@ b8 platform_dynamic_library_load_function(const char *name, DynamicLibrary *libr
         return false;
     }
     
-    dynamic_library_function *f = platform_allocate(sizeof(dynamic_library_function), false);
+    DynLibFunction *f = platform_allocate(sizeof(DynLibFunction), false);
     f->pfn = f_addr;
     f->name = string_duplicate(name);
     dict_set(library->functions, name, f);
@@ -519,80 +601,6 @@ platform_error_code platform_copy_file(const char *source, const char *dest, b8 
     return PLATFORM_ERROR_SUCCESS;
 }
 
-static b8 register_watch(const char *file_path, u32 *out_watch_id) {
-    if (!state_ptr || !file_path || !out_watch_id) {
-        if (out_watch_id) {
-            *out_watch_id = INVALID_ID;
-        }
-        return false;
-    }
-    *out_watch_id = INVALID_ID;
-    
-    if (!state_ptr->watches) {
-        state_ptr->watches = darray_create(win32_file_watch);
-    }
-    
-    WIN32_FIND_DATAA data;
-    HANDLE file_handle = FindFirstFileA(file_path, &data);
-    if (file_handle == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-    BOOL result = FindClose(file_handle);
-    if (result == 0) {
-        return false;
-    }
-    
-    u32 count = darray_length(state_ptr->watches);
-    for (u32 i = 0; i < count; ++i) {
-        win32_file_watch *w = &state_ptr->watches[i];
-        if (w->id == INVALID_ID) {
-            // Found a free slot to use.
-            w->id = i;
-            w->file_path = string_duplicate(file_path);
-            w->last_write_time = data.ftLastWriteTime;
-            *out_watch_id = i;
-            return true;
-        }
-    }
-    
-    // If no empty slot is available, create and push a new entry.
-    win32_file_watch w = {0};
-    w.id = count;
-    w.file_path = string_duplicate(file_path);
-    w.last_write_time = data.ftLastWriteTime;
-    *out_watch_id = count;
-    darray_push(win32_file_watch, state_ptr->watches, w);
-    
-    return true;
-}
-
-static b8 unregister_watch(u32 watch_id) {
-    if (!state_ptr || !state_ptr->watches) {
-        return false;
-    }
-    
-    u32 count = darray_length(state_ptr->watches);
-    if (count == 0 || watch_id > (count - 1)) {
-        return false;
-    }
-    
-    win32_file_watch *w = &state_ptr->watches[watch_id];
-    w->id = INVALID_ID;
-    u32 len = string_length(w->file_path);
-    kfree((void *) w->file_path, sizeof(char) * (len + 1), MEMORY_TAG_STRING);
-    w->file_path = 0;
-    kzero_memory(&w->last_write_time, sizeof(FILETIME));
-    
-    return true;
-}
-
-b8 platform_watch_file(const char *file_path, u32 *out_watch_id) {
-    return register_watch(file_path, out_watch_id);
-}
-
-b8 platform_unwatch_file(u32 watch_id) {
-    return unregister_watch(watch_id);
-}
 
 b8 platform_is_directory(const char *path) {
     //checks if the path is a directory on windows
@@ -662,7 +670,7 @@ void *platform_read_file(const char *path) {
 }
 
 // Free the FilePathList and its contents
-void platform_file_path_list_free(VFilePathList *list) {
+void platform_file_path_list_free(FilePathList *list) {
     for (int i = 0; i < list->count; i++) {
         free(list->paths[i]); // Free each string
     }
@@ -672,7 +680,7 @@ void platform_file_path_list_free(VFilePathList *list) {
 
 
 // Add a file path to the FilePathList
-void file_path_list_add(VFilePathList *fileList, const char *path) {
+void file_path_list_add(FilePathList *fileList, const char *path) {
     fileList->paths = realloc(fileList->paths, (fileList->count + 1) * sizeof(char *));
     if (!fileList->paths) {
         perror("Failed to realloc filePaths");
@@ -683,7 +691,7 @@ void file_path_list_add(VFilePathList *fileList, const char *path) {
 }
 
 // Recursively collect files into the FilePathList
-void collect_files_recursive(const char *base_path, VFilePathList *fileList) {
+void collect_files_recursive(const char *base_path, FilePathList *fileList) {
     WIN32_FIND_DATAA find_data;
     HANDLE find_handle;
     char search_path[MAX_PATH];
@@ -714,7 +722,7 @@ void collect_files_recursive(const char *base_path, VFilePathList *fileList) {
 
 
 // Function to collect files directly within a given directory, non-recursively.
-void collect_files_direct(const char *base_path, VFilePathList *fileList) {
+void collect_files_direct(const char *base_path, FilePathList *fileList) {
     WIN32_FIND_DATAA find_data;
     HANDLE find_handle;
     char search_path[MAX_PATH];
@@ -739,8 +747,8 @@ void collect_files_direct(const char *base_path, VFilePathList *fileList) {
 }
 
 // Create and initialize a FilePathList
-VFilePathList *platform_collect_files_direct(const char *path) {
-    VFilePathList *fileList = malloc(sizeof(VFilePathList));
+FilePathList *platform_collect_files_direct(const char *path) {
+    FilePathList *fileList = malloc(sizeof(FilePathList));
     if (!fileList) {
         perror("Failed to allocate FilePathList");
         return NULL;
@@ -753,8 +761,8 @@ VFilePathList *platform_collect_files_direct(const char *path) {
 }
 
 // Create and initialize a FilePathList
-VFilePathList *platform_collect_files_recursive(const char *path) {
-    VFilePathList *fileList = malloc(sizeof(VFilePathList));
+FilePathList *platform_collect_files_recursive(const char *path) {
+    FilePathList *fileList = malloc(sizeof(FilePathList));
     if (!fileList) {
         perror("Failed to allocate FilePathList");
         return NULL;
@@ -841,42 +849,160 @@ void *platform_reallocate(void *block, u64 size, b8 aligned) {
     return HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, block, size);
 }
 
+// ==================================================================
+//                          File Watching
+// ==================================================================
 
-static void platform_update_watches(void) {
-//    if (!state_ptr || !state_ptr->watches) {
-//        return;
-//    }
-//
-//    u32 count = darray_length(state_ptr->watches);
-//    for (u32 i = 0; i < count; ++i) {
-//        win32_file_watch *f = &state_ptr->watches[i];
-//        if (f->id != INVALID_ID) {
-//            WIN32_FIND_DATAA data;
-//            HANDLE file_handle = FindFirstFileA(f->file_path, &data);
-//            if (file_handle == INVALID_HANDLE_VALUE) {
-//                // This means the file has been deleted, remove from watch.
-//                event_context context = {0};
-//                context.data.u32[0] = f->id;
-//                event_fire(EVENT_CODE_WATCHED_FILE_DELETED, 0, context);
-//                vinfo("File watch id %d has been removed.", f->id);
-//                unregister_watch(f->id);
-//                continue;
-//            }
-//            BOOL result = FindClose(file_handle);
-//            if (result == 0) {
-//                continue;
-//            }
-//
-//            // Check the file time to see if it has been changed and update/notify if so.
-//            if (CompareFileTime(&data.ftLastWriteTime, &f->last_write_time) != 0) {
-//                f->last_write_time = data.ftLastWriteTime;
-//                // Notify listeners.
-//                event_context context = {0};
-//                context.data.u32[0] = f->id;
-//                event_fire(EVENT_CODE_WATCHED_FILE_WRITTEN, 0, context);
-//            }
-//        }
-//    }
+static b8 register_watch(const char *file_path, u32 *out_watch_id) {
+    if (!state_ptr || !file_path || !out_watch_id) {
+        if (out_watch_id) {
+            *out_watch_id = INVALID_ID;
+        }
+        return false;
+    }
+    *out_watch_id = INVALID_ID;
+    
+    if (!state_ptr->watches) {
+        state_ptr->watches = darray_create(win32_file_watch);
+    }
+    
+    WIN32_FIND_DATAA data;
+    HANDLE file_handle = FindFirstFileA(file_path, &data);
+    if (file_handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    BOOL result = FindClose(file_handle);
+    if (result == 0) {
+        return false;
+    }
+    
+    u32 count = darray_length(state_ptr->watches);
+    for (u32 i = 0; i < count; ++i) {
+        win32_file_watch *w = &state_ptr->watches[i];
+        if (w->id == INVALID_ID) {
+            // Found a free slot to use.
+            w->id = i;
+            w->file_path = string_duplicate(file_path);
+            w->last_write_time = data.ftLastWriteTime;
+            *out_watch_id = i;
+            return true;
+        }
+    }
+    
+    // If no empty slot is available, create and push a new entry.
+    win32_file_watch w = {0};
+    w.id = count;
+    w.file_path = string_duplicate(file_path);
+    w.last_write_time = data.ftLastWriteTime;
+    *out_watch_id = count;
+    darray_push(win32_file_watch, state_ptr->watches, w);
+    
+    return true;
+}
+
+static b8 unregister_watch(u32 watch_id) {
+    if (!state_ptr || !state_ptr->watches) {
+        return false;
+    }
+    
+    u32 count = darray_length(state_ptr->watches);
+    if (count == 0 || watch_id > (count - 1)) {
+        return false;
+    }
+    
+    win32_file_watch *w = &state_ptr->watches[watch_id];
+    w->id = INVALID_ID;
+    u32 len = string_length(w->file_path);
+    kfree((void *) w->file_path, sizeof(char) * (len + 1), MEMORY_TAG_STRING);
+    w->file_path = 0;
+    kzero_memory(&w->last_write_time, sizeof(FILETIME));
+    
+    return true;
+}
+
+b8 platform_watch_file(const char *file_path, u32 *out_watch_id) {
+    return register_watch(file_path, out_watch_id);
+}
+
+b8 platform_unwatch_file(u32 watch_id) {
+    return unregister_watch(watch_id);
+}
+
+char *platform_get_temp_directory() {
+    char tempPath[MAX_PATH];
+    DWORD pathLen = GetTempPathA(MAX_PATH, tempPath);
+    if (pathLen == 0 || pathLen > MAX_PATH) {
+        // Error handling or fallback
+        return NULL;
+    }
+    // Ensure the directory exists or create it
+    // For simplicity, returning the temp path directly here
+    char *vosTempPath = (char *) malloc(strlen(tempPath) + strlen("\\vos_temp") + 1);
+    strcpy(vosTempPath, tempPath);
+    strcat(vosTempPath, "vos_temp\\");
+    CreateDirectoryA(vosTempPath, NULL); // Ensure the directory exists
+    return vosTempPath;
+}
+
+
+void platform_update_watches(Kernel *kernel) {
+    if (!state_ptr) {
+        return;
+    }
+    if (!state_ptr->watches) {
+        //Initialize the watches array
+        state_ptr->watches = darray_create(win32_file_watch);
+    }
+    u32 count = darray_length(state_ptr->watches);
+    for (u32 i = 0; i < count; ++i) {
+        win32_file_watch *f = &state_ptr->watches[i];
+        if (f->id != INVALID_ID) {
+            WIN32_FIND_DATAA data;
+            HANDLE file_handle = FindFirstFileA(f->file_path, &data);
+            if (file_handle == INVALID_HANDLE_VALUE) {
+                // This means the file has been deleted, remove from watch.
+                event_context context = {0};
+                context.data.u32[0] = f->id;
+                event_fire(kernel, EVENT_CODE_WATCHED_FILE_DELETED, 0, context);
+                vinfo("File watch id %d has been removed.", f->id);
+                unregister_watch(f->id);
+                continue;
+            }
+            BOOL result = FindClose(file_handle);
+            if (result == 0) {
+                continue;
+            }
+            
+            // Check the file time to see if it has been changed and update/notify if so.
+            if (CompareFileTime(&data.ftLastWriteTime, &f->last_write_time) != 0) {
+                f->last_write_time = data.ftLastWriteTime;
+                vinfo("File watch id %d has been written to.", f->id);
+                // Notify listeners.
+                event_context context = {0};
+                context.data.u32[0] = f->id;
+                event_fire(kernel, EVENT_CODE_WATCHED_FILE_WRITTEN, null, context);
+            }
+        }
+    }
+}
+
+void cleanup_temp_files() {
+    char *tempDir = platform_get_temp_directory();
+    if (!tempDir) {
+        return;
+    }
+    FilePathList *fileList = platform_collect_files_direct(tempDir);
+    if (!fileList) {
+        free(tempDir);
+        return;
+    }
+    for (int i = 0; i < fileList->count; i++) {
+        char *filePath = fileList->paths[i];
+        DeleteFileA(filePath);
+    }
+    platform_file_path_list_free(fileList);
+    free(tempDir);
+    
 }
 
 
