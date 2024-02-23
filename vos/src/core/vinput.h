@@ -180,7 +180,7 @@ typedef enum keys {
 } keys;
 
 
-typedef struct InputState{
+typedef struct InputState {
     b8 keys[KEYS_MAX_KEYS];
     b8 prev_keys[KEYS_MAX_KEYS]; // Add this line
     b8 buttons[BUTTON_MAX_BUTTONS];
@@ -324,6 +324,8 @@ void input_process_mouse_move(WindowContext *ctx, i16 x, i16 y);
  */
 void input_process_mouse_wheel(WindowContext *ctx, i8 z_delta);
 
+
+VAPI void input_get_scroll_delta(WindowContext *ctx, i8 *x, i8 *y);
 /**
  * @brief Returns a string representation of the provided key. Ex. "tab" for the tab key.
  *

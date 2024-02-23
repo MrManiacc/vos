@@ -95,6 +95,12 @@ VAPI b8 input_is_key_released(WindowContext *context, keys key) {
     return !context->input_state->keys[key] && context->input_state->prev_keys[key];
 }
 
+void input_get_scroll_delta(WindowContext *ctx, i8 *x, i8 *y) {
+    *x = ctx->input_state->mouse_wheel_delta;
+    *y = ctx->input_state->mouse_wheel_delta;
+    ctx->input_state->mouse_wheel_delta = 0;
+}
+
 b8 window_initialize(WindowContext *window_context, const char *title, int width, int height) {
     NVGcontext *vg = NULL;
     if (!glfwInit()) {
@@ -203,6 +209,23 @@ void gui_draw_text(WindowContext *window_context, const char *text, float x, flo
     nvgFontFace(window_context->vg, font_name);
     nvgFillColor(window_context->vg, color);
     nvgText(window_context->vg, x, y, text, null);
+}
+
+void gui_draw_line(WindowContext *window_context, float x1, float y1, float x2, float y2, float size, NVGcolor color) {
+    nvgBeginPath(window_context->vg);
+    nvgMoveTo(window_context->vg, x1, y1);
+    nvgLineTo(window_context->vg, x2, y2);
+    nvgStrokeWidth(window_context->vg, size);
+    nvgStrokeColor(window_context->vg, color);
+    nvgStroke(window_context->vg);
+}
+
+void gui_scissor(WindowContext *window_context, float x, float y, float width, float height) {
+    nvgScissor(window_context->vg, x, y, width, height);
+}
+
+void gui_reset_scissor(WindowContext *window_context) {
+    nvgResetScissor(window_context->vg);
 }
 
 void gui_draw_rect(WindowContext *window_context, float x, float y, float width, float height, NVGcolor color) {

@@ -34,7 +34,6 @@ b8 lua_payload_passthrough(Kernel *kernel, u16 code, void *sender, void *listene
     if (code != EVENT_LUA_CUSTOM) return false;
     
     char *event_name = data.data.c;
-    
     for (int i = 0; i < lua_context.count; ++i) {
         LuaPayload *payload = &lua_context.payloads[i];
         if (payload->process == NULL)continue;
@@ -146,6 +145,22 @@ int lua_is_button_released(lua_State *L) {
     return 1;
 }
 
+int lua_scroll(lua_State *L) {
+    WindowContext *windowContext = ctx->window_context;
+    int top = lua_gettop(L);
+    if (top != 0) {
+        return luaL_error(L, "Expected 0 argument to scroll");
+    }
+    i8 x, y;
+    input_get_scroll_delta(windowContext, &x, &y);
+    lua_newtable(L);
+    lua_pushnumber(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushnumber(L, y);
+    lua_setfield(L, -2, "y");
+    return 1;
+}
+
 int lua_mouse(lua_State *L) {
     WindowContext *windowContext = ctx->window_context;
     int top = lua_gettop(L);
@@ -161,15 +176,14 @@ int lua_mouse(lua_State *L) {
     lua_setfield(L, -2, "y");
     lua_pushcfunction(L, lua_is_button_down);
     lua_setfield(L, -2, "is_down");
-    
     lua_pushcfunction(L, lua_is_button_up);
     lua_setfield(L, -2, "is_up");
-    
     lua_pushcfunction(L, lua_is_button_pressed);
     lua_setfield(L, -2, "is_pressed");
     
     lua_pushcfunction(L, lua_is_button_released);
     lua_setfield(L, -2, "is_released");
+
     return 1;
 }
 
@@ -235,6 +249,9 @@ void configure_lua_input(Proc *process) {
     // Add a color function to the gui table
     lua_pushcfunction(process->lua_state, lua_key);
     lua_setfield(process->lua_state, -2, "key");
+    
+    lua_pushcfunction(process->lua_state, lua_scroll);
+    lua_setfield(process->lua_state, -2, "scroll");
     
     // Attach the gui table to the sys table
     lua_setfield(process->lua_state, -2, "input");
@@ -315,7 +332,7 @@ int lua_import(lua_State *L) {
     char full_path[256];
     sprintf(full_path, "%s.lua", module_name);
     FsNode *node = vfs_node_get(ctx->fs_context, full_path);
-
+    
     if (node == null) {
         verror("Failed to import module %s, file not found", module_name);
         return 1;

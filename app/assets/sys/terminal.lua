@@ -14,7 +14,12 @@ local function _initializeProperties(self, config)
         commands = {},
         history = {},
         history_index = 1,
-        input = " "
+        input = " ",
+        scrollY = 0,
+        scrollVelocity = 0, -- Scroll velocity for momentum
+        isMomentumActive = false, -- Flag to track if momentum scroll is active
+        scrollActive = false, -- Tracks if user is currently scrolling
+        shouldLerpToTop = false, -- New: Should lerp back to top on next key input
     }
     self.text = {
         x = 0,
@@ -196,6 +201,8 @@ local function _handleKeyInput(self)
             local afterCursor = string.sub(self.internal.input, self.cursor_position + 1)
             self.internal.input = beforeCursor .. char .. afterCursor
             self.cursor_position = self.cursor_position + 1
+
+            self.internal.shouldLerpToTop = true -- New: Set flag to lerp back to top on next key input
         end
     end
 
@@ -294,8 +301,32 @@ local function _handleKeyInput(self)
             self.cursor_position = #self.internal.input
         end
     end)
+    -- Handle scrolling input
+    local scrollDelta = sys.input.scroll() -- Assuming this returns a table {x, y}
+    if scrollDelta.y ~= 0 then
+        self.internal.scrollY = self.internal.scrollY + scrollDelta.y
+        self.internal.scrollVelocity = scrollDelta.y -- Directly use delta as velocity
+        self.internal.scrollActive = true
+        self.internal.isMomentumActive = true -- Enable momentum
+    else
+        self.internal.scrollActive = false
+    end
+end
 
+local function _applyMomentumScroll(self)
+    if self.internal.isMomentumActive then
+        -- Apply the current velocity to the scroll position
+        self.internal.scrollY = self.internal.scrollY + self.internal.scrollVelocity
 
+        -- Apply friction to reduce the velocity
+        self.internal.scrollVelocity = self.internal.scrollVelocity * 0.95 -- Friction factor
+
+        -- Stop momentum when velocity is very low to prevent endless scrolling
+        if math.abs(self.internal.scrollVelocity) < 0.1 then
+            self.internal.isMomentumActive = false
+            self.internal.scrollVelocity = 0
+        end
+    end
 end
 
 -- Renders the header of the Terminal.
@@ -306,8 +337,8 @@ local function _renderHeader(self)
     local y = math.floor(size.height - (size.height / 3)) + 10
     local width = size.width
     local height = size.height / 3
-    mui.draw_rect(x, y - 12, width, height, mui.color("474747FF"))
-    mui.draw_rect(x + 10, y + 10, width - 20, height - 20, mui.color("363534ff"))
+    --mui.draw_rect(x, y - 12, width, height, mui.color("474747FF"))
+    mui.draw_rect(x + 5, y + 10, width - 10, height - 20, mui.color("363534ff"))
     mui.draw_rect(x + 10, y + 40, width - 20, height - 50, mui.color("1b1c1bff"))
 end
 
@@ -337,43 +368,88 @@ local function _renderCursor(self)
     if self.cursor.cursor_blink then
         mui.draw_rect(cursor_x, cursor_y, cursor_width, cursor_height, cursor_color)
     end
+
+    -- draws line under the input
+    mui.draw_line(x + 10, y + height - 40, size.width - 10, y + height - 50, mui.color("FFFFFFFF"))
 end
 
 local function _renderBuffer(self)
     local size = sys.window.size()  -- Get the current window size
     local x = 0
     local height = size.height / 3
-    local y = math.floor(size.height - height) + 25
+    local y = math.floor(size.height - height) + 5
     local text_x = x + 20
     local cursor_base_y = y + height - 30  -- Calculate based on the cursor's relative position
     local text_size = 20
-    
+
     local lines = {}
     for line in self.text.value:gmatch("([^\n]*)\n?") do
         table.insert(lines, line)
     end
 
-    -- Ensure the text buffer starts right above the cursor and moves up
-    local buffer_start_y = cursor_base_y - #lines * text_size
-    for i, line in ipairs(lines) do
-        -- Calculate Y position for each line, starting from buffer_start_y
-        local line_y = buffer_start_y + (i - 1) * text_size
-        -- Don't render if the line is outside the visible area
-        if line_y > y then
-            mui.draw_text(line, text_x, line_y, text_size, mui.color("FaFaFaFF"))
+    mui.scissor(0, y + 20, size.width, height - 60, function()
+        local buffer_start_y = cursor_base_y - #lines * text_size + self.internal.scrollY -- Adjusted for scrolling
+        for i, line in ipairs(lines) do
+            local line_y = buffer_start_y + (i - 1) * text_size
+            if line_y > y and line_y < y + height then
+                -- Ensure visibility within scissor bounds
+                mui.draw_text(line, text_x, line_y, text_size, mui.color("FaFaFaFF"))
+
+            end
         end
-        -- Adjust drawing to ensure it's within the visible area
-    end
+    end)
 
     local width = size.width
+
+    -- THIS PART SHOULD BE STATIC, NOT SCROLLABLE
     -- draws shadow for the header
     mui.draw_rect(x + 15, y + 5, width - 25, 40, mui.color("000000ff"))
     -- draw the overlay
     mui.draw_rect(x + 10, y + 5, width - 25, 35, mui.color("1b1c1bff"))
     mui.draw_text("Terminus", x + 20, y + 30, 30, mui.color("FFFFFFFF"))
     mui.draw_text("v" .. self.internal.version, mui.text_width("Terminus", 20) + 25, y + 40, 12, mui.color("03a83aff"))
+
 end
 
+local function _updateScrollPosition(self)
+    local contentHeight = #self.text.value * self.text.size
+    local windowSize = sys.window.size()
+
+    -- The height of the header appears to be a third of the window height plus some padding.
+    local headerHeight = math.floor(windowSize.height / 3) + 10
+
+    -- The minScrollY is the position where the bottom of the content should be
+    -- when the last line is right under the header. This position is negative because
+    -- as the content scrolls up, the y offset becomes more negative.
+    local minScrollY = -(contentHeight - (windowSize.height - headerHeight))
+
+    if self.internal.shouldLerpToTop and not self.internal.scrollActive then
+        -- Smoothly interpolate scrollY back to 0 when key input is received and not scrolling
+        local lerpFactor = 0.1
+        self.internal.scrollY = self.internal.scrollY * (1 - lerpFactor)
+        if math.abs(self.internal.scrollY) < 1 then
+            self.internal.scrollY = 0
+            self.internal.shouldLerpToTop = false -- Reset flag after reaching top
+        end
+    elseif self.internal.isMomentumActive then
+        -- Apply the current velocity to the scroll position
+        self.internal.scrollY = self.internal.scrollY + self.internal.scrollVelocity
+        -- Apply friction to reduce the velocity
+        self.internal.scrollVelocity = self.internal.scrollVelocity * 0.96 -- Adjusted friction factor for a slightly smoother slowdown
+        -- Stop momentum when velocity is very low to prevent endless scrolling
+        if math.abs(self.internal.scrollVelocity) < 0.1 then
+            self.internal.isMomentumActive = false
+            self.internal.scrollVelocity = 0
+        end
+    end
+
+    -- Prevent scrolling so the last line doesn't go above the header
+    if self.internal.scrollY < minScrollY then
+        self.internal.scrollY = minScrollY
+    end
+
+    -- Allow scrolling past the top by not enforcing maxScrollY
+end
 
 --- Handles cursor blinking for the Terminal.
 -- This is a local function and is not meant to be called externally.
@@ -392,10 +468,13 @@ end
 --- Redraws the Terminal.
 function Terminal:redraw()
     _handleKeyInput(self)
+    --_applyMomentumScroll(self)
+    _updateScrollPosition(self)
     _renderHeader(self)
     _renderBuffer(self)
     _renderCursor(self)
     _handleCursorBlinking(self)
+
 end
 
 -- End of Terminal class

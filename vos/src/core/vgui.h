@@ -139,7 +139,10 @@ VAPI b8 gui_load_font(struct Kernel *kernel, const char *font_path, const char *
 VAPI void
 gui_draw_text(WindowContext *window_context, const char *text, float x, float y, float size, const char *font_name,
         NVGcolor color);
-
+VAPI void
+gui_draw_line(WindowContext *window_context, float x1, float y1, float x2, float y2, float width, NVGcolor color);
+VAPI void gui_scissor(WindowContext *window_context, float x, float y, float width, float height);
+VAPI void gui_reset_scissor(WindowContext *window_context);
 VAPI/**
  * @brief Draws a rectangle on the GUI with the given coordinates, size, and color.
  *

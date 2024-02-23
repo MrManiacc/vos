@@ -122,6 +122,57 @@ int lua_text_width(lua_State *L) {
     return 1;
 }
 
+int lua_scissor(lua_State *L) {
+    int top = lua_gettop(L);
+    if (top == 0) {
+        gui_reset_scissor(ctx->window_context);
+        return 0;
+    } else if (top == 5) {
+        // A call back function that should be executed in place, and then reset the scissor
+        float x = lua_tonumber(L, 1);
+        float y = lua_tonumber(L, 2);
+        float w = lua_tonumber(L, 3);
+        float h = lua_tonumber(L, 4);
+        gui_scissor(ctx->window_context, x, y, w, h);
+        lua_call(L, 0, 0);
+        gui_reset_scissor(ctx->window_context);
+        return 0;
+    } else if (top != 4) {
+        return luaL_error(L, "Expected 4 argument to scissor");
+    }
+    float x = lua_tonumber(L, 1);
+    float y = lua_tonumber(L, 2);
+    float w = lua_tonumber(L, 3);
+    float h = lua_tonumber(L, 4);
+    gui_scissor(ctx->window_context, x, y, w, h);
+    return 0;
+}
+
+int lua_line(lua_State *L) {
+    int top = lua_gettop(L);
+    
+    float x1 = lua_tonumber(L, 1);
+    float y1 = lua_tonumber(L, 2);
+    float x2 = lua_tonumber(L, 3);
+    float y2 = lua_tonumber(L, 4);
+    lua_getfield(L, 5, "r");
+    int r = lua_tointeger(L, -1);
+    lua_getfield(L, 5, "g");
+    int g = lua_tointeger(L, -1);
+    lua_getfield(L, 5, "b");
+    int b = lua_tointeger(L, -1);
+    lua_getfield(L, 5, "a");
+    int a = lua_tointeger(L, -1);
+    if (top == 5) {
+        gui_draw_line(ctx->window_context, x1, y1, x2, y2, 1, nvgRGBA(r, g, b, a));
+        return 0;
+    }
+    float width = lua_tonumber(L, 5);
+    gui_draw_line(ctx->window_context, x1, y1, x2, y2, width, nvgRGBA(r, g, b, a));
+    return 0;
+}
+
+
 void configure_lua_gui(lua_State *L) {
     // Add a color function to the gui table
     lua_pushcfunction(L, lua_color);
@@ -135,9 +186,17 @@ void configure_lua_gui(lua_State *L) {
     lua_pushcfunction(L, lua_draw_rect);
     lua_setfield(L, -2, "draw_rect");
     
+    // Add a draw_line function to the gui table
+    lua_pushcfunction(L, lua_line);
+    lua_setfield(L, -2, "draw_line");
+    
     // Add a text_width function to the gui table
     lua_pushcfunction(L, lua_text_width);
     lua_setfield(L, -2, "text_width");
+    
+    // Add a scissor function to the gui table
+    lua_pushcfunction(L, lua_scissor);
+    lua_setfield(L, -2, "scissor");
 }
 
 
