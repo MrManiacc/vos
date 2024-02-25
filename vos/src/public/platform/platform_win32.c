@@ -544,6 +544,17 @@ DynLibFunction *platform_dynamic_library_load_function(const char *name, const D
     return f;
 }
 
+const char *platform_file_name(const char *path) {
+    if (path == null) {
+        return null;
+    }
+    const char *file_name = strrchr(path, '\\');
+    if (file_name == null) {
+        return path;
+    }
+    return file_name + 1;
+}
+
 const char *platform_dynamic_library_extension(void) {
     return ".dll";
 }

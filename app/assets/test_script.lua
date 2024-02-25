@@ -14,3 +14,7 @@ function prime(n)
     end
     return true
 end
+
+function render(delta)
+    print(delta)
+end

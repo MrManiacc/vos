@@ -128,6 +128,7 @@ VAPI Kernel *kernel_create(const char *root_path) {
         vwarn("Attempted to reinitialize the kernel. Please only call kernel_create once per application execution.")
         return kernel;
     }
+    strings_initialize();
     kernel->root_path = root_path;
     kernel->process_count = 0;
     kernel->event_state = kallocate(sizeof(KernelEventState), MEMORY_TAG_KERNEL);
@@ -149,6 +150,7 @@ VAPI b8 kernel_destroy() {
     }
     // We need to terminiate all processes before we can destroy the kernel.
     kfree(kernel->event_state, sizeof(KernelEventState), MEMORY_TAG_KERNEL);
+    strings_shutdown();
     return true;
 }
 
@@ -165,6 +167,7 @@ Process *kernel_new_driver_process(const char *driver_path) {
     }
     process->type = PROCESS_TYPE_DRIVER;
     process->path = driver_path;
+    process->name = platform_file_name(driver_path);
     if (kernel->process_count >= KERNEL_MAX_PROCESSES) {
         verror("Too many processes");
         kfree(process, sizeof(DriverProcess), MEMORY_TAG_KERNEL);
@@ -210,6 +213,7 @@ Process *kernel_new_lua_process(const char *script_path) {
     process->pid = kernel->process_count++;
     process->path = script_path;
     process->state = PROCESS_STATE_STOPPED;
+    process->name = platform_file_name(script_path);
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
     // Load and execute the Lua script
@@ -688,41 +692,17 @@ VAPI Process *kernel_process_get(const ProcessID pid) {
 // This will allow us to search for a process by name, returning the first process that matches the query.
 // If no query is passed in, we will return the first process with the name.
 // You can provide a query for the process name and . followed by a number to indicate which instance of the process you want.
-VAPI Process *kernel_process_find(const char *query) {
-    //first we check if a period exists in the query.
-    const char *period = strchr(query, '.');
-    if (period == null) {
-        // If no period exists, we will search for the first process with the name.
-        const Kernel *kernel = kernel_get();
-        if (!kernel->initialized) {
-            verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-            return null;
-        }
-        for (u32 i = 0; i < kernel->process_count; ++i) {
-            Process *process = kernel->processes[i];
-            if (strcmp(process->path, query) == 0) {
-                return process;
-            }
-        }
-    } else {
-        // If a period exists, we will search for the first process with the name and instance number.
-        const char *name = query;
-        const char *instance = period + 1;
-        const u32 instance_number = atoi(instance);
-        const Kernel *kernel = kernel_get();
-        if (!kernel->initialized) {
-            verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-            return null;
-        }
-        u32 found = 0;
-        for (u32 i = 0; i < kernel->process_count; ++i) {
-            Process *process = kernel->processes[i];
-            if (strcmp(process->path, name) == 0) {
-                if (found == instance_number) {
-                    return process;
-                }
-                found++;
-            }
+VAPI Process *kernel_process_find(const Kernel* kernel, const char *query) {
+    if (!kernel->initialized) {
+        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+        return null;
+    }
+    if (query == null) return null;
+    const u32 query_len = strlen(query);
+    for (u32 i = 0; i < kernel->process_count; ++i) {
+        Process *process = kernel->processes[i];
+        if (strncmp(process->name, query, query_len) == 0) {
+            return process;
         }
     }
     return null;

@@ -267,7 +267,7 @@ VAPI Process *kernel_process_get(ProcessID pid);
  *
  * @return The FIRST process with the given process name, starting from the root directory
  */
-VAPI Process *kernel_process_find(const char *query);
+VAPI Process *kernel_process_find(const Kernel *kernel, const char *query);
 
 // =====================================================================================================================
 // Event System

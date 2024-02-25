@@ -26,18 +26,18 @@ void strings_initialize() {
 
 void strings_shutdown() {
     if (!string_allocations) return;
-    
+
     for (u64 i = 0; i < darray_length(string_allocations); ++i) {
         StringAllocation *allocation = *(StringAllocation **) darray_get(string_allocations, i);
         if (allocation) {
             // free the string and the allocation
-//            vdebug("Freeing string: %s", allocation->string)
+            //            vdebug("Freeing string: %s", allocation->string)
             kfree(allocation->string, allocation->length + 1, allocation->tag); // Free the string
             kfree(allocation, sizeof(StringAllocation), MEMORY_TAG_STRING); // Free the allocation struct
             //remove from the hash table
         }
     }
-    
+
     darray_destroy(string_allocations);
     string_allocations = NULL;
 }
@@ -46,19 +46,18 @@ void strings_shutdown() {
 char *string_allocate_empty(u64 length) {
     char *copiedString = kallocate(length + 1, MEMORY_TAG_STRING);
     kzero_memory(copiedString, length + 1);
-    
+
     StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
     allocation->string = copiedString;
     allocation->length = length;
     allocation->tag = MEMORY_TAG_STRING;
-    
+
     darray_push(StringAllocation*, string_allocations, allocation);
     return copiedString;
 }
 
 
 char *string_allocate_sized(const char *input, u64 length) {
-    
     char *copiedString = kallocate(length + 1, MEMORY_TAG_STRING);
     kcopy_memory(copiedString, input, length + 1);
     //append the null terminator if it's not there
@@ -69,9 +68,9 @@ char *string_allocate_sized(const char *input, u64 length) {
     allocation->string = copiedString;
     allocation->length = length;
     allocation->tag = MEMORY_TAG_STRING;
-    
+
     darray_push(StringAllocation *, string_allocations, allocation);
-    
+
     return copiedString;
 }
 
@@ -135,7 +134,7 @@ char *string_concat(const char *str0, const char *str1) {
     kcopy_memory(result, str0, str0_len);
     kcopy_memory(result + str0_len, str1, str1_len + 1); // Include null terminator
     result[str0_len + str1_len] = '\0';
-    
+
     // Track the allocation right after creating it
     StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
     allocation->string = result;
@@ -167,14 +166,14 @@ b8 string_ends_with(const char *str, const char *substr) {
 
 // Splits the given string into an array of strings using the given delimiter.
 inline char *string_split_at(const char *str, const char *delimiter, u64 index) {
-    char *copy = string_duplicate(str);
+    char *copy = _strdup(str);
     char *token = strtok(copy, delimiter);
     u64 i = 0;
     while (token != null) {
         if (i == index) {
-            char *output = string_duplicate(token);
-            kfree(copy, string_length(copy) + 1, MEMORY_TAG_STRING);
-//            vdebug("string_split_at: %s", output);
+            char *output = _strdup(token);
+            kfree(copy, strlen(copy) + 1, MEMORY_TAG_STRING);
+            //            vdebug("string_split_at: %s", output);
             return output;
         }
         token = strtok(null, delimiter);
@@ -187,20 +186,20 @@ inline i32 string_split_count(const char *str, const char *delimiter) {
     if (str == NULL || delimiter == NULL) {
         return 0; // Early return for NULL input
     }
-    
-    char *copy = strdup(str);
+
+    char *copy = _strdup(str);
     if (copy == NULL) {
         return 0; // Failed to allocate memory for the copy
     }
-    
+
     i32 count = 0;
     char *token = strtok(copy, delimiter);
     while (token != NULL) {
         count++;
         token = strtok(NULL, delimiter);
     }
-    
-    kfree(copy, strlen(str) + 1, MEMORY_TAG_STRING); // Replace string_length with the correct function if necessary
+
+    // kfree(copy, strlen(str) + 1, MEMORY_TAG_STRING); // Replace string_length with the correct function if necessary
     return count;
 }
 
@@ -231,10 +230,10 @@ char *string_replace(const char *str, const char *substr, const char *replacemen
 // Format string with tracking
 char *string_format(const char *str, ...) {
     va_list args;
-            va_start(args, str);
+    va_start(args, str);
     char formatted[1024]; // Assuming 1024 is enough; adjust as needed
     vsprintf(formatted, str, args);
-            va_end(args);
+    va_end(args);
     return string_allocate(formatted);;
 }
 
@@ -258,37 +257,37 @@ char *string_repeat(const char *str, u64 count) {
 
 char *string_append(char **dest, const char *src, u32 *cursor, u32 *bufferSize) {
     size_t srcLen = strlen(src);
-    
+
     // Ensure there is enough space for the new string and the null terminator
     while (*cursor + srcLen + 1 > *bufferSize) {
         // Calculate new buffer size
         size_t newBufferSize = *bufferSize + 1024; // Increase buffer size
-        
+
         // Allocate new buffer
         char *newBuffer = platform_allocate(newBufferSize, false);
         if (!newBuffer) {
             verror("Failed to allocate memory for AST dump.");
             return null; // Fail on allocation error
         }
-        
+
         // Copy existing content into new buffer
         platform_copy_memory(newBuffer, *dest, *cursor);
-        
+
         // Free old buffer if it was previously allocated
         if (*dest) {
             platform_free(*dest, false);
         }
-        
+
         // Update buffer pointer and size
         *dest = newBuffer;
         *bufferSize = newBufferSize;
     }
-    
+
     // Append new string
     platform_copy_memory(*dest + *cursor, src, srcLen); // Copy string content
     *cursor += srcLen; // Update cursor position
     (*dest)[*cursor] = '\0'; // Ensure null termination
-    
+
     return *dest;
 }
 
@@ -330,10 +329,10 @@ void sb_ensure_capacity(StringBuilder *sb, u32 additional_capacity) {
 // Appends a formatted string to the string builder
 void sb_appendf(StringBuilder *sb, const char *format, ...) {
     va_list args;
-            va_start(args, format);
+    va_start(args, format);
     char tmp[2048]; // Temporary buffer for formatted string
     vsnprintf(tmp, sizeof(tmp), format, args);
-            va_end(args);
+    va_end(args);
     size_t tmp_len = strlen(tmp);
     sb_ensure_capacity(sb, tmp_len + 1);
     strcpy(sb->buffer + sb->length, tmp);
@@ -354,5 +353,3 @@ void sb_free(StringBuilder *sb) {
     platform_free(sb->buffer, false); // Free the original buffer
     platform_free(sb, false); // Free the string builder itself
 }
-
-

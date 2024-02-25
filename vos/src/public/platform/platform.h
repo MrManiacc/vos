@@ -223,6 +223,8 @@ VAPI b8 platform_dynamic_library_unload(DynLib *library);
  */
 VAPI DynLibFunction *platform_dynamic_library_load_function(const char *name, const DynLib *library);
 
+VAPI const char *platform_file_name(const char *path);
+
 /**
  * @brief Returns the file extension for the current platform.
  */
