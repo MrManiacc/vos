@@ -53,7 +53,7 @@ typedef enum platform_error_code {
 
 typedef struct VFilePathList {
     char **paths; // Dynamic array of strings
-    int count;    // Number of paths
+    int count; // Number of paths
 } FilePathList;
 
 /**
@@ -83,7 +83,7 @@ char *platform_get_temp_directory();
  *
  * @return True on success; otherwise false.
  */
-b8 platform_pump_messages(Kernel *kernel);
+b8 platform_pump_messages(struct Kernel *kernel);
 
 /**
  * @brief Performs platform-specific memory allocation of the given size.
@@ -221,7 +221,7 @@ VAPI b8 platform_dynamic_library_unload(DynLib *library);
  * @param library A pointer to the library to load the function from.
  * @return True on success; otherwise false.
  */
-VAPI b8 platform_dynamic_library_load_function(const char *name, DynLib *library);
+VAPI DynLibFunction *platform_dynamic_library_load_function(const char *name, const DynLib *library);
 
 /**
  * @brief Returns the file extension for the current platform.
@@ -247,10 +247,9 @@ VAPI platform_error_code platform_copy_file(const char *source, const char *dest
  * @brief Watch a file at the given path.
  *
  * @param file_path The file path. Required.
- * @param out_watch_id A pointer to hold the watch identifier.
- * @return True on success; otherwise false.
+ * @return The watch identifier, starting from 1, or 0 if the watch failed.
  */
-VAPI b8 platform_watch_file(const char *file_path, u32 *out_watch_id);
+VAPI u32 *platform_watch_file(const char *file_path);
 
 /**
  * @brief Stops watching the file with the given watch identifier.

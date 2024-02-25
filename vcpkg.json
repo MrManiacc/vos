@@ -20,5 +20,11 @@
   }, {
     "name" : "glew",
     "version>=" : "2.2.0#3"
+  }, {
+    "name" : "libffi",
+    "version>=" : "3.4.4#6"
+  }, {
+    "name" : "pkgconf",
+    "version>=" : "2.1.0"
   } ]
 }

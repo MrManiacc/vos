@@ -25,50 +25,50 @@
 #include "platform/platform.h"
 #include "core/vstring.h"
 
+// //
+// //
+// ////// launch our bootstrap code
+// void startup_script_init(Kernel *kernel) {
+//     //at this piont we know the file system is ready to go. Let's lookup the startup script and run it.
+//     char *startup_script = "boot.lua";
+//     //check if the file exists
+//     Proc *proc = kernel_create_process(vfs_node_get(kernel->fs_context, startup_script), true);
+//     if (proc == null) {
+//         verror("Failed to create process for startup script %s", startup_script)
+//         return;
+//     }
+//     //run the process
+//     process_start(proc);
+// }
 //
-//
-////// launch our bootstrap code
-void startup_script_init(Kernel *kernel) {
-    //at this piont we know the file system is ready to go. Let's lookup the startup script and run it.
-    char *startup_script = "boot.lua";
-    //check if the file exists
-    Proc *proc = kernel_create_process(vfs_node_get(kernel->fs_context, startup_script));
-    if (proc == null) {
-        verror("Failed to create process for startup script %s", startup_script)
-        return;
-    }
-    //run the process
-    process_start(proc);
-}
-
-int main(int argc, char **argv) {
-    char *root_path = path_locate_root();
-    vdebug("Root path: %s", root_path)
-    KernelResult result = kernel_initialize(root_path);
-    if (!kernel_is_result_success(result.code)) {
-        verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
-        return 1;
-    }
-    Kernel *kernel = result.data;
-    startup_script_init(kernel);
-    lua_ctx(update)
-    WindowContext *window = kernel->window_context;
-    gui_load_font(kernel, "sys/fonts/JetBrainsMono-Bold.ttf", "sans");
-    while (!window_should_close(window)) {
-        window_begin_frame(window);
-        event_fire(kernel, EVENT_LUA_CUSTOM, null, update);
-        window_end_frame(window);
-        kernel_poll_update(kernel);
-    }
-    window_shutdown(window);
-    KernelResult shutdown_result = kernel_shutdown();
-    if (!kernel_is_result_success(shutdown_result.code)) {
-        verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
-        return 1;
-    }
-    //waits for user input
-    return 0;
-}
+// int main(int argc, char **argv) {
+//     char *root_path = path_locate_root();
+//     vdebug("Root path: %s", root_path)
+//     KernelResult result = kernel_initialize(root_path);
+//     if (!kernel_is_result_success(result.code)) {
+//         verror("Failed to initialize kernel: %s", kernel_get_result_message(result))
+//         return 1;
+//     }
+//     Kernel *kernel = result.data;
+//     startup_script_init(kernel);
+//     lua_ctx(update)
+//     WindowContext *window = kernel->window_context;
+//     gui_load_font(kernel, "sys/fonts/JetBrainsMono-Bold.ttf", "sans");
+//     while (!window_should_close(window)) {
+//         window_begin_frame(window);
+//         event_fire(kernel, EVENT_LUA_CUSTOM, null, update);
+//         window_end_frame(window);
+//         kernel_poll_update(kernel);
+//     }
+//     window_shutdown(window);
+//     KernelResult shutdown_result = kernel_shutdown();
+//     if (!kernel_is_result_success(shutdown_result.code)) {
+//         verror("Failed to shutdown kernel: %s", kernel_get_result_message(shutdown_result))
+//         return 1;
+//     }
+//     //waits for user input
+//     return 0;
+// }
 
 //
 //

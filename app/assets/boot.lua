@@ -79,4 +79,4 @@ sys.listen("update", drawUI)
 --    end
 --end)
 
-sys.log.warn("boot.lua loaded")
+sys.log.warn("boot.lua loaded, again ")

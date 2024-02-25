@@ -72,10 +72,10 @@ char *dict_to_string(Dict *table) {
         while (e != NULL) {
             u64 hash_key = table->hash_func(e->key);
             result = string_format("%s\n\t0x%x: {\n\t\tKey: %s,\n\t\tValue Pointer: 0x%4p\n\t}\n",
-                                   result,
-                                   hash_key,
-                                   e->key,
-                                   e->value);
+                result,
+                hash_key,
+                e->key,
+                e->value);
             if (e->next != NULL)
                 result = string_concat(result, ",");
             e = e->next;
@@ -90,14 +90,14 @@ b8 dict_set(Dict *table, const char *key, void *value) {
     if (key == NULL || value == NULL)
         return false;
     u64 index = has_table_index(table, key);
-    
+
     if (dict_get(table, key) != NULL)
         return false;
-    
+
     Entry *e = kallocate(sizeof(Entry), MEMORY_TAG_DICT);
-    e->key = string_duplicate(key);
+    e->key = _strdup(key);
     e->value = value;
-    
+
     e->next = table->elements[index];
     table->elements[index] = e;
     return true;
@@ -107,7 +107,7 @@ void *dict_get(Dict *table, const char *key) {
     if (key == NULL || table == NULL)
         return NULL;
     u64 index = has_table_index(table, key);
-    
+
     Entry *temp = table->elements[index];
     while (temp != NULL && !strings_equal(temp->key, key)) {
         temp = temp->next;
@@ -160,7 +160,7 @@ void dict_clear(Dict *table) {
  */
 DictIter dict_iterator(Dict *table) {
     if (table == NULL)
-        return (DictIter) {0};
+        return (DictIter){0};
     DictIter it;
     it.table = table;
     it.index = 0;
@@ -178,7 +178,8 @@ b8 dict_next(DictIter *it) {
         return false;
     while (it->index < it->table->size) {
         it->entry = it->table->elements[it->index++];
-        if (it->entry != NULL) { // Found a valid entry
+        if (it->entry != NULL) {
+            // Found a valid entry
             return true;
         }
     }
@@ -201,4 +202,3 @@ u32 dict_size(Dict *table) {
     }
     return count;
 }
-

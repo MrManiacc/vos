@@ -11,22 +11,23 @@
  */
 #include "vlogger.h"
 #include "nanovg_gl.h"
+#include "vmem.h"
 #include "filesystem/vfs.h"
 #include "kernel/kernel.h"
 #include "platform/platform.h"
 
 void input_reset(WindowContext *window_context) {
     memcpy(window_context->input_state->prev_keys, window_context->input_state->keys,
-            sizeof(window_context->input_state->keys));
+        sizeof(window_context->input_state->keys));
     memcpy(window_context->input_state->prev_buttons, window_context->input_state->buttons,
-            sizeof(window_context->input_state->buttons));
+        sizeof(window_context->input_state->buttons));
 }
 
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     WindowContext *window_context = ((WindowContext *) glfwGetWindowUserPointer(window));
     InputState *input_state = window_context->input_state;
-    
+
     if (key >= 0 && key < KEYS_MAX_KEYS) {
         input_state->keys[key] = action != GLFW_RELEASE;
     }
@@ -109,23 +110,24 @@ void input_get_scroll_delta(WindowContext *ctx, i8 *x, i8 *y) {
 }
 
 b8 window_initialize(WindowContext *window_context, const char *title, int width, int height) {
+    window_context->input_state = kallocate(sizeof(InputState), MEMORY_TAG_KERNEL);
     NVGcontext *vg = NULL;
     if (!glfwInit()) {
         verror("Failed to init GLFW.");
         return false;
     }
-    
-    #ifndef _WIN32 // don't require this on win32, and works with more cards
+
+#ifndef _WIN32 // don't require this on win32, and works with more cards
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    #elif __APPLE__
+#elif __APPLE__
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    #endif
+#endif
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1);
     // Set window hints and create the window
     window_context->window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -169,7 +171,7 @@ void window_begin_frame(WindowContext *window_context) {
     glClearColor(0.694f, 0.282f, 0.823f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     nvgBeginFrame(window_context->vg, window_context->width, window_context->height,
-            window_context->width / window_context->height);
+        window_context->width / window_context->height);
 }
 
 void window_end_frame(WindowContext *window_context) {
@@ -183,7 +185,7 @@ void window_shutdown(WindowContext *window_context) {
     nvgDeleteGL3(window_context->vg);
     glfwDestroyWindow(window_context->window);
     glfwTerminate();
-    
+
     window_context->window = null;
     window_context->vg = null;
     window_context->width = 0;
@@ -195,23 +197,23 @@ b8 window_should_close(WindowContext *window_context) {
     return glfwWindowShouldClose(window_context->window);
 }
 
-b8 gui_load_font(Kernel *kernel, const char *font_path, const char *font_name) {
+b8 gui_load_font(struct Kernel *kernel, const char *font_path, const char *font_name) {
     //load our fonts
-    WindowContext *window_context = kernel->window_context;
-    FsNode *font = vfs_node_get(kernel->fs_context, font_path);
-    if (font == null) {
-        verror("Failed to load font");
-        return false;
-    }
-    char *font_data = font->data.file.data;
-    u32 font_data_len = font->data.file.size;
-    nvgCreateFontMem(window_context->vg, font_name, (unsigned char *) font_data, font_data_len, 0);
-    vdebug("Loaded font: %s", font_name)
+    // WindowContext *window_context = kernel->window_context;
+    // FsNode *font = vfs_node_get(kernel->fs_context, font_path);
+    // if (font == null) {
+    // verror("Failed to load font");
+    // return false;
+    // }
+    // char *font_data = font->data.file.data;
+    // u32 font_data_len = font->data.file.size;
+    // nvgCreateFontMem(window_context->vg, font_name, (unsigned char *) font_data, font_data_len, 0);
+    // vdebug("Loaded font: %s", font_name)
     return true;
 }
 
 void gui_draw_text(WindowContext *window_context, const char *text, float x, float y, float size, const char *font_name,
-        NVGcolor color, i32 alignment) {
+    NVGcolor color, i32 alignment) {
     nvgFontSize(window_context->vg, size);
     nvgFontFace(window_context->vg, font_name);
     nvgFillColor(window_context->vg, color);
@@ -255,14 +257,14 @@ void window_get_size(WindowContext *window_context, u32 *width, u32 *height) {
     *height = window_context->height;
 }
 
-void gui_get_text_bounds(WindowContext *window_context, const char *text, const char *font_name, f32 size, float* bounds) {
+void gui_get_text_bounds(WindowContext *window_context, const char *text, const char *font_name, f32 size, float *bounds) {
     nvgFontSize(window_context->vg, size);
     nvgFontFace(window_context->vg, font_name);
     nvgTextBounds(window_context->vg, 0, 0, text, null, bounds);
 }
 
 void gui_draw_rounded_rect(WindowContext *window_context, float x, float y, float width, float height, float radius,
-        NVGcolor color) {
+    NVGcolor color) {
     nvgBeginPath(window_context->vg);
     nvgRoundedRect(window_context->vg, x, y, width, height, radius);
     nvgFillColor(window_context->vg, color);

@@ -19,22 +19,22 @@ char *path_normalize(char *path) {
     if (path == null) {
         return null;
     }
-    
+
     // Allocate enough space for the normalized path, including potential leading slash
     char *normalized_path = string_allocate_empty(
-            string_length(path) + 2); // +1 for null terminator, +1 for potential leading slash
+        string_length(path) + 2); // +1 for null terminator, +1 for potential leading slash
     if (normalized_path == null) {
         // Memory allocation failed
         return null;
     }
-    
+
     size_t j = 0; // Index for writing to normalized_path
-    
+
     // Ensure it starts with a slash
     if (path[0] != '/') {
         normalized_path[j++] = '/';
     }
-    
+
     // Replace backslashes with slashes and skip colons
     for (size_t i = 0; i < strlen(path); ++i) {
         if (path[i] == '\\') {
@@ -43,9 +43,9 @@ char *path_normalize(char *path) {
             normalized_path[j++] = path[i];
         }
     }
-    
+
     normalized_path[j] = '\0'; // Null-terminate the modified path
-    
+
     return normalized_path;
 }
 
@@ -61,7 +61,7 @@ char *path_relative(char *path) {
     if (path == null) {
         return null;
     }
-    
+
     char *input_path = path_normalize(path);
     char *root_path = path_normalize(path_root_directory());
     // if the strings are equal, we know it's the root and just return a slash
@@ -70,8 +70,8 @@ char *path_relative(char *path) {
         char *relative_path = string_duplicate(input_path + string_length(root_path) + 1);
         kfree(input_path, string_length(input_path) + 1, MEMORY_TAG_STRING);
         kfree(root_path, string_length(root_path) + 1, MEMORY_TAG_STRING);
-//        vdebug("relative path: %s", relative_path)
-//
+        //        vdebug("relative path: %s", relative_path)
+        //
         return relative_path;
     }
     return input_path;
@@ -94,7 +94,7 @@ void initialize_paths(char *path) {
         path_context->root_directory = null;
         path_context->current_directory = null;
     }
-    
+
     if (path_context->root_directory == null) {
         path_context->root_directory = normalized; // Set both root and current to normalized
         path_context->current_directory = normalized;
@@ -112,6 +112,12 @@ void shutdown_paths() {
     }
     kfree(path_context, sizeof(PathContext), MEMORY_TAG_STRING); // Keep as is; non-string allocation
     path_context = null;
+}
+
+char *path_join(const char *root_path, const char *str) {
+    char *joined = strcat(_strdup(root_path), "/"); // Use strdup to allocate memory (and avoid buffer overflow)
+    joined = strcat(joined, str);
+    return joined;
 }
 
 
@@ -200,28 +206,27 @@ char *path_file_extension(char *path) {
  * @return The platform specific path from the path. This is the reverse of path_normalize.
  */
 char *path_to_platform(char *path) {
-    
     if (path == NULL) {
         return NULL; // Added NULL check
     }
     u32 len = strlen(path);
     char *platform_path = string_allocate_sized(path, len + 2);
-    
-    strcpy(platform_path, path);  // Copy the original path
-    
+
+    strcpy(platform_path, path); // Copy the original path
+
     // Transform '/' to '\\'
     for (u32 i = 0; i < len; ++i) {
         if (platform_path[i] == '/') {
             platform_path[i] = '\\';
         }
     }
-    
+
     // Handle drive letter
     if (len > 1 && platform_path[0] == '\\' && platform_path[1] != '\\') {
         platform_path[0] = platform_path[1];
         platform_path[1] = ':';
     }
-    
+
     return platform_path;
 }
 
@@ -240,7 +245,7 @@ const char *locate_boot_folder(char *search_path) {
         if (string_ends_with(path, "boot.lua")) {
             // return the PARENT directory of the init script
             char *parent = platform_parent_directory(path);
-//            kfree(paths, sizeof(VFilePathList), MEMORY_TAG_STRING);
+            //            kfree(paths, sizeof(VFilePathList), MEMORY_TAG_STRING);
             return parent;
         }
     }

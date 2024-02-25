@@ -66,6 +66,10 @@ typedef struct FsNode {
     struct FsNode *parent;
     // the type of the node.
     FsNodeType type;
+    // The hash of the node.
+    u64 hash;
+    //Used for watching the node for changes.
+    u32 *watch_id;
     // A union of the data that can be stored in the node, can be a directory or a file.
     union {
         // The data of the node if it is a directory.
@@ -103,6 +107,16 @@ FSContext *vfs_initialize(FsPath root);
  */
 b8 vfs_node_exists(FSContext *fs_context, FsPath path);
 
+
+/**
+ * @brief Reloads a node in the virtual file system.
+ *
+ * @param fs_context The file system context.
+ * @param path The path to the node to be reloaded.
+ *
+ * @return True if the node was successfully reloaded, false otherwise.
+ */
+FsNode*  vfs_reload_node(FSContext *fs_context, FsPath path);
 /**
  * This function will return the node at the given path. If the path is invalid, the node will be NULL.
  * @param path  The path to get the node from.

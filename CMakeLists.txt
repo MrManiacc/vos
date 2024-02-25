@@ -1,19 +1,28 @@
 cmake_minimum_required(VERSION 3.25)
+
 project(vlos C)
-# this is heuristically generated, and may not be correct
 find_package(Lua REQUIRED)
-#find_package(unofficial-tree-sitter CONFIG REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(nanovg CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
-# Only run these if on mac
-#if (APPLE)
-#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-#    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
-#endif (APPLE)
+find_package(PkgConfig)
+pkg_check_modules(LIBFFI REQUIRED IMPORTED_TARGET libffi)
+include(.cmake/PLib.cmake)
 
-add_subdirectory(vos)
+
+create_library(vos STATIC vos
+        LINK_LIBRARIES
+            ${LUA_LIBRARIES}
+            nanovg::nanovg
+            GLEW::GLEW glfw
+            PkgConfig::LIBFFI
+        COMPILE_DEFINITIONS
+            USE_LINE_NUMBER
+            USE_DEBUG_LOG
+            KEXPORT
+)
+
+
 add_subdirectory(app)
 add_subdirectory(drivers)
 #add_subdirectory(muil)

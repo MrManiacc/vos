@@ -98,6 +98,13 @@ void vfs_shutdown(FSContext *fs_context) {
     shutdown_paths();
 }
 
+u64 vfs_node_hash(const char *contents, u32 size) {
+    u64 hash = 0;
+    for (u32 i = 0; i < size; i++) {
+        hash = contents[i] + (hash << 6) + (hash << 16) - hash;
+    }
+    return hash;
+}
 
 // Loads a file from the file system into memory.
 FsNode *load_file(FSContext *fs_context, FsPath path) {
@@ -116,6 +123,7 @@ FsNode *load_file(FSContext *fs_context, FsPath path) {
     if (platform_file_exists(path)) {
         node->data.file.size = platform_file_size(path);
         node->data.file.data = platform_read_file(path);
+        node->hash = vfs_node_hash(node->data.file.data, node->data.file.size);
         dict_set(fs_context->nodes, node->path, node);
         vdebug("load_file - Loaded file at path: %s", node->path)
         return node;
@@ -260,7 +268,7 @@ void load_nodes(FSContext *fs_context) {
     // Iterate the children of the root node to make sure they are loaded.
     for (u32 i = 0; i < root->data.directory.child_count; i++) {
         FsNode *child = root->data.directory.children[i];
-        vdebug("load_nodes - Loaded child node at path: %s\n%s", child->path, vfs_node_to_string(child));
+        // vdebug("load_nodes - Loaded child node at path: %s\n%s", child->path, vfs_node_to_string(child));
     }
     fs_context->root = root;
     
@@ -363,5 +371,39 @@ FsNode *vfs_node_get(FSContext *fs_context, FsPath path) {
         return null;
     }
     return dict_get(fs_context->nodes, path);
+}
+
+FsNode *vfs_reload_node(FSContext *fs_context, FsPath path) {
+    //reloads the node's data from the file system.
+    if (fs_context == null) {
+        vwarn("vfs_reload_node - File system not initialized.");
+        return null;
+    }
+    FsPath aboslute_path = path_absolute(path);
+    char *platpath = platform_path(aboslute_path);
+    kfree(aboslute_path, string_length(aboslute_path) + 1, MEMORY_TAG_STRING);
+    
+    if (!platform_file_exists(platpath)) {
+        vwarn("vfs_reload_node - Node does not exist at path: %s", platpath);
+        return null;
+    }
+    FsNode *node = vfs_node_get(fs_context, path);
+    if (node == null) {
+        vwarn("vfs_reload_node - Failed to get node at path: %s", platpath);
+        return null;
+    }
+    u32 hash_before = node->hash;
+    // Unload the node from memory
+    unload_node(fs_context, node);
+    // Load the node from the file system
+    FsNode* new = load_node(fs_context, platpath);
+    if (new == null) {
+        vwarn("vfs_reload_node - Failed to reload node at path: %s", platpath);
+        return null;
+    }
+    u32 hash_after = new->hash;
+    vinfo("vfs_reload_node - Reloaded node at path: %s, hash before: %d, hash after: %d", platpath, hash_before,
+            hash_after);
+    return new;
 }
 

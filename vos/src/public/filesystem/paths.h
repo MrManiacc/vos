@@ -12,6 +12,7 @@
  */
 void initialize_paths(char *path);
 
+
 /**
  * @brief Shuts down the path module by deallocating memory and freeing resources.
  *
@@ -28,6 +29,7 @@ void initialize_paths(char *path);
  * @see _kfree
  */
 void shutdown_paths();
+char * path_join(const char * root_path, const char * str);
 
 /**
  * Gets the current working directory.
