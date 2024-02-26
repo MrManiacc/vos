@@ -103,7 +103,11 @@ struct Function {
 
     union {
         void *pfn; // the raw function pointer for a driver function
-        lua_State *lua_state; // Lua context for a lua function
+        struct lua {
+            lua_State *lua_state; // Lua context for a lua function
+            int ref; // The reference to the function in the Lua registry
+        } lua;
+
         //TODO gravity context
     } context;
 };
@@ -277,29 +281,6 @@ VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path) {
 }
 
 
-static b8 kernel_process_lua_function_lookup(lua_State *L, const FunctionSignature *signature, const b8 pop_off) {
-    // Attempt to get the function by its name from the global namespace
-    lua_getglobal(L, signature->name);
-    // Check if the value at the top of the stack is a function
-    if (lua_isfunction(L, -1) == false) {
-        verror("Failed to find function %s in Lua script", signature->name);
-        lua_pop(L, 1); // Remove the non-function value from the stack
-        return false;
-    }
-    //checks the arg count
-    if (lua_gettop(L) != signature->arg_count) {
-        verror("Function %s in Lua script has the wrong number of arguments, expected %i, got %i", signature->name, signature->arg_count, lua_gettop(L));
-        lua_pop(L, 1); // Remove the non-function value from the stack
-        return false;
-    }
-
-    // The function was found, you can now call it or do whatever is needed
-    // Remember to remove the function from the stack when done, if necessary
-    if (pop_off == true)
-        lua_pop(L, 1); // Only if you're not going to use it immediately
-    return true;
-}
-
 VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSignature signature) {
     Function *function = kallocate(sizeof(Function), MEMORY_TAG_KERNEL);
     function->base = process;
@@ -319,13 +300,25 @@ VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSi
             break;
         case PROCESS_TYPE_LUA:
             LuaProcess *lprocess = (LuaProcess *) process;
-            if (!kernel_process_lua_function_lookup(lprocess->lua_state, &signature, true)) {
-                // If the function is not found, free the function and return null
-                // kfree(function, sizeof(Function), MEMORY_TAG_KERNEL);
-                return null;
-            }
+            lua_State *L = lprocess->lua_state;
+        // Attempt to get the function by its name from the global namespace
+            lua_getglobal(L, signature.name);
+         function->context.lua.ref = luaL_ref(lprocess->lua_state, LUA_REGISTRYINDEX);
+
+        // // Check if the value at the top of the stack is a function
+        //     if (lua_isfunction(L, -1) == false) {
+        //         verror("Failed to find function %s in Lua script", signature.name);
+        //         lua_pop(L, 1); // Remove the non-function value from the stack
+        //         return false;
+        //     }
+        // //checks the arg count
+        //     if (lua_gettop(L) != signature.arg_count) {
+        //         verror("Function %s in Lua script has the wrong number of arguments, expected %i, got %i", signature.name, signature.arg_count, lua_gettop(L));
+        //         lua_pop(L, 1); // Remove the non-function value from the stack
+        //         return false;
+        //     }
             function->type = CALLABLE_TYPE_LUA;
-            function->context.lua_state = lprocess->lua_state;
+            function->context.lua.lua_state = lprocess->lua_state;
 
             break;
         case PROCESS_TYPE_GRAVITY:
@@ -549,9 +542,9 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
         return func_result; // Assuming success
     }
     if (function->base->type == PROCESS_TYPE_LUA) {
-        lua_State *L = function->context.lua_state;
+        lua_State *L = function->context.lua.lua_state;
         const int base = lua_gettop(L); // Remember the stack's state to clean up later if needed
-        kernel_process_lua_function_lookup(L, &function->signature, false);
+        lua_rawgeti(L, LUA_REGISTRYINDEX,  function->context.lua.ref); // Push the function onto the stack
         // Assuming the rest of the arguments are handled similarly to how you've been handling them
         va_list args;
         va_start(args, function);

@@ -16,6 +16,7 @@ b8 render_listener(Kernel *kernel, u16 code, const EventData data) {
         return false;
     }
     kernel_process_function_call(driver_render, data.f64[0], (NVGcontext *) ((uintptr_t) data.f64[1]));
+    kernel_process_function_call(script_render, data.f64[0]);
     return true;
 }
 
@@ -32,9 +33,9 @@ int main(int argc, char **argv) {
     data.f32[0] = platform_get_absolute_time();
     kernel_event_listen(EVENT_KERNEL_RENDER, render_listener);
 
-    Process *test_driver = kernel_process_new(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
+    Process *test_driver = kernel_process_new(kernel, "C:\\Users\\jwraynor\\Documents\\vos\\build\\debug\\drivers\\sys.dll");
     kernel_driver_initialize(test_driver);
-    Process *test_script = kernel_process_new(kernel, "D:\\vos\\app\\assets\\test_script.lua");
+    Process *test_script = kernel_process_new(kernel, "C:\\Users\\jwraynor\\Documents\\vos\\app\\assets\\test_script.lua");
 
 
     driver_render = kernel_process_function_lookup(test_driver, (FunctionSignature){
@@ -52,13 +53,13 @@ int main(int argc, char **argv) {
         .args[0] = FUNCTION_TYPE_F64,
     });
 
-    FunctionResult boot_list = kernel_process_function_call(kernel_process_function_lookup(test_driver, (FunctionSignature){
+    const FunctionResult boot_list = kernel_process_function_call(kernel_process_function_lookup(test_driver, (FunctionSignature){
         .name = "boot_sys_exectuables",
         .arg_count = 0,
         .return_type = FUNCTION_TYPE_POINTER,
     }));
 
-    FilePathList *list = boot_list.data.pointer;
+    const FilePathList *list = boot_list.data.pointer;
     for (u32 i = 0; i < list->count; i++) {
         vinfo("Found boot script: %s", list->paths[i]);
     }
