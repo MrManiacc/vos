@@ -67,17 +67,31 @@ typedef union EventData {
 
     /** @brief An array of 16 characters. */
     char c[16];
+
+    /** @brief Two pointers which is 16 bytes total */
+    struct {
+        void *one;
+        void *two;
+    } pointers;
 } EventData;
+
+typedef struct KernProcEvent {
+    u16 code; // The event code to be sent.
+    const EventData *data; // The data to be sent with the event.
+    union {
+        const Process *process;
+        const Kernel *kernel;
+    } sender; // The process that the event is being sent to.
+} KernProcEvent; // The event to be sent.
 
 /**
  * @brief A function pointer typedef which is used for event subscriptions by the subscriber.
- * @param kernel The kernel that the event is being sent to.
- * @param code The event code to be sent.
- * @param data The event context to be passed with the fired event.
+ * @param event The event that is being sent.
  * @returns True if the message should be considered handled, which means that it will not
  * be sent to any other consumers; otherwise false.
  */
-typedef b8 (*KernelEventPFN)(Kernel *kernel, u16 code, EventData data);
+typedef b8 (*KernProcEventPFN)(const KernProcEvent *event);
+
 
 /**
  * @brief Enumeration of kernel event codes.
@@ -88,35 +102,19 @@ typedef b8 (*KernelEventPFN)(Kernel *kernel, u16 code, EventData data);
 typedef enum KernelEventCode {
     /** @brief The minimum event code that can be used internally. */
     EVENT_MIN_CODE = 0x00,
-    /** @brief The process started event is used to notify the kernel that a process has started.
-    *
-    * The EventData for this event should contain the following:
-    *  - u16[0] = The process id of the terminated process.
-    */
-    EVENT_PROCESS_STARTED = 0x01,
-    /** @brief The process stopped event is used to notify the kernel that a process has stopped.
-    *
-    * The EventData for this event should contain the following:
-    *  - u16[0] = The process id of the terminated process.
-    */
-    EVENT_PROCESS_STOPPED = 0x02,
-    /** @brief The process paused event is used to notify the kernel that a process has been paused.
-     * This happens when a process is temporarily halted and is not ready to continue processing.
+    /** @brief The kernel init event is used to initialize the kernel.
      *
      * The EventData for this event should contain the following:
-     *  - u16[0] = The process id of the terminated process.
+     *  -
      */
-    EVENT_PROCESS_PAUSED = 0x03,
-    /** @brief The process resumed event is used to notify the kernel that a process has resumed.
-     * This happens after a process has been paused and is ready to continue processing. */
-    EVENT_PROCESS_RESUMED = 0x05,
-    /** @brief The process terminated event is used to notify the kernel that a process has terminated.
-     * This will unload it from the internal process list and named process list
+    EVENT_KERNEL_INIT = 0x01,
+
+    /** @brief The process init event is used to initialize a process.
      *
      * The EventData for this event should contain the following:
-     *  - u16[0] = The process id of the terminated process.
+     *  - pointers[0] = The process that is being initialized.
      */
-    EVENT_PROCESS_TERMINATED = 0x06,
+    EVENT_PROCESS_INIT = 0x02,
     /** @brief The kernel poll event is used to poll the kernel for events.
      *
      * The EventData for this event should contain the following:
@@ -224,7 +222,7 @@ VAPI FunctionResult kernel_process_function_call(const Function *func, ...);
 /**
  * Starts a process. This will start the process and all child processes.
  */
-VAPI b8 kernel_process_run(Process *process);
+VAPI b8 kernel_process_run(Kernel *kernel, Process *process);
 
 /**
  * Pauses a process. This will pause the process and all child processes.
@@ -283,18 +281,41 @@ VAPI Process *kernel_process_find(const Kernel *kernel, const char *query);
  * @param on_event The listener function to be invoked when the event occurs.
  * @return Returns true if the listener was successfully registered, false otherwise.
  */
-VAPI b8 kernel_event_listen(u16 code, KernelEventPFN on_event);
+VAPI b8 kernel_event_listen(const Kernel *kernel, u16 code, KernProcEventPFN on_event);
+
+VAPI b8 kernel_event_listen_function(const Kernel *kernel, const u16 code, const Function *function);
 
 /**
  * @brief Fires an event in the kernel with the specified code and data.
  *
  * @param kernel The pointer to the kernel object.
- * @param code The code of the event to be fired.
- * @param data The data associated with the event.
+ * @param event The event to be fired.
  *
  * @return True if the event was successfully fired, false otherwise.
  */
-VAPI b8 kernel_event_trigger(u16 code, EventData data);
+VAPI b8 kernel_event_trigger(const Kernel *kernel, const KernProcEvent *event);
+
+/**
+ * @brief Creates a new kernel event with the specified code and data.
+ *
+ * @param kernel A pointer to the Kernel object.
+ * @param code The code of the kernel event to create.
+ * @param data The data to be sent with the event.
+ * @param sender The process that the event is being sent from, can be null if the sender is the kernel.
+ *
+ * @return The new kernel event.
+ */
+VAPI KernProcEvent kernel_event_create(const Kernel *kernel, KernelEventCode code, const EventData *data);
+/**
+ * @brief Creates a new kernel event with the specified code and data.
+ *
+ * @param process A pointer to the Process object.
+ * @param event The code of the kernel event to create.
+ * @param data The data to be sent with the event.
+ *
+ * @return The new kernel event.
+ */
+VAPI KernProcEvent kernel_process_event_create(const Process *process, KernelEventCode event, const EventData *data);
 
 /**
  * @brief Unregisters a listener function for a specific kernel event code.
@@ -306,7 +327,8 @@ VAPI b8 kernel_event_trigger(u16 code, EventData data);
  * @param on_event The listener function to be unregistered.
  * @return Returns true if the listener was successfully unregistered, false otherwise.
  */
-VAPI b8 kernel_event_unlisten(u16 code, KernelEventPFN on_event);
+VAPI b8 kernel_event_unlisten(u16 code, KernProcEventPFN on_event);
+VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function);
 
 
 // =====================================================================================================================
@@ -316,35 +338,23 @@ VAPI b8 kernel_event_unlisten(u16 code, KernelEventPFN on_event);
 
 // Initializes the kernel. This will allocate the kernel context and initialize the root process view.
 // Should be called from within the main c file of a driver.
-#define kernel_define_driver(...)\
- VAPI b8 _init_kernel(Kernel *kernel){\
-      _kernel = kernel;\
-      __VA_ARGS__;\
-      return true;\
- }
-
-// Returns a function pointer to the driver load function.
-//Example:
-// kernel_process_function_lookup(test_driver, (FunctionSignature){
-//         .name = "_init_kernel",
-//         .arg_count = 1,
-//         .return_type = FUNCTION_TYPE_VOID,
-//         .args[0] = FUNCTION_TYPE_POINTER
-//     });
-#define kernel_driver_initializer(driver)\
-  kernel_process_function_lookup(driver, (FunctionSignature){\
-        .name = "_init_kernel",\
-        .arg_count = 1,\
-        .return_type = FUNCTION_TYPE_BOOL,\
-        .args[0] = FUNCTION_TYPE_POINTER\
-    });
-
-#define kernel_driver_initialize(driver)\
-  Function* _init_##driver = kernel_driver_initializer(driver);\
-  if (_init_##driver != null) {\
-     kernel_process_function_call(_init_##driver, kernel_get());\
-     vdebug("Succesfully called driver initializer"); \
-  }\
-  else {\
-      verror("Failed to find driver initializer");\
-  }
+#define $driver_entry$\
+              b8 setup_process();\
+              b8 destroy_process();\
+              \
+              static const Kernel *kernel;\
+              static Process *process;\
+              \
+              VAPI b8 _init_self(const KernProcEvent event) {\
+               kernel = event.sender.kernel;\
+               process = event.data->pointers.one;\
+               vinfo("Process initialized: %p, kernel addr %p", process, kernel);\
+               return setup_process();\
+              }\
+              \
+              VAPI b8 _destroy_self(const KernProcEvent event) {\
+               kernel = null;\
+               process = null;\
+               vwarn("Process destroyed");\
+               return destroy_process();\
+              }

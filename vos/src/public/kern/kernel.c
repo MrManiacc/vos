@@ -44,9 +44,15 @@ typedef enum ProcessExitCode {
     PROCESS_EXIT_CODE_FAILURE // The process exited with an error.
 } ProcessExitCode;
 
+
 typedef struct KernelRegisterEvent {
     KernelEventCode code;
-    KernelEventPFN callback;
+    b8 is_raw;
+
+    union {
+        KernProcEventPFN raw;
+        const Function *function;
+    } callback;
 } KernelRegisterEvent;
 
 typedef struct KernelEventBag {
@@ -303,7 +309,7 @@ VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSi
             lua_State *L = lprocess->lua_state;
         // Attempt to get the function by its name from the global namespace
             lua_getglobal(L, signature.name);
-         function->context.lua.ref = luaL_ref(lprocess->lua_state, LUA_REGISTRYINDEX);
+            function->context.lua.ref = luaL_ref(lprocess->lua_state, LUA_REGISTRYINDEX);
 
         // // Check if the value at the top of the stack is a function
         //     if (lua_isfunction(L, -1) == false) {
@@ -544,7 +550,7 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
     if (function->base->type == PROCESS_TYPE_LUA) {
         lua_State *L = function->context.lua.lua_state;
         const int base = lua_gettop(L); // Remember the stack's state to clean up later if needed
-        lua_rawgeti(L, LUA_REGISTRYINDEX,  function->context.lua.ref); // Push the function onto the stack
+        lua_rawgeti(L, LUA_REGISTRYINDEX, function->context.lua.ref); // Push the function onto the stack
         // Assuming the rest of the arguments are handled similarly to how you've been handling them
         va_list args;
         va_start(args, function);
@@ -631,8 +637,38 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
 }
 
 
-VAPI b8 kernel_process_run(Process *process) {
-    assert(0 && "Not implemented");
+VAPI b8 kernel_process_run(Kernel *kern, Process *process) {
+    Kernel *kernel = kern ? kern : kernel_get();
+    if (!kernel->initialized) {
+        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+        return false;
+    }
+    // If the process is already running, do nothing.
+    if (process->state == PROCESS_STATE_RUNNING) {
+        return true;
+    }
+
+    // run the setup_process function and return it's result
+    if (process->type == PROCESS_TYPE_DRIVER) {
+        const Function *init_self = kernel_process_function_lookup(process, (FunctionSignature){
+            .name = "_init_self",
+            .arg_count = 2,
+            .return_type = FUNCTION_TYPE_BOOL,
+            .args[0] = FUNCTION_TYPE_POINTER,
+            .args[1] = FUNCTION_TYPE_POINTER,
+        });
+
+        if (init_self == null) {
+            process->state = PROCESS_STATE_DESTROYED;
+            // If the process is not a driver, do nothing.
+            return false;
+        }
+        const b8 result = kernel_process_function_call(init_self, kernel, process).data.boolean;
+        if (result) {
+            process->state = PROCESS_STATE_RUNNING;
+        }
+        return result;
+    }
     return false;
 }
 
@@ -698,8 +734,8 @@ VAPI Process *kernel_process_find(const Kernel *kern, const char *query) {
  * @param on_event The listener function to be invoked when the event occurs.
  * @return Returns true if the listener was successfully registered, false otherwise.
  */
-VAPI b8 kernel_event_listen(const u16 code, const KernelEventPFN on_event) {
-    const Kernel *kernel = kernel_get();
+VAPI b8 kernel_event_listen(const Kernel *kern, const u16 code, const KernProcEventPFN on_event) {
+    const Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
         return false;
@@ -710,34 +746,32 @@ VAPI b8 kernel_event_listen(const u16 code, const KernelEventPFN on_event) {
     // If at this point, no duplicate was found. Proceed with registration.
     KernelRegisterEvent event;
     event.code = code;
-    event.callback = on_event;
+    event.is_raw = true;
+    event.callback.raw = on_event;
     darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
     vinfo("Registered event in kernel at address %p, %p", kernel, kernel->event_state);
     return true;
 }
 
-VAPI b8 kernel_event_trigger(const u16 code, const EventData context) {
-    Kernel *kernel = kernel_get();
+VAPI b8 kernel_event_listen_function(const Kernel *kern, const u16 code, const Function *function) {
+    const Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
         return false;
     }
-    // If nothing is registered for the code, boot out.
     if (kernel->event_state->registered[code].events == 0) {
-        return false;
+        kernel->event_state->registered[code].events = darray_create(KernelRegisterEvent);
     }
-    const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
-    for (u64 i = 0; i < registered_count; ++i) {
-        KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
-        if (e.callback(kernel, code, context)) {
-            // Message has been handled, do not send to other listeners.
-            return true;
-        }
-    }
-    return false;
+    // If at this point, no duplicate was found. Proceed with registration.
+    KernelRegisterEvent event;
+    event.code = code;
+    event.is_raw = false;
+    event.callback.function = function;
+    darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
+    return true;
 }
 
-VAPI b8 kernel_event_unlisten(const u16 code, const KernelEventPFN on_event) {
+VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function) {
     const Kernel *kernel = kernel_get();
     if (!kernel->initialized) {
         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
@@ -750,7 +784,76 @@ VAPI b8 kernel_event_unlisten(const u16 code, const KernelEventPFN on_event) {
     const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
     for (u64 i = 0; i < registered_count; ++i) {
         KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
-        if (e.callback == on_event) {
+        if (e.callback.function == function) {
+            // Found one, remove it
+            KernelRegisterEvent popped_event;
+            darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
+            return true;
+        }
+    }
+    // Not found.
+    return false;
+}
+
+VAPI b8 kernel_event_trigger(const Kernel *kern, const KernProcEvent *event) {
+    const Kernel *kernel = kern ? kern : kernel_get();
+    if (!kernel->initialized) {
+        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+        return false;
+    }
+    // If nothing is registered for the code, boot out.
+    if (kernel->event_state->registered[event->code].events == 0) {
+        return false;
+    }
+    const u64 registered_count = darray_length(kernel->event_state->registered[event->code].events);
+    for (u64 i = 0; i < registered_count; ++i) {
+        const KernelRegisterEvent e = kernel->event_state->registered[event->code].events[i];
+        if (e.is_raw && e.callback.raw(event)) {
+            return true; // If the event was consumed, return true.
+        }
+        if (e.callback.function) {
+            // Call the function
+            const FunctionResult result = kernel_process_function_call(e.callback.function, event);
+            if (result.type == FUNCTION_TYPE_BOOL && result.data.boolean) {
+                return true;
+            } //Cary on to the next event because this one didn't "consume" the event.
+        }
+    }
+    return false;
+}
+
+VAPI KernProcEvent kernel_event_create(const Kernel *kernel, const KernelEventCode code, const EventData *data) {
+    return (KernProcEvent){
+        .code = code,
+        .data = data,
+        .sender.kernel = kernel,
+        .sender.process = null
+    };
+}
+
+VAPI KernProcEvent kernel_process_event_create(const Process *process, const KernelEventCode event, const EventData *data) {
+    return (KernProcEvent){
+        .code = event,
+        .data = data,
+        .sender.kernel = null,
+        .sender.process = process
+    };
+}
+
+VAPI b8 kernel_event_unlisten(const u16 code, const KernProcEventPFN on_event) {
+    const Kernel *kernel = kernel_get();
+    if (!kernel->initialized) {
+        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+        return false;
+    }
+    // On nothing is registered for the code, boot out.
+    if (kernel->event_state->registered[code].events == 0) {
+        return false;
+    }
+    const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
+    for (u64 i = 0; i < registered_count; ++i) {
+        KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
+        if (e.callback.raw == on_event) {
             // Found one, remove it
             KernelRegisterEvent popped_event;
             darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
