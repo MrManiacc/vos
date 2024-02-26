@@ -155,7 +155,7 @@ VAPI Kernel *kernel_get();
  * @brief Shuts down the kernel. This will free the kernel context and all associated resources.
  * It also stops all processes and unloads all drivers.
  */
-VAPI b8 kernel_destroy(Kernel *kern);
+VAPI b8 kernel_destroy(const Kernel *kern);
 
 // =====================================================================================================================
 // Process Management
@@ -166,7 +166,7 @@ VAPI b8 kernel_destroy(Kernel *kern);
  * @param driver_path The path to the driver file.
  * @return A pointer to the process if it was successfully loaded, otherwise NULL.
  */
-VAPI Process *kernel_process_new(const char *driver_path);
+VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path);
 
 typedef enum FunctionType {
     FUNCTION_TYPE_STRING,
@@ -307,3 +307,44 @@ VAPI b8 kernel_event_trigger(u16 code, EventData data);
  * @return Returns true if the listener was successfully unregistered, false otherwise.
  */
 VAPI b8 kernel_event_unlisten(u16 code, KernelEventPFN on_event);
+
+
+// =====================================================================================================================
+// Driver Management
+// =====================================================================================================================
+
+
+// Initializes the kernel. This will allocate the kernel context and initialize the root process view.
+// Should be called from within the main c file of a driver.
+#define kernel_define_driver(...)\
+ VAPI b8 _init_kernel(Kernel *kernel){\
+      _kernel = kernel;\
+      __VA_ARGS__;\
+      return true;\
+ }
+
+// Returns a function pointer to the driver load function.
+//Example:
+// kernel_process_function_lookup(test_driver, (FunctionSignature){
+//         .name = "_init_kernel",
+//         .arg_count = 1,
+//         .return_type = FUNCTION_TYPE_VOID,
+//         .args[0] = FUNCTION_TYPE_POINTER
+//     });
+#define kernel_driver_initializer(driver)\
+  kernel_process_function_lookup(driver, (FunctionSignature){\
+        .name = "_init_kernel",\
+        .arg_count = 1,\
+        .return_type = FUNCTION_TYPE_BOOL,\
+        .args[0] = FUNCTION_TYPE_POINTER\
+    });
+
+#define kernel_driver_initialize(driver)\
+  Function* _init_##driver = kernel_driver_initializer(driver);\
+  if (_init_##driver != null) {\
+     kernel_process_function_call(_init_##driver, kernel_get());\
+     vdebug("Succesfully called driver initializer"); \
+  }\
+  else {\
+      verror("Failed to find driver initializer");\
+  }

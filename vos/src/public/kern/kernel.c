@@ -142,20 +142,21 @@ VAPI Kernel *kernel_get() {
     return &_kernel;
 }
 
-VAPI b8 kernel_destroy() {
-    const Kernel *kernel = kernel_get();
+VAPI b8 kernel_destroy(const Kernel *kern) {
+    const Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         vwarn("Attempted to destroy an uninitialized kernel. Please only call kernel_destroy once per application execution.")
         return false;
     }
     // We need to terminiate all processes before we can destroy the kernel.
-    kfree(kernel->event_state, sizeof(KernelEventState), MEMORY_TAG_KERNEL);
+    // kfree(kernel->event_state, sizeof(KernelEventState), MEMORY_TAG_KERNEL);
+
     strings_shutdown();
     return true;
 }
 
-Process *kernel_new_driver_process(const char *driver_path) {
-    Kernel *kernel = kernel_get();
+Process *kernel_new_driver_process(Kernel *kern, const char *driver_path) {
+    Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attempted to create a Lua process without initializing the kernel. Please call kernel_create before creating a Lua process.");
         return NULL;
@@ -190,8 +191,8 @@ Process *kernel_new_driver_process(const char *driver_path) {
 }
 
 
-Process *kernel_new_lua_process(const char *script_path) {
-    Kernel *kernel = kernel_get();
+Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
+    Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attempted to create a Lua process without initializing the kernel. Please call kernel_create before creating a Lua process.");
         return NULL;
@@ -232,28 +233,13 @@ Process *kernel_new_lua_process(const char *script_path) {
         kfree(lua_process, sizeof(LuaProcess), MEMORY_TAG_KERNEL);
         return null;
     }
-
-    // // Iterate over the global table
-    // lua_pushglobaltable(L);  // Push the global table onto the stack
-    // lua_pushnil(L);  // Push nil onto the stack, the first key for lua_next
-    // while (lua_next(L, -2) != 0) {
-    //     // Key is at index -2 and value is at index -1
-    //     if (lua_isfunction(L, -1)) {
-    //         // Use lua_tostring to convert the key to a string
-    //         const char *key = lua_tostring(L, -2);
-    //         printf("Global function: %s\n", key);
-    //     }
-    //     // Removes the value, keeps the key for the next iteration
-    //     lua_pop(L, 1);
-    // }
-    // lua_pop(L, 1);  // Remove the global table from the stack
     lua_process->lua_state = L;
     kernel->processes[kernel->process_count - 1] = process; // Store the process in the kernel's processes array
     return process;
 }
 
-VAPI Process *kernel_new_gravity_process(const char *script_path) {
-    Kernel *kernel = kernel_get();
+VAPI Process *kernel_new_gravity_process(Kernel *kern, const char *script_path) {
+    Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
         return null;
@@ -267,21 +253,21 @@ VAPI Process *kernel_new_gravity_process(const char *script_path) {
 }
 
 
-VAPI Process *kernel_process_new(const char *driver_path) {
+VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path) {
     const char *ext = strrchr(driver_path, '.');
     if (ext == null) {
         verror("Invalid driver path. Please provide a valid driver path.")
         return null;
     }
     Process *process = null;
+    if (strcmp(ext, platform_dynamic_library_extension()) == 0) {
+        process = kernel_new_driver_process(kernel, driver_path);
+    }
     if (strcmp(ext, ".lua") == 0) {
-        process = kernel_new_lua_process(driver_path);
+        process = kernel_new_lua_process(kernel, driver_path);
     }
     if (strcmp(ext, ".gravity") == 0) {
-        process = kernel_new_gravity_process(driver_path);
-    }
-    if (strcmp(ext, platform_dynamic_library_extension()) == 0) {
-        process = kernel_new_driver_process(driver_path);
+        process = kernel_new_gravity_process(kernel, driver_path);
     }
     if (process == null) {
         verror("Invalid driver path. Please provide a valid driver path.")
@@ -291,7 +277,7 @@ VAPI Process *kernel_process_new(const char *driver_path) {
 }
 
 
-static b8 kernel_process_lua_function_lookup(lua_State *L, const FunctionSignature *signature, b8 keep_pused) {
+static b8 kernel_process_lua_function_lookup(lua_State *L, const FunctionSignature *signature, const b8 pop_off) {
     // Attempt to get the function by its name from the global namespace
     lua_getglobal(L, signature->name);
     // Check if the value at the top of the stack is a function
@@ -309,7 +295,7 @@ static b8 kernel_process_lua_function_lookup(lua_State *L, const FunctionSignatu
 
     // The function was found, you can now call it or do whatever is needed
     // Remember to remove the function from the stack when done, if necessary
-    if (keep_pused == false)
+    if (pop_off == true)
         lua_pop(L, 1); // Only if you're not going to use it immediately
     return true;
 }
@@ -333,7 +319,7 @@ VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSi
             break;
         case PROCESS_TYPE_LUA:
             LuaProcess *lprocess = (LuaProcess *) process;
-            if (!kernel_process_lua_function_lookup(lprocess->lua_state, &signature, false)) {
+            if (!kernel_process_lua_function_lookup(lprocess->lua_state, &signature, true)) {
                 // If the function is not found, free the function and return null
                 // kfree(function, sizeof(Function), MEMORY_TAG_KERNEL);
                 return null;
@@ -348,7 +334,7 @@ VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSi
     return function;
 }
 
-ffi_type *function_type_to_ffi_type(FunctionType type) {
+ffi_type *function_type_to_ffi_type(const FunctionType type) {
     switch (type) {
         case FUNCTION_TYPE_VOID: return &ffi_type_void;
         case FUNCTION_TYPE_I32: return &ffi_type_sint32;
@@ -438,19 +424,19 @@ void push_lua_args(lua_State *L, FunctionSignature signature, va_list args) {
             case FUNCTION_TYPE_U64:
             case FUNCTION_TYPE_I64:
             case FUNCTION_TYPE_I32: {
-                int value = va_arg(args, int);
+                const int value = va_arg(args, int);
                 lua_pushinteger(L, value);
                 break;
             }
             case FUNCTION_TYPE_F64:
             case FUNCTION_TYPE_F32: {
                 // Assuming float values are promoted to double in va_arg
-                double value = va_arg(args, double);
+                const double value = va_arg(args, double);
                 lua_pushnumber(L, value);
                 break;
             }
             case FUNCTION_TYPE_STRING: {
-                char *value = va_arg(args, char*);
+                const char *value = va_arg(args, char*);
                 lua_pushstring(L, value);
                 break;
             }
@@ -565,7 +551,7 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
     if (function->base->type == PROCESS_TYPE_LUA) {
         lua_State *L = function->context.lua_state;
         const int base = lua_gettop(L); // Remember the stack's state to clean up later if needed
-        kernel_process_lua_function_lookup(L, &function->signature, true);
+        kernel_process_lua_function_lookup(L, &function->signature, false);
         // Assuming the rest of the arguments are handled similarly to how you've been handling them
         va_list args;
         va_start(args, function);
@@ -692,7 +678,8 @@ VAPI Process *kernel_process_get(const ProcessID pid) {
 // This will allow us to search for a process by name, returning the first process that matches the query.
 // If no query is passed in, we will return the first process with the name.
 // You can provide a query for the process name and . followed by a number to indicate which instance of the process you want.
-VAPI Process *kernel_process_find(const Kernel* kernel, const char *query) {
+VAPI Process *kernel_process_find(const Kernel *kern, const char *query) {
+    const Kernel *kernel = kern ? kern : kernel_get();
     if (!kernel->initialized) {
         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
         return null;

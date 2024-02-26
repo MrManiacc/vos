@@ -283,7 +283,7 @@ void _kfree_aligned(void *block, u64 size, u16 alignment, memory_tag tag, int li
     } else {
         platform_free(block, false);
     }
-    kfree_record(block);
+    // kfree_record(block);
     block = null;// Set the block to null to prevent double frees.
 }
 

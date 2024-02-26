@@ -663,18 +663,17 @@ void file_path_list_add(FilePathList *fileList, const char *path) {
         perror("Failed to realloc filePaths");
         exit(1); // Or handle error as appropriate
     }
-    fileList->paths[fileList->count] = strdup(path); // Copy the path
+    fileList->paths[fileList->count] = _strdup(path); // Copy the path
     fileList->count++;
 }
 
 // Recursively collect files into the FilePathList
 void collect_files_recursive(const char *base_path, FilePathList *fileList) {
     WIN32_FIND_DATAA find_data;
-    HANDLE find_handle;
     char search_path[MAX_PATH];
     snprintf(search_path, MAX_PATH, "%s\\*", base_path);
 
-    find_handle = FindFirstFileA(search_path, &find_data);
+    const HANDLE find_handle = FindFirstFileA(search_path, &find_data);
     if (find_handle == INVALID_HANDLE_VALUE) {
         return; // Directory not found or unable to open directory.
     }
