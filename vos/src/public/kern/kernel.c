@@ -22,6 +22,7 @@
 
 // Process State, used to determine if a process is running, paused, stopped, or dead.
 typedef enum ProcessState {
+    PROCESS_STATE_UNINITIALIZED, // In this state, the process is running normally. This is the default state of a process.
     PROCESS_STATE_RUNNING, // In this state, the process is running normally. This is the default state of a process.
     PROCESS_STATE_PAUSED, // In this state, the process is paused. This is used to temporarily halt processing of a process.
     PROCESS_STATE_STOPPED, // In this state, the process is stopped. This is the initial state of a process.
@@ -118,6 +119,13 @@ struct Function {
     } context;
 };
 
+// The namespace is used to store a list of functions that are available to a process.
+struct Namespace {
+    const char *name;
+    Dict *functions;
+    const Kernel *kernel; //Store a refernce to the kernel to allow for easy access to the kernel.
+};
+
 
 // The kernel should be responsible for managing the state of the system.
 // This includes the process tree, the event system, the file system, and the driver system.
@@ -128,7 +136,7 @@ struct Kernel {
     Process *processes[KERNEL_MAX_PROCESSES]; // The root process view is the root of the process tree. This is the first process that is executed.
     u32 process_count; // The number of processes in the system.
     KernelEventState *event_state; // The event state is used to track the state of the event system.
-    Dict *process_groups; // A dictionary of process groups. They are indexed by their name.
+    Dict *namespaces; // The namespaces are used to store a list of functions that are available to a process.
 };
 
 // Initializes the kernel.
@@ -143,6 +151,7 @@ VAPI Kernel *kernel_create(const char *root_path) {
     kernel->process_count = 0;
     kernel->event_state = kallocate(sizeof(KernelEventState), MEMORY_TAG_KERNEL);
     kernel->initialized = true;
+    kernel->namespaces = dict_new();
     return kernel;
 }
 
@@ -160,7 +169,7 @@ VAPI b8 kernel_destroy(const Kernel *kern) {
     }
     // We need to terminiate all processes before we can destroy the kernel.
     // kfree(kernel->event_state, sizeof(KernelEventState), MEMORY_TAG_KERNEL);
-
+    // dict_delete(kernel->namespaces);
     strings_shutdown();
     return true;
 }
@@ -200,6 +209,315 @@ Process *kernel_new_driver_process(Kernel *kern, const char *driver_path) {
     return process;
 }
 
+FunctionSignature kernel_process_create_signature(const char *query);
+
+int kernel_lua_namespace_define(lua_State *L) {
+    // Defines a function in a namespace
+    Namespace *ns = lua_touserdata(L, lua_upvalueindex(1));
+    const char *query = lua_tostring(L, 1);
+    Process *process = lua_touserdata(L, lua_upvalueindex(2));
+    // Function* function =
+    //Assumes the second argument is a reference to the function
+    int callback_reference = luaL_ref(L, LUA_REGISTRYINDEX);
+    Function *function = kallocate(sizeof(Function), MEMORY_TAG_KERNEL);
+    function->base = process;
+    function->type = CALLABLE_TYPE_LUA;
+    function->context.lua.ref = callback_reference;
+    function->context.lua.lua_state = L;
+    function->signature = kernel_process_create_signature(query);
+    kernel_namespace_define(ns, function);
+    return 1;
+}
+
+
+int kernel_lua_namespace(lua_State *L) {
+    lua_getglobal(L, "kernel");
+    lua_getfield(L, -1, "kernel_ref");
+    Kernel *kernel = lua_touserdata(L, -1);
+    const char *name = lua_tostring(L, 1);
+    Namespace *ns = kernel_namespace(kernel, name);
+
+    lua_newtable(L); // Create a table for namespace methods
+
+    lua_pushlightuserdata(L, ns);
+    // Instead of setting the namespace_ref in the table, we directly push it as an upvalue for the closure below
+
+    lua_pushlightuserdata(L, kernel); // Assume you might need the Kernel reference as well
+    // Push the kernel_lua_namespace_define function, setting ns and kernel as upvalues
+    lua_pushcclosure(L, kernel_lua_namespace_define, 2);
+    lua_setfield(L, -2, "define"); // Set the "define" field of the namespace methods table
+
+
+    // Return the namespace methods table
+    return 1;
+}
+
+typedef enum {
+    ARG_INTEGER,
+    ARG_NUMBER,
+    ARG_STRING,
+    ARG_BOOLEAN,
+    ARG_NIL,
+    // Add other types as necessary
+} ArgType;
+
+
+typedef struct LuaArg {
+    ArgType type;
+
+    union {
+        i32 i;
+        f64 f;
+        const char *s;
+        b8 b;
+    } value;
+} LuaArg;
+
+typedef struct Args {
+    struct LuaArg args[8];
+    u32 count;
+} Args;
+
+// A helper function to convert the value on the top of the stack to a LuaArgs struct
+Args kernel_proecss_lua_args(lua_State *L) {
+    Args args = {0};
+    // Starting index for arguments is 2 since 1 is the function name
+    const int argStartIndex = 2;
+    // Correctly set the count based on the total number of arguments on the stack
+    // minus the first one (the function name), not the passed count which may be incorrect
+    args.count = lua_gettop(L); // Subtracting the function name from the total count
+
+    for (u32 i = 0; i < args.count; i++) {
+        int stackIndex = argStartIndex + i;
+        if (lua_isinteger(L, stackIndex)) {
+            args.args[i].type = ARG_INTEGER;
+            args.args[i].value.i = lua_tointeger(L, stackIndex);
+        } else if (lua_isnumber(L, stackIndex)) {
+            args.args[i].type = ARG_NUMBER;
+            args.args[i].value.f = lua_tonumber(L, stackIndex);
+        } else if (lua_isstring(L, stackIndex)) {
+            args.args[i].type = ARG_STRING;
+            args.args[i].value.s = lua_tostring(L, stackIndex);
+        } else if (lua_isboolean(L, stackIndex)) {
+            args.args[i].type = ARG_BOOLEAN;
+            args.args[i].value.b = lua_toboolean(L, stackIndex);
+        } else if (lua_isnil(L, stackIndex)) {
+            args.args[i].type = ARG_NIL;
+        }
+        // Add handling for other types as necessary
+    }
+    return args;
+}
+
+ffi_type *function_type_to_ffi_type(const FunctionType type);
+void populate_function_result_from_ffi_return(void *ret_value, const FunctionType return_type, FunctionResult *result);
+
+
+void *allocate_and_set_arg_value(FunctionType type, LuaArg larg) {
+    void *value;
+    switch (type) {
+        case FUNCTION_TYPE_I32: {
+            int *arg = malloc(sizeof(i32));
+            *arg = larg.value.i;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_F32: {
+            float *arg = malloc(sizeof(f32));
+            *arg = larg.value.f;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_F64: {
+            double *arg = malloc(sizeof(f64));
+            *arg = larg.value.f;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_I64: {
+            i64 *arg = malloc(sizeof(i64));
+            *arg = larg.value.i;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_U32: {
+            u32 *arg = malloc(sizeof(u32));
+            *arg = larg.value.i;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_U64: {
+            u64 *arg = malloc(sizeof(u64));
+            *arg = larg.value.i;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_STRING: {
+            void **arg = malloc(sizeof(char *));
+            *arg = larg.value.s;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_POINTER: {
+            void **arg = malloc(sizeof(void *));
+            *arg = larg.value.s;
+            value = arg;
+            break;
+        }
+        case FUNCTION_TYPE_BOOL: {
+            b8 *arg = malloc(sizeof(b8));
+            *arg = larg.value.b;
+            value = arg;
+            break;
+        }
+    }
+    return value;
+}
+
+// Takes in a function name and namespace, looks up the function, then calls it with the var args
+int kernel_lua_call(lua_State *L) {
+    lua_getglobal(L, "kernel");
+    lua_getfield(L, -1, "kernel_ref");
+    Kernel *kernel = lua_touserdata(L, -1);
+    // use kernel_call to call the function after parsing the args
+    const char *qualified_name = lua_tostring(L, 1);
+    Args args = kernel_proecss_lua_args(L);
+    // Assume the rest of the arguments are the arguments to the function
+    if (args.count == 0) {
+        kernel_call(kernel, qualified_name); // Call the function with no arguments
+        return 0;
+    }
+    //Get the namespace by taking the first part of the qualified name
+    const char *ns_name = strtok(qualified_name, ".");
+    const char *func_name = strtok(NULL, ".");
+    const Namespace *ns = kernel_namespace(kernel, ns_name);
+    const Function *function = dict_get(ns->functions, func_name);
+    if (function == null) {
+        verror("Function %s does not exist in namespace %s", func_name, ns_name);
+        return 0;
+    }
+
+    if (function->base->type == PROCESS_TYPE_DRIVER && function->context.pfn) {
+        ffi_cif cif;
+        ffi_type **arg_types = malloc(sizeof(ffi_type *) * function->signature.arg_count);
+        void **arg_values = malloc(sizeof(void *) * function->signature.arg_count);
+        void *ret_value = malloc(sizeof(void *));
+
+        // Prepare argument types and values
+        for (u32 i = 0; i < function->signature.arg_count; ++i) {
+            arg_types[i] = function_type_to_ffi_type(function->signature.args[i]);
+            arg_values[i] = allocate_and_set_arg_value(function->signature.args[i], args.args[i]);
+        }
+
+        if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, function->signature.arg_count, function_type_to_ffi_type(function->signature.return_type), arg_types) == FFI_OK) {
+            ffi_call(&cif, FFI_FN(function->context.pfn), ret_value, arg_values);
+        } else {
+            verror("Failed to prepare FFI call for function %s", function->signature.name);
+        }
+
+        FunctionResult func_result;
+        populate_function_result_from_ffi_return(ret_value, function->signature.return_type, &func_result);
+        free(ret_value);
+        // Clean up
+        for (u32 i = 0; i < function->signature.arg_count; ++i) {
+            free(arg_values[i]);
+        }
+        free(arg_types);
+        free(arg_values);
+        //TODO: convert the function result in a table that can be returned
+        // Now, convert and push the function result onto the Lua stack
+        switch (func_result.type) {
+            case FUNCTION_TYPE_I32:
+                lua_pushinteger(L, func_result.data.i32);
+                break;
+            case FUNCTION_TYPE_F32:
+                lua_pushnumber(L, func_result.data.f32);
+                break;
+            case FUNCTION_TYPE_F64:
+                lua_pushnumber(L, func_result.data.f64);
+                break;
+            case FUNCTION_TYPE_U32:
+                lua_pushinteger(L, func_result.data.u32);
+                break;
+            case FUNCTION_TYPE_U64:
+                lua_pushinteger(L, func_result.data.u64);
+                break;
+            case FUNCTION_TYPE_BOOL:
+                lua_pushboolean(L, func_result.data.boolean);
+                break;
+            case FUNCTION_TYPE_I64:
+                lua_pushinteger(L, func_result.data.i64);
+                break;
+            case FUNCTION_TYPE_STRING:
+                lua_pushstring(L, func_result.data.string);
+                break;
+            case FUNCTION_TYPE_POINTER:
+                lua_pushlightuserdata(L, func_result.data.pointer);
+                break;
+            case FUNCTION_TYPE_ERROR:
+                // Handle error appropriately, perhaps pushing nil or an error message
+                lua_pushnil(L);
+                break;
+            default:
+                lua_pushnil(L); // Fallback for unsupported or unknown types
+                break;
+        }
+        return 1; // Return the number of values you've pushed onto the stack
+    }
+    if (function->base->type == PROCESS_TYPE_LUA) {
+        LuaProcess *lprocess = (LuaProcess *) function->base;
+        lua_rawgeti(lprocess->lua_state, LUA_REGISTRYINDEX, function->context.lua.ref);
+        // Push the arguments to the Lua stack
+        for (u32 i = 0; i < args.count; i++) {
+            switch (args.args[i].type) {
+                case ARG_INTEGER:
+                    lua_pushinteger(lprocess->lua_state, args.args[i].value.i);
+                    break;
+                case ARG_NUMBER:
+                    lua_pushnumber(lprocess->lua_state, args.args[i].value.f);
+                    break;
+                case ARG_STRING:
+                    lua_pushstring(lprocess->lua_state, args.args[i].value.s);
+                    break;
+                case ARG_BOOLEAN:
+                    lua_pushboolean(lprocess->lua_state, args.args[i].value.b);
+                    break;
+                case ARG_NIL:
+                    lua_pushnil(lprocess->lua_state);
+                    break;
+                // Add handling for other types as necessary
+            }
+        }
+        // Call the function
+        if (lua_pcall(lprocess->lua_state, args.count, 0, 0) != LUA_OK) {
+            verror("Failed to call function %s: %s", function->signature.name, lua_tostring(lprocess->lua_state, -1));
+        }
+        return 1; // Return the number of values you've pushed onto the stack
+    }
+
+
+    // directly call the function here
+}
+
+// Sets up the built in Lua functions for interacting with the kernel
+void kernel_setup_lua_process(Kernel *kernel, Process *process, lua_State *L) {
+    // Create a table to store the kernel functions
+    lua_newtable(L);
+    lua_pushlightuserdata(L, kernel);
+    lua_setfield(L, -2, "kernel_ref");
+
+    lua_pushlightuserdata(L, process);
+    lua_setfield(L, -2, "process_ref");
+
+    lua_pushcfunction(L, kernel_lua_call);
+    lua_setfield(L, -2, "call");
+
+    lua_pushcfunction(L, kernel_lua_namespace);
+    lua_setfield(L, -2, "namespace");
+
+    // Add the kernel functions to the table
+    lua_setglobal(L, "kernel");
+}
 
 Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
     Kernel *kernel = kern ? kern : kernel_get();
@@ -227,6 +545,7 @@ Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
     process->name = platform_file_name(script_path);
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
+    kernel_setup_lua_process(kernel, process, L);
     // Load and execute the Lua script
 
     const char *source = platform_read_file(script_path);
@@ -284,6 +603,36 @@ VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path) {
         return null;
     }
     return process;
+}
+
+VAPI Namespace *kernel_namespace(const Kernel *kernel, const char *name) {
+    if (dict_contains(kernel->namespaces, name)) {
+        return dict_get(kernel->namespaces, name);
+    }
+    Namespace *ns = kallocate(sizeof(Namespace), MEMORY_TAG_KERNEL);
+    ns->name = name;
+    ns->functions = dict_new();
+    ns->kernel = kernel;
+    dict_set(kernel->namespaces, name, ns);
+    return ns;
+}
+
+VAPI b8 kernel_namespace_define(const Namespace *namespace, Function *function) {
+    if (dict_contains(namespace->functions, function->signature.name)) {
+        verror("Function %s already exists in namespace %s", function->signature.name, namespace->name);
+        return false;
+    }
+    dict_set(namespace->functions, function->signature.name, function);
+    return true;
+}
+
+VAPI b8 kernel_namespace_define_query(const Namespace *namespace, Process *process, const char *query) {
+    Function *func = kernel_process_function_query(process, query);
+    if (func == null) {
+        verror("Failed to define function from query %s", query);
+        return false;
+    }
+    return kernel_namespace_define(namespace, func);
 }
 
 
@@ -416,6 +765,77 @@ void *allocate_arg_value(FunctionType type, va_list *args) {
 }
 
 
+// Auxiliary function to map string to FunctionType
+FunctionType string_to_function_type(const char *type_str) {
+    if (strcmp(type_str, "f32") == 0) return FUNCTION_TYPE_F32;
+    if (strcmp(type_str, "f64") == 0) return FUNCTION_TYPE_F64;
+    if (strcmp(type_str, "u32") == 0) return FUNCTION_TYPE_U32;
+    if (strcmp(type_str, "u64") == 0) return FUNCTION_TYPE_U64;
+    if (strcmp(type_str, "i32") == 0) return FUNCTION_TYPE_I32;
+    if (strcmp(type_str, "bool") == 0) return FUNCTION_TYPE_BOOL;
+    if (strcmp(type_str, "i64") == 0) return FUNCTION_TYPE_I64;
+    if (strcmp(type_str, "void") == 0) return FUNCTION_TYPE_VOID;
+    if (strcmp(type_str, "pointer") == 0) return FUNCTION_TYPE_POINTER;
+    if (strcmp(type_str, "string") == 0) return FUNCTION_TYPE_STRING;
+    return FUNCTION_TYPE_ERROR;
+}
+
+FunctionSignature kernel_process_create_signature(const char *query) {
+    FunctionSignature signature = {0};
+    const char *open_paren = strchr(query, '(');
+    if (open_paren == NULL) {
+        signature.name = strdup(query); // strdup to allocate and copy the name
+        signature.return_type = FUNCTION_TYPE_VOID; // Assuming default return type is void if not specified
+        return (FunctionSignature){.return_type = FUNCTION_TYPE_ERROR};
+    }
+
+    // Extract function name
+    size_t name_len = open_paren - query;
+    char *func_name = (char *) malloc(name_len + 1);
+    strncpy(func_name, query, name_len);
+    func_name[name_len] = '\0';
+    signature.name = func_name;
+
+    // Extract arguments and return type
+    const char *close_paren = strchr(open_paren, ')');
+    if (close_paren == NULL) {
+        verror("Invalid function signature. No closing ) found.");
+        free(func_name);
+        return (FunctionSignature){.return_type = FUNCTION_TYPE_ERROR};
+    }
+
+    // Process arguments
+    char *args_str = (char *) malloc(close_paren - open_paren);
+    strncpy(args_str, open_paren + 1, close_paren - open_paren - 1);
+    args_str[close_paren - open_paren - 1] = '\0';
+
+    char *arg = strtok(args_str, ";");
+    while (arg != NULL && signature.arg_count < MAX_FUNCTION_ARGS) {
+        signature.args[signature.arg_count++] = string_to_function_type(arg);
+        arg = strtok(NULL, ";");
+    }
+
+    free(args_str);
+
+    // Process return type
+    const char *return_type_str = close_paren + 1;
+    if (*return_type_str == '\0') {
+        // No return type specified
+        signature.return_type = FUNCTION_TYPE_VOID;
+    } else {
+        signature.return_type = string_to_function_type(return_type_str);
+    }
+    return signature;
+}
+
+// Constructs a function signature from the query string
+//Example query: "render(f32;pointer;f32);f32" would equate to "f32 render(f32, void*, f32)"
+VAPI Function *kernel_process_function_query(Process *process, const char *query) {
+    const FunctionSignature signature = kernel_process_create_signature(query);
+    return kernel_process_function_lookup(process, signature);
+}
+
+
 void push_lua_args(lua_State *L, FunctionSignature signature, va_list args) {
     for (int i = 0; i < signature.arg_count; i++) {
         switch (signature.args[i]) {
@@ -512,15 +932,13 @@ void populate_function_result_from_ffi_return(void *ret_value, const FunctionTyp
     }
 }
 
-VAPI FunctionResult kernel_process_function_call(const Function *function, ...) {
+VAPI FunctionResult kernel_process_function_call_internal(const Function *function, va_list args) {
     if (function->base->type == PROCESS_TYPE_DRIVER && function->context.pfn) {
         ffi_cif cif;
         ffi_type **arg_types = malloc(sizeof(ffi_type *) * function->signature.arg_count);
         void **arg_values = malloc(sizeof(void *) * function->signature.arg_count);
         void *ret_value = malloc(sizeof(void *));
 
-        va_list args;
-        va_start(args, function);
 
         // Prepare argument types and values
         for (int i = 0; i < function->signature.arg_count; ++i) {
@@ -543,7 +961,6 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
         }
         free(arg_types);
         free(arg_values);
-        va_end(args);
 
         return func_result; // Assuming success
     }
@@ -552,10 +969,7 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
         const int base = lua_gettop(L); // Remember the stack's state to clean up later if needed
         lua_rawgeti(L, LUA_REGISTRYINDEX, function->context.lua.ref); // Push the function onto the stack
         // Assuming the rest of the arguments are handled similarly to how you've been handling them
-        va_list args;
-        va_start(args, function);
         push_lua_args(L, function->signature, args);
-        va_end(args);
         // Call the Lua function with arg_count arguments, expect 1 result (change as needed)
         if (lua_pcall(L, function->signature.arg_count, 1, 0) != LUA_OK) {
             FunctionResult func_result = {0};
@@ -636,6 +1050,44 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
     return (FunctionResult){0};
 }
 
+VAPI FunctionResult kernel_namespace_call(const Namespace *namespace, char *function, ...) {
+    if (!dict_contains(namespace->functions, function)) {
+        verror("Function %s does not exist in namespace %s", function, namespace->name);
+        return (FunctionResult){.type = FUNCTION_TYPE_ERROR};
+    }
+    va_list args;
+    va_start(args, function);
+    const Function *func = dict_get(namespace->functions, function);
+    const FunctionResult result = kernel_process_function_call_internal(func, args);
+    va_end(args);
+    return result;
+}
+
+VAPI FunctionResult kernel_call(const Kernel *kernel, const char *qualified_name, ...) {
+    //Get the namespace by taking the first part of the qualified name
+    const char *ns_name = strtok(qualified_name, ".");
+    const char *func_name = strtok(NULL, ".");
+    va_list args;
+    va_start(args, qualified_name);
+    const Namespace *ns = kernel_namespace(kernel, ns_name);
+    const Function *func = dict_get(ns->functions, func_name);
+    if (func == null) {
+        verror("Function %s does not exist in namespace %s", func_name, ns_name);
+        return (FunctionResult){.type = FUNCTION_TYPE_ERROR};
+    }
+    const FunctionResult result = kernel_process_function_call_internal(func, args);
+    va_end(args);
+    return result;
+}
+
+VAPI FunctionResult kernel_process_function_call(const Function *function, ...) {
+    va_list args;
+    va_start(args, function);
+    const FunctionResult result = kernel_process_function_call_internal(function, args);
+    va_end(args);
+    return result;
+}
+
 
 VAPI b8 kernel_process_run(Kernel *kern, Process *process) {
     Kernel *kernel = kern ? kern : kernel_get();
@@ -647,29 +1099,34 @@ VAPI b8 kernel_process_run(Kernel *kern, Process *process) {
     if (process->state == PROCESS_STATE_RUNNING) {
         return true;
     }
-
+    const Function *init_self = null;
     // run the setup_process function and return it's result
     if (process->type == PROCESS_TYPE_DRIVER) {
-        const Function *init_self = kernel_process_function_lookup(process, (FunctionSignature){
+        init_self = kernel_process_function_lookup(process, (FunctionSignature){
             .name = "_init_self",
             .arg_count = 2,
             .return_type = FUNCTION_TYPE_BOOL,
             .args[0] = FUNCTION_TYPE_POINTER,
             .args[1] = FUNCTION_TYPE_POINTER,
         });
-
-        if (init_self == null) {
-            process->state = PROCESS_STATE_DESTROYED;
-            // If the process is not a driver, do nothing.
-            return false;
-        }
-        const b8 result = kernel_process_function_call(init_self, kernel, process).data.boolean;
-        if (result) {
-            process->state = PROCESS_STATE_RUNNING;
-        }
-        return result;
     }
-    return false;
+    if (process->type == PROCESS_TYPE_LUA) {
+        init_self = kernel_process_function_lookup(process, (FunctionSignature){
+            .name = "_init_self",
+            .arg_count = 0,
+            .return_type = FUNCTION_TYPE_VOID
+        });
+    }
+    if (init_self == null) {
+        process->state = PROCESS_STATE_DESTROYED;
+        // If the process is not a driver, do nothing.
+        return false;
+    }
+    const b8 result = kernel_process_function_call(init_self, kernel, process).data.boolean;
+    if (result) {
+        process->state = PROCESS_STATE_RUNNING;
+    }
+    return result;
 }
 
 VAPI b8 kernel_process_pause(Process *process) {

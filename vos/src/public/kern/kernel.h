@@ -31,6 +31,51 @@ typedef struct Process Process;
 // A function pointer that allows callable context to be passed to a function.
 typedef struct Function Function;
 
+// A namespace is a collection of functions that can be called by a process.
+typedef struct Namespace Namespace;
+
+
+typedef enum FunctionType {
+    FUNCTION_TYPE_STRING,
+    FUNCTION_TYPE_F32,
+    FUNCTION_TYPE_F64,
+    FUNCTION_TYPE_U32,
+    FUNCTION_TYPE_U64,
+    FUNCTION_TYPE_I32,
+    FUNCTION_TYPE_BOOL, //b8
+    FUNCTION_TYPE_I64,
+    FUNCTION_TYPE_VOID,
+    FUNCTION_TYPE_POINTER,
+    FUNCTION_TYPE_ERROR
+} FunctionType;
+
+
+typedef struct FunctionResult {
+    FunctionType type;
+
+    union {
+        const char *error;
+        f32 f32;
+        f64 f64;
+        u32 u32;
+        u64 u64;
+        i32 i32;
+        i64 i64;
+        b8 boolean;
+        void *pointer;
+        const char *string;
+    } data;
+} FunctionResult;
+
+#define MAX_FUNCTION_ARGS 8
+
+typedef struct FunctionSignature {
+    const char *name; // The function name
+    FunctionType args[MAX_FUNCTION_ARGS];
+    u8 arg_count;
+    FunctionType return_type;
+} FunctionSignature;
+
 
 /**
  * @brief Represents event contextual data to be sent along with an
@@ -166,51 +211,37 @@ VAPI b8 kernel_destroy(const Kernel *kern);
  */
 VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path);
 
-typedef enum FunctionType {
-    FUNCTION_TYPE_STRING,
-    FUNCTION_TYPE_F32,
-    FUNCTION_TYPE_F64,
-    FUNCTION_TYPE_U32,
-    FUNCTION_TYPE_U64,
-    FUNCTION_TYPE_I32,
-    FUNCTION_TYPE_BOOL, //b8
-    FUNCTION_TYPE_I64,
-    FUNCTION_TYPE_VOID,
-    FUNCTION_TYPE_POINTER,
-    FUNCTION_TYPE_ERROR
-} FunctionType;
-
-
-typedef struct FunctionResult {
-    FunctionType type;
-
-    union {
-        const char *error;
-        f32 f32;
-        f64 f64;
-        u32 u32;
-        u64 u64;
-        i32 i32;
-        i64 i64;
-        b8 boolean;
-        void *pointer;
-        const char *string;
-    } data;
-} FunctionResult;
-
-#define MAX_FUNCTION_ARGS 8
-
-typedef struct FunctionSignature {
-    const char *name; // The function name
-    FunctionType args[MAX_FUNCTION_ARGS];
-    u8 arg_count;
-    FunctionType return_type;
-} FunctionSignature;
-
 /**
  * Looks up a callback function in a process.
  */
-VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSignature signature);
+VAPI Function *kernel_process_function_lookup(Process *process, FunctionSignature signature);
+/**
+ *Constructs a function signature from a string.
+ */
+VAPI Function *kernel_process_function_query(Process *process, const char *query);
+
+/**
+ *A namespace is a singleton stored directly in the kernel. If it doesn't exist when looking up,
+ * it will be created then return.
+ */
+VAPI Namespace *kernel_namespace(const Kernel *kernel, const char *name);
+
+
+/**
+ * Defines a function in a namespace. This allows the function to be called directly useing the namespace.
+ *
+ * Namespaces are a wrapper around multiple process's functions. Allowing for a single point of access to multiple functions.
+ */
+VAPI b8 kernel_namespace_define(const Namespace *namespace, Function *signature);
+
+//Define a function using a query
+VAPI b8 kernel_namespace_define_query(const Namespace *namespace, Process *process, const char *query);
+
+VAPI FunctionResult kernel_namespace_call(const Namespace *namespace, char *function, ...);
+
+// Looks up the function in the namespace, if it doesn't exist, it will return null.
+VAPI FunctionResult kernel_call(const Kernel* kernel, const char *qualified_name, ...);
+
 
 /**
  * Calls a function in a process.
@@ -335,26 +366,32 @@ VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function)
 // Driver Management
 // =====================================================================================================================
 
-
 // Initializes the kernel. This will allocate the kernel context and initialize the root process view.
 // Should be called from within the main c file of a driver.
-#define $driver_entry$\
-              b8 setup_process();\
-              b8 destroy_process();\
+#define $driver_entry(name)\
+              b8 driver_create(const Namespace* ns);\
+              b8 driver_destroy(const Namespace* ns);\
               \
               static const Kernel *kernel;\
               static Process *process;\
+              static const Namespace *ns;\
               \
-              VAPI b8 _init_self(const KernProcEvent event) {\
-               kernel = event.sender.kernel;\
-               process = event.data->pointers.one;\
-               vinfo("Process initialized: %p, kernel addr %p", process, kernel);\
-               return setup_process();\
+              VAPI b8 _init_self(Kernel* _kernel, Process* _process) {\
+               kernel = _kernel;\
+               process = _process;\
+               ns = kernel_namespace(kernel, name);\
+               if(ns == null) {\
+                verror("Failed to create namespace");\
+                return false;\
+               }\
+               return driver_create(ns);\
               }\
               \
-              VAPI b8 _destroy_self(const KernProcEvent event) {\
+              VAPI b8 _destroy_self() {\
+               vwarn("Process destroyed");\
+               b8 result =  driver_destroy(ns);\
                kernel = null;\
                process = null;\
-               vwarn("Process destroyed");\
-               return destroy_process();\
+               ns = null;\
+               return result;\
               }

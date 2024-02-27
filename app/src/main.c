@@ -72,30 +72,18 @@ int main(int argc, char **argv) {
         .data = &data,
         .sender.kernel = kernel,
     };
+    kernel_process_run(kernel, test_driver);
+    kernel_process_run(kernel, test_script);
 
-    // Get the setup function
-    const Function *setup_self = kernel_process_function_lookup(test_driver, (FunctionSignature){
-        .name = "_init_self",
-        .arg_count = 2,
-        .return_type = FUNCTION_TYPE_BOOL,
-        .args[0] = FUNCTION_TYPE_POINTER,
-        .args[1] = FUNCTION_TYPE_POINTER,
-    });
-
-    // Listen for the kernel init event
-    kernel_event_listen_function(null, EVENT_KERNEL_INIT, setup_self);
-
-    kernel_event_trigger(kernel, &(KernProcEvent){
-        .code = EVENT_KERNEL_INIT,
-        .data = &(EventData){
-            .pointers = {
-                .one = test_driver
-            },
-        },
-        .sender.kernel = kernel,
-    });
-
-
+    // kernel_event_trigger(kernel, &(KernProcEvent){
+    //     .code = EVENT_KERNEL_INIT,
+    //     .data = &(EventData){
+    //         .pointers = {
+    //             .one = test_driver
+    //         },
+    //     },
+    //     .sender.kernel = kernel,
+    // });
 
     // make the second double actually be a pointer to the nanovg context. We only really need to do this once.
     data.f64[1] = (double) ((uintptr_t) window.vg); // Store in your double array
