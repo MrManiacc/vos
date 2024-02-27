@@ -15,129 +15,7 @@
 #include "lauxlib.h"
 #include "lualib.h"
 #include "platform/platform.h"
-
-#ifndef KERNEL_MAX_PROCESSES
-#define KERNEL_MAX_PROCESSES 256
-#endif
-
-// Process State, used to determine if a process is running, paused, stopped, or dead.
-typedef enum ProcessState {
-    PROCESS_STATE_UNINITIALIZED, // In this state, the process is running normally. This is the default state of a process.
-    PROCESS_STATE_RUNNING, // In this state, the process is running normally. This is the default state of a process.
-    PROCESS_STATE_PAUSED, // In this state, the process is paused. This is used to temporarily halt processing of a process.
-    PROCESS_STATE_STOPPED, // In this state, the process is stopped. This is the initial state of a process.
-    PROCESS_STATE_DESTROYED, // In this state, the process is dead. This is the final state of a process. Once a process is dead, it cannot be restarted.
-    PROCESS_STATE_MAX_STATES
-} ProcessState;
-
-// Process Type, used to determine if a process is a kernel process or a user process.
-typedef enum ProcessType {
-    PROCESS_TYPE_DRIVER, // For drivers, these are shared libraries that are loaded into the kernel.
-    PROCESS_TYPE_LUA, // For user processes, these are lua scripts that are executed by the kernel.
-    PROCESS_TYPE_GRAVITY // For user processes, these are gravity lang scripts that are executed by the kernel.
-} ProcessType;
-
-// Process Exit Code, used to determine the exit code of a process.
-typedef enum ProcessExitCode {
-    PROCESS_EXIT_CODE_SUCCESS, // The process exited successfully.
-    PROCESS_EXIT_CODE_KILLED, // The process was killed by the kernel.
-    PROCESS_EXIT_CODE_RELOADED, // The process was reloaded by the kernel.
-    PROCESS_EXIT_CODE_FAILURE // The process exited with an error.
-} ProcessExitCode;
-
-
-typedef struct KernelRegisterEvent {
-    KernelEventCode code;
-    b8 is_raw;
-
-    union {
-        KernProcEventPFN raw;
-        const Function *function;
-    } callback;
-} KernelRegisterEvent;
-
-typedef struct KernelEventBag {
-    KernelRegisterEvent *events;
-} KernelEventBag;
-
-// This should be more than enough codes...
-#define MAX_MESSAGE_CODES 512
-
-// State structure.
-typedef struct KernelEventState {
-    // Lookup table for event codes.
-    KernelEventBag registered[MAX_MESSAGE_CODES];
-} KernelEventState;
-
-
-struct Process {
-    // The type of the process. This is used to determine if a process is a kernel process or a user process.
-    ProcessType type;
-    // The state of the process. This is used to determine if a process is running, paused, stopped, or dead.
-    ProcessState state;
-    // The unique id of the process. This is used to identify the process.
-    ProcessID pid;
-    // The path of the process. This is used to identify the process.
-    ProcessPath path;
-    // The name of the process. Extracted from the paths filename.
-    ProcessName name;
-    // Stores the list of functions that have been looked up so they can be freed later.
-    Dict *functions;
-};
-
-typedef struct DriverProcess {
-    Process base; // The base process. This allows us to treat a driver process as a process.
-    DynLib *handle; // The library handle
-} DriverProcess;
-
-
-typedef struct LuaProcess {
-    Process base;
-    lua_State *lua_state;
-} LuaProcess;
-
-typedef enum CallableType {
-    CALLABLE_TYPE_DRIVER,
-    CALLABLE_TYPE_LUA,
-    CALLABLE_TYPE_GRAVITY, // Future expansion
-} CallableType;
-
-// A callable context is used to call a function in a process.
-struct Function {
-    Process *base; // To allow us to treat a process function as a process.
-    CallableType type;
-    FunctionSignature signature; // The function's signature
-
-    union {
-        void *pfn; // the raw function pointer for a driver function
-        struct lua {
-            lua_State *lua_state; // Lua context for a lua function
-            int ref; // The reference to the function in the Lua registry
-        } lua;
-
-        //TODO gravity context
-    } context;
-};
-
-// The namespace is used to store a list of functions that are available to a process.
-struct Namespace {
-    const char *name;
-    Dict *functions;
-    const Kernel *kernel; //Store a refernce to the kernel to allow for easy access to the kernel.
-};
-
-
-// The kernel should be responsible for managing the state of the system.
-// This includes the process tree, the event system, the file system, and the driver system.
-//
-struct Kernel {
-    b8 initialized; // Whether the kernel has been initialized.
-    ProcessPath root_path; // The root path of the file system.
-    Process *processes[KERNEL_MAX_PROCESSES]; // The root process view is the root of the process tree. This is the first process that is executed.
-    u32 process_count; // The number of processes in the system.
-    KernelEventState *event_state; // The event state is used to track the state of the event system.
-    Dict *namespaces; // The namespaces are used to store a list of functions that are available to a process.
-};
+#include "kern/kernel_ext.h"
 
 // Initializes the kernel.
 VAPI Kernel *kernel_create(const char *root_path) {
@@ -149,7 +27,7 @@ VAPI Kernel *kernel_create(const char *root_path) {
     strings_initialize();
     kernel->root_path = root_path;
     kernel->process_count = 0;
-    kernel->event_state = kallocate(sizeof(KernelEventState), MEMORY_TAG_KERNEL);
+    kernel->event_state = kallocate(sizeof(EventState), MEMORY_TAG_KERNEL);
     kernel->initialized = true;
     kernel->namespaces = dict_new();
     return kernel;
@@ -174,436 +52,6 @@ VAPI b8 kernel_destroy(const Kernel *kern) {
     return true;
 }
 
-Process *kernel_new_driver_process(Kernel *kern, const char *driver_path) {
-    Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attempted to create a Lua process without initializing the kernel. Please call kernel_create before creating a Lua process.");
-        return NULL;
-    }
-    Process *process = kallocate(sizeof(DriverProcess), MEMORY_TAG_KERNEL);
-    if (!process) {
-        verror("Failed to allocate memory for Driver process.");
-        return NULL;
-    }
-    process->type = PROCESS_TYPE_DRIVER;
-    process->path = driver_path;
-    process->name = platform_file_name(driver_path);
-    if (kernel->process_count >= KERNEL_MAX_PROCESSES) {
-        verror("Too many processes");
-        kfree(process, sizeof(DriverProcess), MEMORY_TAG_KERNEL);
-        return NULL;
-    }
-    process->pid = kernel->process_count++;
-    DriverProcess *dprocess = (DriverProcess *) process;
-    DynLib *handle = kallocate(sizeof(DynLib), MEMORY_TAG_KERNEL);
-    if (!platform_dynamic_library_load(driver_path, handle)) {
-        verror("Failed to load driver %s", driver_path);
-        kfree(handle, sizeof(DynLib), MEMORY_TAG_KERNEL);
-        kfree(process, sizeof(DriverProcess), MEMORY_TAG_KERNEL);
-        return null;
-    }
-    dprocess->handle = handle;
-    // At this point, the Lua script is loaded but not executed.
-    // You can now lookup functions within the script and call them later.
-    kernel->processes[kernel->process_count - 1] = process; // Store the process in the kernel's processes array
-    return process;
-}
-
-FunctionSignature kernel_process_create_signature(const char *query);
-
-int kernel_lua_namespace_define(lua_State *L) {
-    // Defines a function in a namespace
-    Namespace *ns = lua_touserdata(L, lua_upvalueindex(1));
-    const char *query = lua_tostring(L, 1);
-    Process *process = lua_touserdata(L, lua_upvalueindex(2));
-    // Function* function =
-    //Assumes the second argument is a reference to the function
-    int callback_reference = luaL_ref(L, LUA_REGISTRYINDEX);
-    Function *function = kallocate(sizeof(Function), MEMORY_TAG_KERNEL);
-    function->base = process;
-    function->type = CALLABLE_TYPE_LUA;
-    function->context.lua.ref = callback_reference;
-    function->context.lua.lua_state = L;
-    function->signature = kernel_process_create_signature(query);
-    kernel_namespace_define(ns, function);
-    return 1;
-}
-
-
-int kernel_lua_namespace(lua_State *L) {
-    lua_getglobal(L, "kernel");
-    lua_getfield(L, -1, "kernel_ref");
-    Kernel *kernel = lua_touserdata(L, -1);
-    const char *name = lua_tostring(L, 1);
-    Namespace *ns = kernel_namespace(kernel, name);
-
-    lua_newtable(L); // Create a table for namespace methods
-
-    lua_pushlightuserdata(L, ns);
-    // Instead of setting the namespace_ref in the table, we directly push it as an upvalue for the closure below
-
-    lua_pushlightuserdata(L, kernel); // Assume you might need the Kernel reference as well
-    // Push the kernel_lua_namespace_define function, setting ns and kernel as upvalues
-    lua_pushcclosure(L, kernel_lua_namespace_define, 2);
-    lua_setfield(L, -2, "define"); // Set the "define" field of the namespace methods table
-
-
-    // Return the namespace methods table
-    return 1;
-}
-
-typedef enum {
-    ARG_INTEGER,
-    ARG_NUMBER,
-    ARG_STRING,
-    ARG_BOOLEAN,
-    ARG_NIL,
-    // Add other types as necessary
-} ArgType;
-
-
-typedef struct LuaArg {
-    ArgType type;
-
-    union {
-        i32 i;
-        f64 f;
-        const char *s;
-        b8 b;
-    } value;
-} LuaArg;
-
-typedef struct Args {
-    struct LuaArg args[8];
-    u32 count;
-} Args;
-
-// A helper function to convert the value on the top of the stack to a LuaArgs struct
-Args kernel_proecss_lua_args(lua_State *L) {
-    Args args = {0};
-    // Starting index for arguments is 2 since 1 is the function name
-    const int argStartIndex = 2;
-    // Correctly set the count based on the total number of arguments on the stack
-    // minus the first one (the function name), not the passed count which may be incorrect
-    args.count = lua_gettop(L); // Subtracting the function name from the total count
-
-    for (u32 i = 0; i < args.count; i++) {
-        int stackIndex = argStartIndex + i;
-        if (lua_isinteger(L, stackIndex)) {
-            args.args[i].type = ARG_INTEGER;
-            args.args[i].value.i = lua_tointeger(L, stackIndex);
-        } else if (lua_isnumber(L, stackIndex)) {
-            args.args[i].type = ARG_NUMBER;
-            args.args[i].value.f = lua_tonumber(L, stackIndex);
-        } else if (lua_isstring(L, stackIndex)) {
-            args.args[i].type = ARG_STRING;
-            args.args[i].value.s = lua_tostring(L, stackIndex);
-        } else if (lua_isboolean(L, stackIndex)) {
-            args.args[i].type = ARG_BOOLEAN;
-            args.args[i].value.b = lua_toboolean(L, stackIndex);
-        } else if (lua_isnil(L, stackIndex)) {
-            args.args[i].type = ARG_NIL;
-        }
-        // Add handling for other types as necessary
-    }
-    return args;
-}
-
-ffi_type *function_type_to_ffi_type(const FunctionType type);
-void populate_function_result_from_ffi_return(void *ret_value, const FunctionType return_type, FunctionResult *result);
-
-
-void *allocate_and_set_arg_value(FunctionType type, LuaArg larg) {
-    void *value;
-    switch (type) {
-        case FUNCTION_TYPE_I32: {
-            int *arg = malloc(sizeof(i32));
-            *arg = larg.value.i;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_F32: {
-            float *arg = malloc(sizeof(f32));
-            *arg = larg.value.f;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_F64: {
-            double *arg = malloc(sizeof(f64));
-            *arg = larg.value.f;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_I64: {
-            i64 *arg = malloc(sizeof(i64));
-            *arg = larg.value.i;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_U32: {
-            u32 *arg = malloc(sizeof(u32));
-            *arg = larg.value.i;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_U64: {
-            u64 *arg = malloc(sizeof(u64));
-            *arg = larg.value.i;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_STRING: {
-            void **arg = malloc(sizeof(char *));
-            *arg = larg.value.s;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_POINTER: {
-            void **arg = malloc(sizeof(void *));
-            *arg = larg.value.s;
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_BOOL: {
-            b8 *arg = malloc(sizeof(b8));
-            *arg = larg.value.b;
-            value = arg;
-            break;
-        }
-    }
-    return value;
-}
-
-// Takes in a function name and namespace, looks up the function, then calls it with the var args
-int kernel_lua_call(lua_State *L) {
-    lua_getglobal(L, "kernel");
-    lua_getfield(L, -1, "kernel_ref");
-    Kernel *kernel = lua_touserdata(L, -1);
-    // use kernel_call to call the function after parsing the args
-    const char *qualified_name = lua_tostring(L, 1);
-    Args args = kernel_proecss_lua_args(L);
-    // Assume the rest of the arguments are the arguments to the function
-    if (args.count == 0) {
-        kernel_call(kernel, qualified_name); // Call the function with no arguments
-        return 0;
-    }
-    //Get the namespace by taking the first part of the qualified name
-    const char *ns_name = strtok(qualified_name, ".");
-    const char *func_name = strtok(NULL, ".");
-    const Namespace *ns = kernel_namespace(kernel, ns_name);
-    const Function *function = dict_get(ns->functions, func_name);
-    if (function == null) {
-        verror("Function %s does not exist in namespace %s", func_name, ns_name);
-        return 0;
-    }
-
-    if (function->base->type == PROCESS_TYPE_DRIVER && function->context.pfn) {
-        ffi_cif cif;
-        ffi_type **arg_types = malloc(sizeof(ffi_type *) * function->signature.arg_count);
-        void **arg_values = malloc(sizeof(void *) * function->signature.arg_count);
-        void *ret_value = malloc(sizeof(void *));
-
-        // Prepare argument types and values
-        for (u32 i = 0; i < function->signature.arg_count; ++i) {
-            arg_types[i] = function_type_to_ffi_type(function->signature.args[i]);
-            arg_values[i] = allocate_and_set_arg_value(function->signature.args[i], args.args[i]);
-        }
-
-        if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, function->signature.arg_count, function_type_to_ffi_type(function->signature.return_type), arg_types) == FFI_OK) {
-            ffi_call(&cif, FFI_FN(function->context.pfn), ret_value, arg_values);
-        } else {
-            verror("Failed to prepare FFI call for function %s", function->signature.name);
-        }
-
-        FunctionResult func_result;
-        populate_function_result_from_ffi_return(ret_value, function->signature.return_type, &func_result);
-        free(ret_value);
-        // Clean up
-        for (u32 i = 0; i < function->signature.arg_count; ++i) {
-            free(arg_values[i]);
-        }
-        free(arg_types);
-        free(arg_values);
-        //TODO: convert the function result in a table that can be returned
-        // Now, convert and push the function result onto the Lua stack
-        switch (func_result.type) {
-            case FUNCTION_TYPE_I32:
-                lua_pushinteger(L, func_result.data.i32);
-                break;
-            case FUNCTION_TYPE_F32:
-                lua_pushnumber(L, func_result.data.f32);
-                break;
-            case FUNCTION_TYPE_F64:
-                lua_pushnumber(L, func_result.data.f64);
-                break;
-            case FUNCTION_TYPE_U32:
-                lua_pushinteger(L, func_result.data.u32);
-                break;
-            case FUNCTION_TYPE_U64:
-                lua_pushinteger(L, func_result.data.u64);
-                break;
-            case FUNCTION_TYPE_BOOL:
-                lua_pushboolean(L, func_result.data.boolean);
-                break;
-            case FUNCTION_TYPE_I64:
-                lua_pushinteger(L, func_result.data.i64);
-                break;
-            case FUNCTION_TYPE_STRING:
-                lua_pushstring(L, func_result.data.string);
-                break;
-            case FUNCTION_TYPE_POINTER:
-                lua_pushlightuserdata(L, func_result.data.pointer);
-                break;
-            case FUNCTION_TYPE_ERROR:
-                // Handle error appropriately, perhaps pushing nil or an error message
-                lua_pushnil(L);
-                break;
-            default:
-                lua_pushnil(L); // Fallback for unsupported or unknown types
-                break;
-        }
-        return 1; // Return the number of values you've pushed onto the stack
-    }
-    if (function->base->type == PROCESS_TYPE_LUA) {
-        LuaProcess *lprocess = (LuaProcess *) function->base;
-        lua_rawgeti(lprocess->lua_state, LUA_REGISTRYINDEX, function->context.lua.ref);
-        // Push the arguments to the Lua stack
-        for (u32 i = 0; i < args.count; i++) {
-            switch (args.args[i].type) {
-                case ARG_INTEGER:
-                    lua_pushinteger(lprocess->lua_state, args.args[i].value.i);
-                    break;
-                case ARG_NUMBER:
-                    lua_pushnumber(lprocess->lua_state, args.args[i].value.f);
-                    break;
-                case ARG_STRING:
-                    lua_pushstring(lprocess->lua_state, args.args[i].value.s);
-                    break;
-                case ARG_BOOLEAN:
-                    lua_pushboolean(lprocess->lua_state, args.args[i].value.b);
-                    break;
-                case ARG_NIL:
-                    lua_pushnil(lprocess->lua_state);
-                    break;
-                // Add handling for other types as necessary
-            }
-        }
-        // Call the function
-        if (lua_pcall(lprocess->lua_state, args.count, 0, 0) != LUA_OK) {
-            verror("Failed to call function %s: %s", function->signature.name, lua_tostring(lprocess->lua_state, -1));
-        }
-        return 1; // Return the number of values you've pushed onto the stack
-    }
-
-
-    // directly call the function here
-}
-
-// Sets up the built in Lua functions for interacting with the kernel
-void kernel_setup_lua_process(Kernel *kernel, Process *process, lua_State *L) {
-    // Create a table to store the kernel functions
-    lua_newtable(L);
-    lua_pushlightuserdata(L, kernel);
-    lua_setfield(L, -2, "kernel_ref");
-
-    lua_pushlightuserdata(L, process);
-    lua_setfield(L, -2, "process_ref");
-
-    lua_pushcfunction(L, kernel_lua_call);
-    lua_setfield(L, -2, "call");
-
-    lua_pushcfunction(L, kernel_lua_namespace);
-    lua_setfield(L, -2, "namespace");
-
-    // Add the kernel functions to the table
-    lua_setglobal(L, "kernel");
-}
-
-Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
-    Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attempted to create a Lua process without initializing the kernel. Please call kernel_create before creating a Lua process.");
-        return NULL;
-    }
-
-    LuaProcess *lua_process = kallocate(sizeof(LuaProcess), MEMORY_TAG_KERNEL);
-    if (!lua_process) {
-        verror("Failed to allocate memory for Lua process.");
-        return NULL;
-    }
-
-    Process *process = (Process *) lua_process;
-    process->type = PROCESS_TYPE_LUA;
-    if (kernel->process_count >= KERNEL_MAX_PROCESSES) {
-        verror("Too many processes");
-        kfree(lua_process, sizeof(LuaProcess), MEMORY_TAG_KERNEL);
-        return NULL;
-    }
-    process->pid = kernel->process_count++;
-    process->path = script_path;
-    process->state = PROCESS_STATE_STOPPED;
-    process->name = platform_file_name(script_path);
-    lua_State *L = luaL_newstate();
-    luaL_openlibs(L);
-    kernel_setup_lua_process(kernel, process, L);
-    // Load and execute the Lua script
-
-    const char *source = platform_read_file(script_path);
-    const u32 size = platform_file_size(script_path);
-    if (luaL_loadbuffer(L, source, size, script_path) != LUA_OK) {
-        verror("Failed to load Lua script %s: %s", script_path, lua_tostring(L, -1));
-        lua_close(L);
-        kfree(lua_process, sizeof(LuaProcess), MEMORY_TAG_KERNEL);
-        return null;
-    }
-    if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
-        verror("Failed to execute Lua script %s: %s", script_path, lua_tostring(L, -1));
-        lua_close(L);
-        kfree(lua_process, sizeof(LuaProcess), MEMORY_TAG_KERNEL);
-        return null;
-    }
-    lua_process->lua_state = L;
-    kernel->processes[kernel->process_count - 1] = process; // Store the process in the kernel's processes array
-    return process;
-}
-
-VAPI Process *kernel_new_gravity_process(Kernel *kern, const char *script_path) {
-    Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return null;
-    }
-    Process *process = kallocate(sizeof(Process), MEMORY_TAG_KERNEL);
-    process->type = PROCESS_TYPE_GRAVITY;
-    kernel->processes[kernel->process_count] = process;
-    process->pid = kernel->process_count++;
-    process->path = script_path;
-    return process;
-}
-
-
-VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path) {
-    const char *ext = strrchr(driver_path, '.');
-    if (ext == null) {
-        verror("Invalid driver path. Please provide a valid driver path.")
-        return null;
-    }
-    Process *process = null;
-    if (strcmp(ext, platform_dynamic_library_extension()) == 0) {
-        process = kernel_new_driver_process(kernel, driver_path);
-    }
-    if (strcmp(ext, ".lua") == 0) {
-        process = kernel_new_lua_process(kernel, driver_path);
-    }
-    if (strcmp(ext, ".gravity") == 0) {
-        process = kernel_new_gravity_process(kernel, driver_path);
-    }
-    if (process == null) {
-        verror("Invalid driver path. Please provide a valid driver path.")
-        return null;
-    }
-    return process;
-}
 
 VAPI Namespace *kernel_namespace(const Kernel *kernel, const char *name) {
     if (dict_contains(kernel->namespaces, name)) {
@@ -682,151 +130,9 @@ VAPI Function *kernel_process_function_lookup(Process *process, const FunctionSi
     return function;
 }
 
-ffi_type *function_type_to_ffi_type(const FunctionType type) {
-    switch (type) {
-        case FUNCTION_TYPE_VOID: return &ffi_type_void;
-        case FUNCTION_TYPE_I32: return &ffi_type_sint32;
-        case FUNCTION_TYPE_U32: return &ffi_type_uint32;
-        case FUNCTION_TYPE_I64: return &ffi_type_sint64;
-        case FUNCTION_TYPE_U64: return &ffi_type_uint64;
-        case FUNCTION_TYPE_F32: return &ffi_type_float;
-        case FUNCTION_TYPE_F64: return &ffi_type_double;
-        case FUNCTION_TYPE_STRING: return &ffi_type_pointer; // For simplicity, we'll assume all strings are pointers.
-        case FUNCTION_TYPE_POINTER: return &ffi_type_pointer;
-        case FUNCTION_TYPE_BOOL: return &ffi_type_uint8;
-        default: return NULL;
-    }
-}
-
-void *allocate_arg_value(FunctionType type, va_list *args) {
-    void *value;
-    switch (type) {
-        case FUNCTION_TYPE_I32: {
-            int *arg = malloc(sizeof(i32));
-            *arg = va_arg(*args, int);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_F32: {
-            float *arg = malloc(sizeof(f32));
-            *arg = va_arg(*args, f32);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_F64: {
-            double *arg = malloc(sizeof(f64));
-            *arg = va_arg(*args, f64);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_I64: {
-            i64 *arg = malloc(sizeof(i64));
-            *arg = va_arg(*args, i64);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_U32: {
-            u32 *arg = malloc(sizeof(u32));
-            *arg = va_arg(*args, u32);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_U64: {
-            u64 *arg = malloc(sizeof(u64));
-            *arg = va_arg(*args, u64);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_STRING: {
-            void **arg = malloc(sizeof(char *));
-            *arg = va_arg(*args, char*);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_POINTER: {
-            void **arg = malloc(sizeof(void *));
-            *arg = va_arg(*args, void*);
-            value = arg;
-            break;
-        }
-        case FUNCTION_TYPE_BOOL: {
-            b8 *arg = malloc(sizeof(b8));
-            *arg = va_arg(*args, b8);
-            value = arg;
-            break;
-        }
-        // Add cases for other types as necessary
-        default:
-            value = NULL;
-            break;
-    }
-
-    return value;
-}
-
 
 // Auxiliary function to map string to FunctionType
-FunctionType string_to_function_type(const char *type_str) {
-    if (strcmp(type_str, "f32") == 0) return FUNCTION_TYPE_F32;
-    if (strcmp(type_str, "f64") == 0) return FUNCTION_TYPE_F64;
-    if (strcmp(type_str, "u32") == 0) return FUNCTION_TYPE_U32;
-    if (strcmp(type_str, "u64") == 0) return FUNCTION_TYPE_U64;
-    if (strcmp(type_str, "i32") == 0) return FUNCTION_TYPE_I32;
-    if (strcmp(type_str, "bool") == 0) return FUNCTION_TYPE_BOOL;
-    if (strcmp(type_str, "i64") == 0) return FUNCTION_TYPE_I64;
-    if (strcmp(type_str, "void") == 0) return FUNCTION_TYPE_VOID;
-    if (strcmp(type_str, "pointer") == 0) return FUNCTION_TYPE_POINTER;
-    if (strcmp(type_str, "string") == 0) return FUNCTION_TYPE_STRING;
-    return FUNCTION_TYPE_ERROR;
-}
 
-FunctionSignature kernel_process_create_signature(const char *query) {
-    FunctionSignature signature = {0};
-    const char *open_paren = strchr(query, '(');
-    if (open_paren == NULL) {
-        signature.name = strdup(query); // strdup to allocate and copy the name
-        signature.return_type = FUNCTION_TYPE_VOID; // Assuming default return type is void if not specified
-        return (FunctionSignature){.return_type = FUNCTION_TYPE_ERROR};
-    }
-
-    // Extract function name
-    size_t name_len = open_paren - query;
-    char *func_name = (char *) malloc(name_len + 1);
-    strncpy(func_name, query, name_len);
-    func_name[name_len] = '\0';
-    signature.name = func_name;
-
-    // Extract arguments and return type
-    const char *close_paren = strchr(open_paren, ')');
-    if (close_paren == NULL) {
-        verror("Invalid function signature. No closing ) found.");
-        free(func_name);
-        return (FunctionSignature){.return_type = FUNCTION_TYPE_ERROR};
-    }
-
-    // Process arguments
-    char *args_str = (char *) malloc(close_paren - open_paren);
-    strncpy(args_str, open_paren + 1, close_paren - open_paren - 1);
-    args_str[close_paren - open_paren - 1] = '\0';
-
-    char *arg = strtok(args_str, ";");
-    while (arg != NULL && signature.arg_count < MAX_FUNCTION_ARGS) {
-        signature.args[signature.arg_count++] = string_to_function_type(arg);
-        arg = strtok(NULL, ";");
-    }
-
-    free(args_str);
-
-    // Process return type
-    const char *return_type_str = close_paren + 1;
-    if (*return_type_str == '\0') {
-        // No return type specified
-        signature.return_type = FUNCTION_TYPE_VOID;
-    } else {
-        signature.return_type = string_to_function_type(return_type_str);
-    }
-    return signature;
-}
 
 // Constructs a function signature from the query string
 //Example query: "render(f32;pointer;f32);f32" would equate to "f32 render(f32, void*, f32)"
@@ -835,102 +141,6 @@ VAPI Function *kernel_process_function_query(Process *process, const char *query
     return kernel_process_function_lookup(process, signature);
 }
 
-
-void push_lua_args(lua_State *L, FunctionSignature signature, va_list args) {
-    for (int i = 0; i < signature.arg_count; i++) {
-        switch (signature.args[i]) {
-            case FUNCTION_TYPE_U32:
-            case FUNCTION_TYPE_U64:
-            case FUNCTION_TYPE_I64:
-            case FUNCTION_TYPE_I32: {
-                const int value = va_arg(args, int);
-                lua_pushinteger(L, value);
-                break;
-            }
-            case FUNCTION_TYPE_F64:
-            case FUNCTION_TYPE_F32: {
-                // Assuming float values are promoted to double in va_arg
-                const double value = va_arg(args, double);
-                lua_pushnumber(L, value);
-                break;
-            }
-            case FUNCTION_TYPE_STRING: {
-                const char *value = va_arg(args, char*);
-                lua_pushstring(L, value);
-                break;
-            }
-            case FUNCTION_TYPE_POINTER: {
-                void *value = va_arg(args, void*);
-                lua_pushlightuserdata(L, value);
-                break;
-            }
-            case FUNCTION_TYPE_BOOL: {
-                const b8 value = va_arg(args, b8);
-                lua_pushboolean(L, value);
-                break;
-            }
-            // Add more cases for other types as needed
-            default:
-                // Handle unknown type or error
-                verror("Unknown type")
-                break;
-        }
-    }
-}
-
-void populate_function_result_from_ffi_return(void *ret_value, const FunctionType return_type, FunctionResult *result) {
-    if (!ret_value || !result) return;
-
-    // Initialize the result type
-    result->type = return_type;
-
-    // Based on the return type, interpret ret_value and populate the union in result
-    switch (return_type) {
-        case FUNCTION_TYPE_I32: {
-            result->data.i32 = *(i32 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_F32: {
-            result->data.f32 = *(f32 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_F64: {
-            result->data.f64 = *(f64 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_U32: {
-            result->data.u32 = *(u32 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_U64: {
-            result->data.u64 = *(u64 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_I64: {
-            result->data.i64 = *(i64 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_STRING: {
-            result->data.string = *(const char **) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_POINTER: {
-            result->data.pointer = *(void **) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_BOOL: {
-            result->data.boolean = *(b8 *) ret_value;
-            break;
-        }
-        case FUNCTION_TYPE_VOID:
-        default: {
-            // For void return type or unknown type, do nothing
-            // or set result data to NULL/zero as appropriate
-            memset(&result->data, 0, sizeof(result->data));
-            break;
-        }
-    }
-}
 
 VAPI FunctionResult kernel_process_function_call_internal(const Function *function, va_list args) {
     if (function->base->type == PROCESS_TYPE_DRIVER && function->context.pfn) {
@@ -942,18 +152,18 @@ VAPI FunctionResult kernel_process_function_call_internal(const Function *functi
 
         // Prepare argument types and values
         for (int i = 0; i < function->signature.arg_count; ++i) {
-            arg_types[i] = function_type_to_ffi_type(function->signature.args[i]);
-            arg_values[i] = allocate_arg_value(function->signature.args[i], &args);
+            arg_types[i] = kernel_function_type_to_ffi_type(function->signature.args[i]);
+            arg_values[i] = kernel_allocate_arg_value(function->signature.args[i], &args);
         }
 
-        if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, function->signature.arg_count, function_type_to_ffi_type(function->signature.return_type), arg_types) == FFI_OK) {
+        if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, function->signature.arg_count, kernel_function_type_to_ffi_type(function->signature.return_type), arg_types) == FFI_OK) {
             ffi_call(&cif, FFI_FN(function->context.pfn), ret_value, arg_values);
         } else {
             verror("Failed to prepare FFI call for function %s", function->signature.name);
         }
 
         FunctionResult func_result;
-        populate_function_result_from_ffi_return(ret_value, function->signature.return_type, &func_result);
+        kernel_function_result_from_ffi_return(ret_value, function->signature.return_type, &func_result);
         free(ret_value);
         // Clean up
         for (int i = 0; i < function->signature.arg_count; ++i) {
@@ -969,7 +179,7 @@ VAPI FunctionResult kernel_process_function_call_internal(const Function *functi
         const int base = lua_gettop(L); // Remember the stack's state to clean up later if needed
         lua_rawgeti(L, LUA_REGISTRYINDEX, function->context.lua.ref); // Push the function onto the stack
         // Assuming the rest of the arguments are handled similarly to how you've been handling them
-        push_lua_args(L, function->signature, args);
+        kernel_push_lua_args(L, function->signature, args);
         // Call the Lua function with arg_count arguments, expect 1 result (change as needed)
         if (lua_pcall(L, function->signature.arg_count, 1, 0) != LUA_OK) {
             FunctionResult func_result = {0};
@@ -1088,77 +298,6 @@ VAPI FunctionResult kernel_process_function_call(const Function *function, ...) 
     return result;
 }
 
-
-VAPI b8 kernel_process_run(Kernel *kern, Process *process) {
-    Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    // If the process is already running, do nothing.
-    if (process->state == PROCESS_STATE_RUNNING) {
-        return true;
-    }
-    const Function *init_self = null;
-    // run the setup_process function and return it's result
-    if (process->type == PROCESS_TYPE_DRIVER) {
-        init_self = kernel_process_function_lookup(process, (FunctionSignature){
-            .name = "_init_self",
-            .arg_count = 2,
-            .return_type = FUNCTION_TYPE_BOOL,
-            .args[0] = FUNCTION_TYPE_POINTER,
-            .args[1] = FUNCTION_TYPE_POINTER,
-        });
-    }
-    if (process->type == PROCESS_TYPE_LUA) {
-        init_self = kernel_process_function_lookup(process, (FunctionSignature){
-            .name = "_init_self",
-            .arg_count = 0,
-            .return_type = FUNCTION_TYPE_VOID
-        });
-    }
-    if (init_self == null) {
-        process->state = PROCESS_STATE_DESTROYED;
-        // If the process is not a driver, do nothing.
-        return false;
-    }
-    const b8 result = kernel_process_function_call(init_self, kernel, process).data.boolean;
-    if (result) {
-        process->state = PROCESS_STATE_RUNNING;
-    }
-    return result;
-}
-
-VAPI b8 kernel_process_pause(Process *process) {
-    assert(0 && "Not implemented");
-    return false;
-}
-
-VAPI b8 kernel_process_resume(Process *process) {
-    assert(0 && "Not implemented");
-    return false;
-}
-
-VAPI b8 kernel_process_stop(Process *process) {
-    assert(0 && "Not implemented");
-    return false;
-}
-
-VAPI b8 kernel_process_terminate(Process *process) {
-    assert(0 && "Not implemented");
-    return false;
-}
-
-VAPI Process *kernel_process_get(const ProcessID pid) {
-    const Kernel *kernel = kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return null;
-    }
-    if (pid >= kernel->process_count) return null;
-    return kernel->processes[pid];
-}
-
 //Process names are not unique, so we need to search for the process by name.
 // There can be multiple processes with the same name so we allow for a query to be passed in.
 // This will allow us to search for a process by name, returning the first process that matches the query.
@@ -1191,132 +330,140 @@ VAPI Process *kernel_process_find(const Kernel *kern, const char *query) {
  * @param on_event The listener function to be invoked when the event occurs.
  * @return Returns true if the listener was successfully registered, false otherwise.
  */
-VAPI b8 kernel_event_listen(const Kernel *kern, const u16 code, const KernProcEventPFN on_event) {
-    const Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    if (kernel->event_state->registered[code].events == 0) {
-        kernel->event_state->registered[code].events = darray_create(KernelRegisterEvent);
-    }
-    // If at this point, no duplicate was found. Proceed with registration.
-    KernelRegisterEvent event;
-    event.code = code;
-    event.is_raw = true;
-    event.callback.raw = on_event;
-    darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
-    vinfo("Registered event in kernel at address %p, %p", kernel, kernel->event_state);
-    return true;
-}
-
-VAPI b8 kernel_event_listen_function(const Kernel *kern, const u16 code, const Function *function) {
-    const Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    if (kernel->event_state->registered[code].events == 0) {
-        kernel->event_state->registered[code].events = darray_create(KernelRegisterEvent);
-    }
-    // If at this point, no duplicate was found. Proceed with registration.
-    KernelRegisterEvent event;
-    event.code = code;
-    event.is_raw = false;
-    event.callback.function = function;
-    darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
-    return true;
-}
-
-VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function) {
-    const Kernel *kernel = kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    // On nothing is registered for the code, boot out.
-    if (kernel->event_state->registered[code].events == 0) {
-        return false;
-    }
-    const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
-    for (u64 i = 0; i < registered_count; ++i) {
-        KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
-        if (e.callback.function == function) {
-            // Found one, remove it
-            KernelRegisterEvent popped_event;
-            darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
-            return true;
-        }
-    }
-    // Not found.
-    return false;
-}
-
-VAPI b8 kernel_event_trigger(const Kernel *kern, const KernProcEvent *event) {
-    const Kernel *kernel = kern ? kern : kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    // If nothing is registered for the code, boot out.
-    if (kernel->event_state->registered[event->code].events == 0) {
-        return false;
-    }
-    const u64 registered_count = darray_length(kernel->event_state->registered[event->code].events);
-    for (u64 i = 0; i < registered_count; ++i) {
-        const KernelRegisterEvent e = kernel->event_state->registered[event->code].events[i];
-        if (e.is_raw && e.callback.raw(event)) {
-            return true; // If the event was consumed, return true.
-        }
-        if (e.callback.function) {
-            // Call the function
-            const FunctionResult result = kernel_process_function_call(e.callback.function, event);
-            if (result.type == FUNCTION_TYPE_BOOL && result.data.boolean) {
-                return true;
-            } //Cary on to the next event because this one didn't "consume" the event.
-        }
-    }
-    return false;
-}
-
-VAPI KernProcEvent kernel_event_create(const Kernel *kernel, const KernelEventCode code, const EventData *data) {
-    return (KernProcEvent){
-        .code = code,
-        .data = data,
-        .sender.kernel = kernel,
-        .sender.process = null
-    };
-}
-
-VAPI KernProcEvent kernel_process_event_create(const Process *process, const KernelEventCode event, const EventData *data) {
-    return (KernProcEvent){
-        .code = event,
-        .data = data,
-        .sender.kernel = null,
-        .sender.process = process
-    };
-}
-
-VAPI b8 kernel_event_unlisten(const u16 code, const KernProcEventPFN on_event) {
-    const Kernel *kernel = kernel_get();
-    if (!kernel->initialized) {
-        verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
-        return false;
-    }
-    // On nothing is registered for the code, boot out.
-    if (kernel->event_state->registered[code].events == 0) {
-        return false;
-    }
-    const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
-    for (u64 i = 0; i < registered_count; ++i) {
-        KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
-        if (e.callback.raw == on_event) {
-            // Found one, remove it
-            KernelRegisterEvent popped_event;
-            darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
-            return true;
-        }
-    }
-    // Not found.
-    return false;
-}
+// VAPI b8 kernel_event_listen(const Kernel *kern, const u16 code, const KernProcEventPFN on_event) {
+//     const Kernel *kernel = kern ? kern : kernel_get();
+//     if (!kernel->initialized) {
+//         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+//         return false;
+//     }
+//     if (kernel->event_state->registered[code].events == 0) {
+//         kernel->event_state->registered[code].events = darray_create(KernelRegisterEvent);
+//     }
+//     // If at this point, no duplicate was found. Proceed with registration.
+//     KernelRegisterEvent event;
+//     event.code = code;
+//     event.is_raw = true;
+//     event.callback.raw = on_event;
+//     darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
+//     vinfo("Registered event in kernel at address %p, %p", kernel, kernel->event_state);
+//     return true;
+// }
+//
+// VAPI b8 kernel_event_listen_function(const Kernel *kern, const u16 code, const Function *function) {
+//     const Kernel *kernel = kern ? kern : kernel_get();
+//     if (!kernel->initialized) {
+//         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+//         return false;
+//     }
+//     if (kernel->event_state->registered[code].events == 0) {
+//         kernel->event_state->registered[code].events = darray_create(KernelRegisterEvent);
+//     }
+//     // If at this point, no duplicate was found. Proceed with registration.
+//     KernelRegisterEvent event;
+//     event.code = code;
+//     event.is_raw = false;
+//     event.callback.function = function;
+//     darray_push(KernelRegisterEvent, kernel->event_state->registered[code].events, event);
+//     return true;
+// }
+//
+// VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function) {
+//     const Kernel *kernel = kernel_get();
+//     if (!kernel->initialized) {
+//         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+//         return false;
+//     }
+//     // On nothing is registered for the code, boot out.
+//     if (kernel->event_state->registered[code].events == 0) {
+//         return false;
+//     }
+//     const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
+//     for (u64 i = 0; i < registered_count; ++i) {
+//         KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
+//         if (e.callback.function == function) {
+//             // Found one, remove it
+//             KernelRegisterEvent popped_event;
+//             darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
+//             return true;
+//         }
+//     }
+//     // Not found.
+//     return false;
+// }
+//
+// VAPI b8 kernel_event_trigger(const Kernel *kern, const KernProcEvent *event) {
+//     const Kernel *kernel = kern ? kern : kernel_get();
+//     if (!kernel->initialized) {
+//         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+//         return false;
+//     }
+//     // If nothing is registered for the code, boot out.
+//     if (kernel->event_state->registered[event->code].events == 0) {
+//         return false;
+//     }
+//     const u64 registered_count = darray_length(kernel->event_state->registered[event->code].events);
+//     for (u64 i = 0; i < registered_count; ++i) {
+//         const KernelRegisterEvent e = kernel->event_state->registered[event->code].events[i];
+//         if (e.is_raw && e.callback.raw(event)) {
+//             return true; // If the event was consumed, return true.
+//         }
+//         if (e.callback.function) {
+//             // Call the function
+//             const FunctionResult result = kernel_process_function_call(e.callback.function, event);
+//             if (result.type == FUNCTION_TYPE_BOOL && result.data.boolean) {
+//                 return true;
+//             } //Cary on to the next event because this one didn't "consume" the event.
+//         }
+//     }
+//     return false;
+// }
+//
+// VAPI KernProcEvent kernel_event_create(const Kernel *kernel, const KernelEventCode code, const EventData *data) {
+//     return (KernProcEvent) {
+//         .
+//         code = code,
+//         .
+//         data = data,
+//         .
+//         sender.kernel = kernel,
+//         .
+//         sender.process = null
+//     };
+// }
+//
+// VAPI KernProcEvent kernel_process_event_create(const Process *process, const KernelEventCode event, const EventData *data) {
+//     return (KernProcEvent) {
+//         .
+//         code = event,
+//         .
+//         data = data,
+//         .
+//         sender.kernel = null,
+//         .
+//         sender.process = process
+//     };
+// }
+//
+// VAPI b8 kernel_event_unlisten(const u16 code, const KernProcEventPFN on_event) {
+//     const Kernel *kernel = kernel_get();
+//     if (!kernel->initialized) {
+//         verror("Attmepted to create a driver process without initializing the kernel. Please call kernel_create before creating a driver process.")
+//         return false;
+//     }
+//     // On nothing is registered for the code, boot out.
+//     if (kernel->event_state->registered[code].events == 0) {
+//         return false;
+//     }
+//     const u64 registered_count = darray_length(kernel->event_state->registered[code].events);
+//     for (u64 i = 0; i < registered_count; ++i) {
+//         KernelRegisterEvent e = kernel->event_state->registered[code].events[i];
+//         if (e.callback.raw == on_event) {
+//             // Found one, remove it
+//             KernelRegisterEvent popped_event;
+//             darray_pop_at(kernel->event_state->registered[code].events, i, &popped_event);
+//             return true;
+//         }
+//     }
+//     // Not found.
+//     return false;
+// }

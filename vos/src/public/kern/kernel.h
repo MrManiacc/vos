@@ -6,6 +6,9 @@
 #include <ffi.h>
 
 #include "defines.h"
+#ifndef MAX_FUNCTION_ARGS
+#define MAX_FUNCTION_ARGS 16
+#endif
 
 /**The kernel should be responsible for managing the state of the system.
  * This includes the process tree, the event system, the file system, and the driver system.
@@ -67,14 +70,18 @@ typedef struct FunctionResult {
     } data;
 } FunctionResult;
 
-#define MAX_FUNCTION_ARGS 8
-
 typedef struct FunctionSignature {
     const char *name; // The function name
     FunctionType args[MAX_FUNCTION_ARGS];
     u8 arg_count;
     FunctionType return_type;
 } FunctionSignature;
+
+#define EVENT_RESERVED 0x00, // Reserved event code. No event should have this code.
+#define EVENT_KERNEL_INIT 0x01, // The kernel has been initialized.
+#define EVENT_PROCESS_START 0x02, // A process has started.
+#define EVENT_KERNEL_RENDER 0x07, // The kernel is rendering.
+#define EVENT_MAX_CODE 0xFF // The maximum number of event codes.
 
 
 /**
@@ -120,56 +127,12 @@ typedef union EventData {
     } pointers;
 } EventData;
 
-typedef struct KernProcEvent {
-    u16 code; // The event code to be sent.
-    const EventData *data; // The data to be sent with the event.
-    union {
-        const Process *process;
-        const Kernel *kernel;
-    } sender; // The process that the event is being sent to.
-} KernProcEvent; // The event to be sent.
 
-/**
- * @brief A function pointer typedef which is used for event subscriptions by the subscriber.
- * @param event The event that is being sent.
- * @returns True if the message should be considered handled, which means that it will not
- * be sent to any other consumers; otherwise false.
- */
-typedef b8 (*KernProcEventPFN)(const KernProcEvent *event);
+VAPI b8 kernel_event_listen(const struct ernel *kernel, u8 code, const struct Function *function);
 
+VAPI b8 kernel_event_trigger(const struct Kernel *kernel, u8 code, EventData *event);
 
-/**
- * @brief Enumeration of kernel event codes.
- *
- * The KernelEventCode enumeration defines the different event codes that can be used by the kernel.
- * These event codes represent various system events related to the process management.
- */
-typedef enum KernelEventCode {
-    /** @brief The minimum event code that can be used internally. */
-    EVENT_MIN_CODE = 0x00,
-    /** @brief The kernel init event is used to initialize the kernel.
-     *
-     * The EventData for this event should contain the following:
-     *  -
-     */
-    EVENT_KERNEL_INIT = 0x01,
-
-    /** @brief The process init event is used to initialize a process.
-     *
-     * The EventData for this event should contain the following:
-     *  - pointers[0] = The process that is being initialized.
-     */
-    EVENT_PROCESS_INIT = 0x02,
-    /** @brief The kernel poll event is used to poll the kernel for events.
-     *
-     * The EventData for this event should contain the following:
-     *  - f32[0] = The current delta time in seconds.
-     */
-    EVENT_KERNEL_RENDER = 0x07,
-    /** @brief We reserve the first 255(out of 8192 maxium codes) event codes for system use. */
-    EVENT_MAX_CODE = 0xFF
-} KernelEventCode;
-
+VAPI b8 kernel_event_unlisten(u8 code, const struct Function *function);
 
 // ====================================================================================================================='
 // Kernel Management
@@ -204,13 +167,7 @@ VAPI b8 kernel_destroy(const Kernel *kern);
 // Process Management
 // =====================================================================================================================
 
-/**
- * Uses the file system to load a process from a file. The process will be loaded into memory and will be ready to run.
- * @param driver_path The path to the driver file.
- * @return A pointer to the process if it was successfully loaded, otherwise NULL.
- */
-VAPI Process *kernel_process_new(Kernel *kernel, const char *driver_path);
-
+VAPI Process *kernel_process_load(Kernel *kernel, const char *driver_path);
 /**
  * Looks up a callback function in a process.
  */
@@ -226,7 +183,6 @@ VAPI Function *kernel_process_function_query(Process *process, const char *query
  */
 VAPI Namespace *kernel_namespace(const Kernel *kernel, const char *name);
 
-
 /**
  * Defines a function in a namespace. This allows the function to be called directly useing the namespace.
  *
@@ -240,8 +196,7 @@ VAPI b8 kernel_namespace_define_query(const Namespace *namespace, Process *proce
 VAPI FunctionResult kernel_namespace_call(const Namespace *namespace, char *function, ...);
 
 // Looks up the function in the namespace, if it doesn't exist, it will return null.
-VAPI FunctionResult kernel_call(const Kernel* kernel, const char *qualified_name, ...);
-
+VAPI FunctionResult kernel_call(const Kernel *kernel, const char *qualified_name, ...);
 
 /**
  * Calls a function in a process.
@@ -297,69 +252,6 @@ VAPI Process *kernel_process_get(ProcessID pid);
  * @return The FIRST process with the given process name, starting from the root directory
  */
 VAPI Process *kernel_process_find(const Kernel *kernel, const char *query);
-
-// =====================================================================================================================
-// Event System
-// =====================================================================================================================
-
-/**
- * @brief Registers a listener function for a specific kernel event code.
- *
- * The listener function will be invoked when the specified kernel event occurs.
- *
- * @param kernel A pointer to the Kernel object.
- * @param code The code of the kernel event to register a listener for.
- * @param on_event The listener function to be invoked when the event occurs.
- * @return Returns true if the listener was successfully registered, false otherwise.
- */
-VAPI b8 kernel_event_listen(const Kernel *kernel, u16 code, KernProcEventPFN on_event);
-
-VAPI b8 kernel_event_listen_function(const Kernel *kernel, const u16 code, const Function *function);
-
-/**
- * @brief Fires an event in the kernel with the specified code and data.
- *
- * @param kernel The pointer to the kernel object.
- * @param event The event to be fired.
- *
- * @return True if the event was successfully fired, false otherwise.
- */
-VAPI b8 kernel_event_trigger(const Kernel *kernel, const KernProcEvent *event);
-
-/**
- * @brief Creates a new kernel event with the specified code and data.
- *
- * @param kernel A pointer to the Kernel object.
- * @param code The code of the kernel event to create.
- * @param data The data to be sent with the event.
- * @param sender The process that the event is being sent from, can be null if the sender is the kernel.
- *
- * @return The new kernel event.
- */
-VAPI KernProcEvent kernel_event_create(const Kernel *kernel, KernelEventCode code, const EventData *data);
-/**
- * @brief Creates a new kernel event with the specified code and data.
- *
- * @param process A pointer to the Process object.
- * @param event The code of the kernel event to create.
- * @param data The data to be sent with the event.
- *
- * @return The new kernel event.
- */
-VAPI KernProcEvent kernel_process_event_create(const Process *process, KernelEventCode event, const EventData *data);
-
-/**
- * @brief Unregisters a listener function for a specific kernel event code.
- *
- * The listener function will no longer be invoked when the specified kernel event occurs.
- *
- * @param kernel A pointer to the Kernel object.
- * @param code The code of the kernel event to unregister a listener for.
- * @param on_event The listener function to be unregistered.
- * @return Returns true if the listener was successfully unregistered, false otherwise.
- */
-VAPI b8 kernel_event_unlisten(u16 code, KernProcEventPFN on_event);
-VAPI b8 kernel_event_unlisten_function(const u16 code, const Function *function);
 
 
 // =====================================================================================================================

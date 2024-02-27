@@ -19,6 +19,8 @@ b8 driver_create(const Namespace *ns) {
 
     kernel_call(kernel, "boot.render", 0.0, null);
     kernel_call(kernel, "test.say_hello", "James");
+    const char* secret = kernel_call(kernel, "boot.tell_secret", "James").data.string;
+    vinfo("Secret: %s", secret);
     return true;
 }
 
