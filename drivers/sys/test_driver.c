@@ -2,11 +2,11 @@
 //  * Created by jraynor on 2/25/2024.
 //  */
 //
-// #include <nanovg.h>
-//
-// #include "kern/kernel.h"
-// #include "core/vlogger.h"
-// // initialized automatically
+#include <nanovg.h>
+
+#include "kern/kernel.h"
+#include "core/vlogger.h"
+// initialized automatically
 // static Kernel *_kernel = null;
 //
 // VAPI i32 fib(const i32 n) {
@@ -15,6 +15,7 @@
 //     }
 //     return fib(n - 1) + fib(n - 2);
 // }
+
 //
 //
 // VAPI void render(const f64 delta, NVGcontext *vg) {

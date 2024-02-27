@@ -15,7 +15,7 @@ int kernel_lua_call(lua_State *L) {
     lua_getfield(L, -1, "kernel_ref");
     Kernel *kernel = lua_touserdata(L, -1);
     // use kernel_call to call the function after parsing the args
-    const char *qualified_name = lua_tostring(L, 1);
+    const char *qualified_name = _strdup(lua_tostring(L, 1));
     Args args = kernel_proecss_lua_args(L);
     // Assume the rest of the arguments are the arguments to the function
     if (args.count == 0) {
@@ -133,7 +133,6 @@ int kernel_lua_call(lua_State *L) {
 
     // directly call the function here
 }
-
 
 
 int kernel_lua_namespace_define(lua_State *L) {

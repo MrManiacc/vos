@@ -273,6 +273,19 @@ VAPI FunctionResult kernel_namespace_call(const Namespace *namespace, char *func
     return result;
 }
 
+VAPI const Function *kernel_namespace_function_lookup(const Kernel *kernel, const char *function) {
+    //Get the namespace by taking the first part of the qualified name
+    const char *ns_name = strtok(function, ".");
+    const char *func_name = strtok(NULL, ".");
+    const Namespace *ns = kernel_namespace(kernel, ns_name);
+    const Function *func = dict_get(ns->functions, func_name);
+    if (func == null) {
+        verror("Function %s does not exist in namespace %s", func_name, ns_name);
+        return null;
+    }
+    return func;
+}
+
 VAPI FunctionResult kernel_call(const Kernel *kernel, const char *qualified_name, ...) {
     //Get the namespace by taking the first part of the qualified name
     const char *ns_name = strtok(qualified_name, ".");

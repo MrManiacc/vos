@@ -228,6 +228,9 @@ Args kernel_proecss_lua_args(lua_State *L) {
         if (lua_isinteger(L, stackIndex)) {
             args.args[i].type = ARG_INTEGER;
             args.args[i].value.i = lua_tointeger(L, stackIndex);
+        } else if (lua_islightuserdata(L, stackIndex)) {
+            args.args[i].type = ARG_POINTER;
+            args.args[i].value.p = lua_touserdata(L, stackIndex);
         } else if (lua_isnumber(L, stackIndex)) {
             args.args[i].type = ARG_NUMBER;
             args.args[i].value.f = lua_tonumber(L, stackIndex);
@@ -293,7 +296,7 @@ void *kernel_allocate_and_set_arg_value(FunctionType type, LuaArg larg) {
         }
         case FUNCTION_TYPE_POINTER: {
             void **arg = malloc(sizeof(void *));
-            *arg = larg.value.s;
+            *arg = larg.value.p;
             value = arg;
             break;
         }
@@ -343,8 +346,8 @@ void kernel_push_lua_args(lua_State *L, FunctionSignature signature, va_list arg
             // Add more cases for other types as needed
             default:
                 // Handle unknown type or error
-                    verror("Unknown type")
-                    break;
+                verror("Unknown type")
+                break;
         }
     }
 }

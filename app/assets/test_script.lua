@@ -1,10 +1,10 @@
 local ns = kernel.namespace("test")
 
-function _init_self()
-    --kernel.call("boot.render", 0.5, nil)
-    --local result = kernel.call("boot.tell_secret", "James")
-end
+local color = kernel.call("boot.color", 255, 0, 0, 255)
 
-ns.define("say_hello(string)void", function(name)
-    print("Hello, " .. name)
+ns.define("render(f64;pointer)void", function(delta, pointer)
+    print("Render", delta, pointer)
+    kernel.call("boot.rect", pointer, 0.0, 0.0, 100.0, 100.0, color)
 end)
+
+kernel.call("boot.register_render", "test.render")

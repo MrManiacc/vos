@@ -77,10 +77,10 @@ typedef struct FunctionSignature {
     FunctionType return_type;
 } FunctionSignature;
 
-#define EVENT_RESERVED 0x00, // Reserved event code. No event should have this code.
-#define EVENT_KERNEL_INIT 0x01, // The kernel has been initialized.
-#define EVENT_PROCESS_START 0x02, // A process has started.
-#define EVENT_KERNEL_RENDER 0x07, // The kernel is rendering.
+#define EVENT_RESERVED 0x00 // Reserved event code. No event should have this code.
+#define EVENT_KERNEL_INIT 0x01 // The kernel has been initialized.
+#define EVENT_PROCESS_START 0x02 // A process has started.
+#define EVENT_KERNEL_RENDER 0x07 // The kernel is rendering.
 #define EVENT_MAX_CODE 0xFF // The maximum number of event codes.
 
 
@@ -128,11 +128,11 @@ typedef union EventData {
 } EventData;
 
 
-VAPI b8 kernel_event_listen(const struct ernel *kernel, u8 code, const struct Function *function);
+VAPI b8 kernel_event_listen(const Kernel *kernel, u8 code, const struct Function *function);
 
-VAPI b8 kernel_event_trigger(const struct Kernel *kernel, u8 code, EventData *event);
+VAPI b8 kernel_event_trigger(const Kernel *kernel, u8 code, EventData *event);
 
-VAPI b8 kernel_event_unlisten(u8 code, const struct Function *function);
+VAPI b8 kernel_event_unlisten(const Kernel *kernel, u8 code, const struct Function *function);
 
 // ====================================================================================================================='
 // Kernel Management
@@ -193,6 +193,8 @@ VAPI b8 kernel_namespace_define(const Namespace *namespace, Function *signature)
 //Define a function using a query
 VAPI b8 kernel_namespace_define_query(const Namespace *namespace, Process *process, const char *query);
 
+
+VAPI const Function *kernel_namespace_function_lookup(const Kernel *kernel, const char *function);
 VAPI FunctionResult kernel_namespace_call(const Namespace *namespace, char *function, ...);
 
 // Looks up the function in the namespace, if it doesn't exist, it will return null.

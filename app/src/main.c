@@ -33,6 +33,8 @@ int main(int argc, char **argv) {
 
 
     Process *test_driver = kernel_process_load(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
+    kernel_process_run(kernel, test_driver);
+
     Process *test_script = kernel_process_load(kernel, "D:\\vos\\app\\assets\\test_script.lua");
 
     //
@@ -65,14 +67,7 @@ int main(int argc, char **argv) {
     // vinfo("Found boot script: %s", list->paths[i]);
     // }
     // kernel_event_listen(null, EVENT_KERNEL_RENDER, render_listener);
-    // EventData data;
-    // data.f32[0] = platform_get_absolute_time();
-    // const KernProcEvent event = {
-    //     .code = EVENT_KERNEL_RENDER,
-    //     .data = &data,
-    //     .sender.kernel = kernel,
-    // };
-    kernel_process_run(kernel, test_driver);
+
     kernel_process_run(kernel, test_script);
 
     // kernel_event_trigger(kernel, &(KernProcEvent){
@@ -84,16 +79,18 @@ int main(int argc, char **argv) {
     //     },
     //     .sender.kernel = kernel,
     // });
-
+    EventData data;
+    data.f32[0] = platform_get_absolute_time();
     // make the second double actually be a pointer to the nanovg context. We only really need to do this once.
-    // data.f64[1] = (double) ((uintptr_t) window.vg); // Store in your double array
+    data.f64[1] = (double) ((uintptr_t) window.vg); // Store in your double array
     f64 now = platform_get_absolute_time();
     while (!window_should_close(&window)) {
         window_begin_frame(&window);
         const f64 time = platform_get_absolute_time();
         // Create the event delta time and trigger the render event
-        // data.f64[0] = (time - now);
+        data.f64[0] = (time - now);
         now = time;
+        kernel_event_trigger(kernel, EVENT_KERNEL_RENDER, &data);
         //render here
         // kernel_event_trigger(kernel, &event);
         window_end_frame(&window);

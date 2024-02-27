@@ -114,7 +114,7 @@ struct Kernel {
 typedef struct EventListener {
     u8 code; // The event code.
     void *context; // The context to be passed to the event handler.
-    Function *function; // The function to be called when the event is fired.
+    const Function *function; // The function to be called when the event is fired.
 } EventListener;
 
 typedef struct EventBag {
@@ -134,6 +134,7 @@ typedef enum {
     ARG_NUMBER,
     ARG_STRING,
     ARG_BOOLEAN,
+    ARG_POINTER,
     ARG_NIL,
     // Add other types as necessary
 } ArgType;
@@ -146,6 +147,7 @@ typedef struct LuaArg {
         i32 i;
         f64 f;
         const char *s;
+        const void *p;
         b8 b;
     } value;
 } LuaArg;
