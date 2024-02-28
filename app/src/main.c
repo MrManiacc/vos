@@ -6,6 +6,7 @@
 #include "core/vlogger.h"
 #include "core/vmem.h"
 #include "filesystem/paths.h"
+#include "kern/vfs.h"
 #include "platform/platform.h"
 
 static Function *driver_render = null;
@@ -23,6 +24,8 @@ static Function *script_render = null;
 
 // Test the kernel
 int main(int argc, char **argv) {
+    const Vfs *vfs = vfs_init("root", path_locate_root());
+    vfs_read(vfs->root); //This forces all discovered nodes to be loaded into memory.
     Kernel *kernel = kernel_create(path_locate_root());
     vinfo("Kernel created: %p", kernel);
     WindowContext window; // Allocate the window on the stack
@@ -30,12 +33,18 @@ int main(int argc, char **argv) {
         verror("Failed to initialize window");
         return 1;
     }
+    void *luas = vfs_collect(vfs, ".lua");
+    if (luas != null) {
+        darray_for_each(VfsHandle, luas, handle) {
+            vinfo("Found lua file: %s", handle->path);
+        }
+    }
 
+    // Process *test_driver = kernel_process_load(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
+    // kernel_process_run(kernel, test_driver);
 
-    Process *test_driver = kernel_process_load(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
-    kernel_process_run(kernel, test_driver);
-
-    Process *test_script = kernel_process_load(kernel, "D:\\vos\\app\\assets\\test_script.lua");
+    // Process *test_script = kernel_process_load(kernel, "D:\\vos\\app\\assets\\test_script.lua");
+    // kernel_process_run(kernel, test_script);
 
     //
     // driver_render = kernel_process_function_lookup(test_driver, (FunctionSignature){
@@ -68,7 +77,6 @@ int main(int argc, char **argv) {
     // }
     // kernel_event_listen(null, EVENT_KERNEL_RENDER, render_listener);
 
-    kernel_process_run(kernel, test_script);
 
     // kernel_event_trigger(kernel, &(KernProcEvent){
     //     .code = EVENT_KERNEL_INIT,

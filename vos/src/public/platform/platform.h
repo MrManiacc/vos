@@ -224,6 +224,12 @@ VAPI b8 platform_dynamic_library_unload(DynLib *library);
 VAPI DynLibFunction *platform_dynamic_library_load_function(const char *name, const DynLib *library);
 
 VAPI const char *platform_file_name(const char *path);
+VAPI const char *platform_resolve_symlink(const char *path);
+VAPI const char *platform_file_append(const char *base, const char *relative);
+VAPI b8 platform_write_file(const char *path, const void *data, u64 size);
+VAPI b8 platform_create_directory(const char *path);
+VAPI b8 platform_delete_file(const char *path);
+VAPI b8 platform_create_symlink(const char *path, const char *target);
 
 /**
  * @brief Returns the file extension for the current platform.
@@ -268,6 +274,8 @@ VAPI b8 platform_unwatch_file(u32 watch_id);
 * @return
 */
 VAPI b8 platform_file_exists(const char *path);
+
+VAPI b8 platfrom_is_symbolic_link(const char *path);
 
 /**
 * @brief Checks if a given path is a directory.

@@ -64,12 +64,12 @@ char *string_allocate_sized(const char *input, u64 length) {
     if (copiedString[length] != '\0') {
         copiedString[length] = '\0';
     }
-    StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
-    allocation->string = copiedString;
-    allocation->length = length;
-    allocation->tag = MEMORY_TAG_STRING;
-
-    darray_push(StringAllocation *, string_allocations, allocation);
+    // StringAllocation *allocation = kallocate(sizeof(StringAllocation), MEMORY_TAG_STRING);
+    // allocation->string = copiedString;
+    // allocation->length = length;
+    // allocation->tag = MEMORY_TAG_STRING;
+    //
+    // darray_push(StringAllocation *, string_allocations, allocation);
 
     return copiedString;
 }

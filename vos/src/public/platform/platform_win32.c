@@ -548,11 +548,69 @@ const char *platform_file_name(const char *path) {
     if (path == null) {
         return null;
     }
-    const char *file_name = strrchr(path, '\\');
+    const char *file_name = strrchr(string_duplicate(path), '\\');
     if (file_name == null) {
         return path;
     }
     return file_name + 1;
+}
+
+const char *platform_resolve_symlink(const char *path) {
+    // Resolve the symbolic link at the given path.
+    char *resolved_path = (char *) malloc(MAX_PATH);
+    if (!resolved_path) {
+        return null;
+    }
+    // Attempt to resolve the symbolic link.
+    const DWORD result = GetFinalPathNameByHandleA(path, resolved_path, MAX_PATH, VOLUME_NAME_DOS);
+    if (result == 0) {
+        free(resolved_path);
+        return null;
+    }
+    return resolved_path;
+}
+
+const char *platform_file_append(const char *base, const char *relative) {
+    // If the base path is null, return the relative path
+    if (base == null) {
+        return relative;
+    }
+    //combines the two paths, adding the system specific separator between them.
+    char *result = string_allocate_sized(base, string_length(base) + string_length(relative) + 2);
+    strcpy(result, base);
+    if (base[string_length(base) - 1] != '\\' && base[string_length(base) - 1] != '/') {
+        strcat(result, "\\");
+    }
+    strcat(result, relative);
+    return result;
+}
+
+b8 platform_write_file(const char *path, const void *data, u64 size) {
+    //writes the data to the file at the given path
+    HANDLE file_handle = CreateFileA(path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file_handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    // Write the data to the file.
+    DWORD bytes_written;
+    const BOOL result = WriteFile(file_handle, data, (DWORD) size, &bytes_written, 0);
+    CloseHandle(file_handle);
+    return result;
+}
+
+b8 platform_create_directory(const char *path) {
+    //creates a directory at the given path
+    return CreateDirectoryA(path, 0);
+}
+
+b8 platform_delete_file(const char *path) {
+    //deletes the file at the given path
+    return DeleteFileA(path);
+}
+
+b8 platform_create_symlink(const char *path, const char *target) {
+    //creates a symbolic link at the given path
+    return CreateSymbolicLinkA(path, target, 0);
 }
 
 const char *platform_dynamic_library_extension(void) {
@@ -603,6 +661,15 @@ b8 platform_file_exists(const char *path) {
         return false;
     }
     return true;
+}
+
+b8 platfrom_is_symbolic_link(const char *path) {
+    //checks if the path is a symbolic link on windows
+    DWORD file_attributes = GetFileAttributesA(path);
+    if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return (file_attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 }
 
 
