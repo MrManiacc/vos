@@ -107,6 +107,7 @@ b8 platform_pump_messages(struct Kernel *kernel) {
 
 void *platform_allocate(u64 size, b8 aligned) {
     // return malloc(size);
+
     return (void *) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
 }
 
