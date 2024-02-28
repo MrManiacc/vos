@@ -215,10 +215,9 @@ void kernel_function_result_from_ffi_return(void *ret_value, const FunctionType 
 
 
 // A helper function to convert the value on the top of the stack to a LuaArgs struct
-Args kernel_proecss_lua_args(lua_State *L) {
+Args kernel_proecss_lua_args(lua_State *L, const int argStartIndex) {
     Args args = {0};
     // Starting index for arguments is 2 since 1 is the function name
-    const int argStartIndex = 2;
     // Correctly set the count based on the total number of arguments on the stack
     // minus the first one (the function name), not the passed count which may be incorrect
     args.count = lua_gettop(L); // Subtracting the function name from the total count

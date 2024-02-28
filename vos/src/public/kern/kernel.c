@@ -71,6 +71,12 @@ VAPI b8 kernel_namespace_define(const Namespace *namespace, Function *function) 
         return false;
     }
     dict_set(namespace->functions, function->signature.name, function);
+    kernel_event_trigger(namespace->kernel, EVENT_FUNCTION_DEFINED_IN_NAMESPACE, &(EventData){
+        .pointers = {
+            .one = namespace,
+            .two = function
+        }
+    });
     return true;
 }
 

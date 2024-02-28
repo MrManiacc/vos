@@ -170,7 +170,7 @@ void kernel_function_result_from_ffi_return(void *ret_value, const FunctionType 
 
 FunctionSignature kernel_process_create_signature(const char *query);
 
-Args kernel_proecss_lua_args(lua_State *L);
+Args kernel_proecss_lua_args(lua_State *L, const int argStartIndex);
 
 void *kernel_allocate_and_set_arg_value(FunctionType type, LuaArg larg);
 

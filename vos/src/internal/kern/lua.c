@@ -16,7 +16,7 @@ int kernel_lua_call(lua_State *L) {
     Kernel *kernel = lua_touserdata(L, -1);
     // use kernel_call to call the function after parsing the args
     const char *qualified_name = _strdup(lua_tostring(L, 1));
-    Args args = kernel_proecss_lua_args(L);
+    Args args = kernel_proecss_lua_args(L, 2);
     // Assume the rest of the arguments are the arguments to the function
     if (args.count == 0) {
         kernel_call(kernel, qualified_name); // Call the function with no arguments

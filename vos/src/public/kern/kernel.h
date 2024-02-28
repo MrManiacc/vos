@@ -78,8 +78,9 @@ typedef struct FunctionSignature {
 } FunctionSignature;
 
 #define EVENT_RESERVED 0x00 // Reserved event code. No event should have this code.
-#define EVENT_KERNEL_INIT 0x01 // The kernel has been initialized.
-#define EVENT_PROCESS_START 0x02 // A process has started.
+#define EVENT_PROCESS_CREATED 0x01 // A process has been created.
+#define EVENT_PROCESS_STARTED 0x02 // A process has been started.
+#define EVENT_FUNCTION_DEFINED_IN_NAMESPACE 0x03 // A function has been defined in a namespace.
 #define EVENT_KERNEL_RENDER 0x07 // The kernel is rendering.
 #define EVENT_MAX_CODE 0xFF // The maximum number of event codes.
 

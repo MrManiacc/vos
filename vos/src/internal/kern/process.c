@@ -72,10 +72,15 @@ Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
     process->state = PROCESS_STATE_STOPPED;
     process->name = platform_file_name(script_path);
     lua_State *L = luaL_newstate();
+    lua_process->lua_state = L;
     luaL_openlibs(L);
     kernel_setup_lua_process_internal(kernel, process, L);
     // Load and execute the Lua script
-
+    kernel_event_trigger(kernel, EVENT_PROCESS_CREATED, &(EventData){
+        .pointers = {
+            .one = process
+        }
+    });
     const char *source = platform_read_file(script_path);
     const u32 size = platform_file_size(script_path);
     if (luaL_loadbuffer(L, source, size, script_path) != LUA_OK) {
@@ -90,7 +95,7 @@ Process *kernel_new_lua_process(Kernel *kern, const char *script_path) {
         kfree(lua_process, sizeof(LuaProcess), MEMORY_TAG_KERNEL);
         return null;
     }
-    lua_process->lua_state = L;
+
     kernel->processes[kernel->process_count - 1] = process; // Store the process in the kernel's processes array
     return process;
 }
@@ -129,6 +134,7 @@ VAPI Process *kernel_process_load(Kernel *kernel, const char *driver_path) {
         verror("Invalid driver path. Please provide a valid driver path.")
         return null;
     }
+
     return process;
 }
 
@@ -153,24 +159,19 @@ VAPI b8 kernel_process_run(Kernel *kern, Process *process) {
             .args[0] = FUNCTION_TYPE_POINTER,
             .args[1] = FUNCTION_TYPE_POINTER,
         });
+        const FunctionResult result = kernel_process_function_call(init_self, kernel, process);
+        if (result.type == FUNCTION_TYPE_ERROR) {
+            process->state = PROCESS_STATE_UNINITIALIZED;
+            return false;
+        }
     }
-    if (process->type == PROCESS_TYPE_LUA) {
-        init_self = kernel_process_function_lookup(process, (FunctionSignature){
-            .name = "_init_self",
-            .arg_count = 0,
-            .return_type = FUNCTION_TYPE_VOID
-        });
-    }
-    if (init_self == null) {
-        process->state = PROCESS_STATE_DESTROYED;
-        // If the process is not a driver, do nothing.
-        return false;
-    }
-    const b8 result = kernel_process_function_call(init_self, kernel, process).data.boolean;
-    if (result) {
-        process->state = PROCESS_STATE_RUNNING;
-    }
-    return result;
+    process->state = PROCESS_STATE_RUNNING;
+    kernel_event_trigger(kernel, EVENT_PROCESS_STARTED, &(EventData){
+        .pointers = {
+            .one = process
+        }
+    });
+    return true;
 }
 
 
