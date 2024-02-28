@@ -74,7 +74,7 @@ VfsHandle *vfs_get(const Vfs *fs, const char *rel_path);
 
 /// Allows you to use regex to find a file in the file system.
 /// Returns a darray of VfsHandle pointers.
-void **vfs_collect(const Vfs *fs, const char *query);
+Dict *vfs_collect(const Vfs *fs, const char *query) ;
 
 // This will simply update the status of the node to VFS_NODE_NEEDS_WRITE and will not write the file to disk.
 // The actual file data in memory will be updated but will not be written to disk at this time.

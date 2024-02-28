@@ -14,7 +14,7 @@
 Vfs *vfs_init(const char *name, const char *root) {
     Vfs *vfs = malloc(sizeof(Vfs));
     vfs->name = name;
-    vfs->path = root;
+    vfs->path = string_duplicate(root);
     vfs->root = null;
     vfs->nodes = dict_new();
     vfs->root = vfs_load(vfs, root);
@@ -35,8 +35,8 @@ void vfs_discover(VfsHandle *handle) {
             handle->node.directory.children = dict_new();
             for (int i = 0; i < files->count; ++i) {
                 VfsHandle *childHandle = platform_allocate(sizeof(VfsHandle), false);
-                childHandle->name = platform_file_name(files->paths[i]);
-                childHandle->path = platform_file_append(handle->path, childHandle->name);
+                childHandle->name = string_duplicate(platform_file_name(files->paths[i]));
+                childHandle->path = string_duplicate(platform_file_append(handle->path, childHandle->name));
                 childHandle->status = platform_file_exists(childHandle->path) ? VFS_NODE_FOUND : VFS_NODE_NOT_FOUND;
                 childHandle->vfs = handle->vfs;
                 childHandle->parent = handle;
@@ -79,7 +79,7 @@ VfsHandle *vfs_load(const Vfs *fs, const char *abs_path) {
     if (fs->root == null) {
         handle->path = string_duplicate(fs->path);
     } else {
-        handle->path = platform_file_append(fs->path, handle->name);
+        handle->path = string_duplicate(platform_file_append(fs->path, handle->name));
     }
 
     // the absolute path of the file/directory.
@@ -133,17 +133,17 @@ VfsHandle *vfs_get(const Vfs *fs, const char *rel_path) {
     return current; // Return the found handle or NULL if not found.
 }
 
-void **vfs_collect(const Vfs *fs, const char *query) {
-    void **array = darray_create(VfsHandle*);
+Dict *vfs_collect(const Vfs *fs, const char *query) {
+    Dict *array = dict_new();
+
     // We iterate through all the nodes in the file system and return the first one that matches the query.
-    dict_for_each(fs->nodes, VfsHandle, {
-        if (strstr(value->path, query)) {
-        darray_push(VfsHandle, array, *value);
+    dict_for(fs->nodes, VfsHandle*, item) {
+        if (strstr(item->path, query)) {
+            dict_set(array, item->path, item);
         }
-        })
-    if (darray_length(array) == 0) {
-        darray_destroy(array);
-        vwarn("No nodes found matching query: %s", query);
+    }
+    if (dict_size(array) == 0) {
+        dict_delete(array);
         return null;
     }
     return array;
@@ -217,7 +217,7 @@ b8 vfs_mkdir(VfsHandle *handle, const char *name) {
     VfsHandle *child = platform_allocate(sizeof(VfsHandle), false);
     child->name = string_duplicate(name);
     child->type = VFS_DIRECTORY;
-    child->path = path;
+    child->path = string_duplicate(path);
     child->status = VFS_NODE_FOUND;
     child->node.directory.children = dict_new();
     dict_set(handle->node.directory.children, name, child);
@@ -244,7 +244,7 @@ b8 vfs_mkfile(VfsHandle *handle, const char *name) {
     VfsHandle *child = platform_allocate(sizeof(VfsHandle), false);
     child->name = string_duplicate(name);
     child->type = VFS_FILE;
-    child->path = path;
+    child->path = string_duplicate(path);
     child->status = VFS_NODE_FOUND;
     child->node.file.data = null;
     child->node.file.size = 0;

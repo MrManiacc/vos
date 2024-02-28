@@ -33,12 +33,16 @@ int main(int argc, char **argv) {
         verror("Failed to initialize window");
         return 1;
     }
-    void *luas = vfs_collect(vfs, ".lua");
-    if (luas != null) {
-        darray_for_each(VfsHandle, luas, handle) {
-            vinfo("Found lua file: %s", handle->path);
-        }
-    }
+    // Dict *luas = vfs_collect(vfs, ".lua");
+    // dict_for(luas, VfsHandle*, handle) {
+    //     vinfo("Found lua file[%s]: %s", handle->name, handle->path);
+    // };
+
+    Dict *drivers = vfs_collect(vfs, platform_dynamic_library_extension());
+    if (drivers != null)
+        dict_for(drivers, VfsHandle*, handle) {
+            vinfo("Found driver[%s]: %s", handle->name, handle->path);
+        };
 
     // Process *test_driver = kernel_process_load(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
     // kernel_process_run(kernel, test_driver);

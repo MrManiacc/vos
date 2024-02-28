@@ -129,6 +129,15 @@ DictIter dict_iterator(Dict *table);
  */
 b8 dict_next(DictIter *it);
 
+#define dict_for(table, type, varName) \
+for (Entry *varName##_entry = NULL; \
+varName##_entry == NULL; ) \
+for (type varName = NULL; \
+varName == NULL; ) \
+for (DictIter iter = dict_iterator(table); \
+dict_next(&iter) && \
+(varName##_entry = iter.entry, varName = (type)iter.entry->value, true); )
+
 
 #define dict_for_each(table, type, callback) \
     {                                        \
