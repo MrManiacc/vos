@@ -24,7 +24,8 @@ static Function *script_render = null;
 
 // Test the kernel
 int main(int argc, char **argv) {
-    const Vfs *vfs = vfs_init("root", path_locate_root());
+    const char *path = argc >= 2 ? argv[1] : path_locate_root();
+    const Vfs *vfs = vfs_init("root", path);
     vfs_read(vfs->root); //This forces all discovered nodes to be loaded into memory.
     Kernel *kernel = kernel_create(path_locate_root());
     vinfo("Kernel created: %p", kernel);
@@ -33,22 +34,26 @@ int main(int argc, char **argv) {
         verror("Failed to initialize window");
         return 1;
     }
-    // Dict *luas = vfs_collect(vfs, ".lua");
-    // dict_for(luas, VfsHandle*, handle) {
-    //     vinfo("Found lua file[%s]: %s", handle->name, handle->path);
-    // };
+
 
     Dict *drivers = vfs_collect(vfs, platform_dynamic_library_extension());
     if (drivers != null)
         dict_for(drivers, VfsHandle*, handle) {
             vinfo("Found driver[%s]: %s", handle->name, handle->path);
+            Process *driver = kernel_process_load(kernel, handle->path);
+            kernel_process_run(kernel, driver);
         };
 
-    // Process *test_driver = kernel_process_load(kernel, "D:\\vos\\build\\debug\\drivers\\sys.dll");
+    Dict *luas = vfs_collect(vfs, ".lua");
+    dict_for(luas, VfsHandle*, handle) {
+        vinfo("Found driver[%s]: %s", handle->name, handle->path);
+        Process *driver = kernel_process_load(kernel, handle->path);
+        kernel_process_run(kernel, driver);
+    };
+
     // kernel_process_run(kernel, test_driver);
 
-    // Process *test_script = kernel_process_load(kernel, "D:\\vos\\app\\assets\\test_script.lua");
-    // kernel_process_run(kernel, test_script);
+    //
 
     //
     // driver_render = kernel_process_function_lookup(test_driver, (FunctionSignature){

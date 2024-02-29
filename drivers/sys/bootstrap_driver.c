@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../vos/src/internal/kern/kernel_ext.h"
+#include "kern/kernel_internal.h"
 #include "containers/darray.h"
 #include "core/vlogger.h"
 #include "kern/kernel.h"
@@ -36,7 +36,7 @@ b8 driver_create(const Namespace *ns) {
     state->defined_functions = darray_create(NamespaceFunction);
     kernel_event_listen(kernel, EVENT_FUNCTION_DEFINED_IN_NAMESPACE, kernel_process_function_query(process, "on_defined(pointer)bool"));
     kernel_event_listen(kernel, EVENT_PROCESS_CREATED, kernel_process_function_query(process, "on_process_created(pointer)bool"));
-    kernel_namespace_define_query(ns, process, "renderer(string)bool");
+    kernel_namespace_define_query(ns, process, "renderer(pointer)bool");
     kernel_namespace_define_query(ns, process, "color(u32;u32;u32;u32)pointer");
     kernel_namespace_define_query(ns, process, "rect(pointer;f32;f32;f32;f32;pointer)void");
     kernel_event_listen(kernel, EVENT_KERNEL_RENDER, kernel_process_function_query(process, "render(pointer)bool"));
@@ -45,14 +45,14 @@ b8 driver_create(const Namespace *ns) {
 }
 
 
-VAPI b8 renderer(const char *query) {
-    const Function *function = kernel_namespace_function_lookup(kernel, query);
+VAPI b8 renderer(Function* function) {
+    // const Function *function = kernel_namespace_function_lookup(kernel, query);
     if (function == null) {
-        verror("Failed to find function: %s", query);
+        verror("Failed to find function");
         return false;
     }
     darray_push(Function*, state->renderers, function);
-    vinfo("Registering render function, %s", query);
+    // vinfo("Registering render function, %s", query);
     return true;
 }
 
@@ -148,7 +148,7 @@ int call_function(lua_State *L) {
     }
     if (function->base->type == PROCESS_TYPE_LUA) {
         LuaProcess *lprocess = (LuaProcess *) function->base;
-        lua_rawgeti(lprocess->lua_state, LUA_REGISTRYINDEX, function->context.lua.ref);
+        lua_rawgeti(function->context.lua.lua_state, LUA_REGISTRYINDEX, function->context.lua.ref);
         // Push the arguments to the Lua stack
         for (u32 i = 0; i < args.count; i++) {
             switch (args.args[i].type) {
@@ -169,6 +169,9 @@ int call_function(lua_State *L) {
                     break;
                 case ARG_POINTER:
                     lua_pushlightuserdata(lprocess->lua_state, args.args[i].value.p);
+                    break;
+                case ARG_FUNCTION:
+                    lua_pushlightuserdata(lprocess->lua_state, args.args[i].value.fn);
                     break;
                 // Add handling for other types as necessary
             }
@@ -236,6 +239,11 @@ VAPI b8 on_process_started(const EventData *data) {
     const Process *process = data->pointers.one;
     if (process->type == PROCESS_TYPE_LUA) {
         lua_State *L = ((LuaProcess *) process)->lua_state;
+        darray_for_each(NamespaceFunction, state->defined_functions, func) {
+            const Namespace *ns = func->ns;
+            const Function *function = func->func;
+            create_lua_mappings_from_namespace(L, ns, function);
+        }
         lua_getglobal(L, "on_start");
         if (lua_isfunction(L, -1)) {
             if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
